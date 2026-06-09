@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { currentDay, latestEntry } from "@/data/changelog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +13,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description = `A tiny daily planner that gets better every day — one improvement shipped by AI, every single day. Currently on Day ${currentDay()}: ${latestEntry().title}.`;
+
 export const metadata: Metadata = {
-  title: "Better Every Day",
-  description: "A simple habit tracker that lives in your browser. No account needed, no data sent anywhere.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  title: {
+    default: "Better Every Day",
+    template: "%s — Better Every Day",
+  },
+  description,
+  openGraph: {
+    title: "Better Every Day",
+    description,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({
