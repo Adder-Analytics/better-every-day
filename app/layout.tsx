@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Better Every Day — Build habits that last",
-  description: "Track your daily habits, visualize your progress, and build the life you want — one day at a time.",
+  title: "Better Every Day",
+  description: "A simple habit tracker that lives in your browser. No account needed, no data sent anywhere.",
 };
 
 export default function RootLayout({
