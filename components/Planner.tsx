@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useSyncExternalStore } from 'react'
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
+import Confetti from '@/components/Confetti'
 
 const emptySubscribe = () => () => {}
 
@@ -17,6 +18,8 @@ export default function Planner() {
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
   const [newText, setNewText] = useState('')
+  const [showConfetti, setShowConfetti] = useState(false)
+  const prevAllDone = useRef(false)
 
   useEffect(() => {
     savePlanner({ version: 1, tasks })
@@ -54,6 +57,16 @@ export default function Planner() {
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
 
+  useEffect(() => {
+    if (allDone && !prevAllDone.current) {
+      setShowConfetti(true)
+      const timer = setTimeout(() => setShowConfetti(false), 3500)
+      prevAllDone.current = true
+      return () => clearTimeout(timer)
+    }
+    if (!allDone) prevAllDone.current = false
+  }, [allDone])
+
   if (!mounted) {
     return (
       <div className="py-14 flex items-center justify-center">
@@ -63,6 +76,8 @@ export default function Planner() {
   }
 
   return (
+    <>
+    <Confetti active={showConfetti} />
     <div className="space-y-2.5">
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
@@ -147,5 +162,6 @@ export default function Planner() {
         </button>
       </div>
     </div>
+    </>
   )
 }
