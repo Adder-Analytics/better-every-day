@@ -17,9 +17,18 @@ export const changelog: ChangelogEntry[] = [
     date: '2026-06-09',
     title: 'Better Every Day is born',
     description:
-      'A tiny daily planner launches: plan today, check things off, carry over what didn’t happen. From here on, one improvement ships every single day.',
+      "A tiny daily planner launches: plan today, check things off, carry over what didn't happen. From here on, one improvement ships every single day.",
     type: 'feature',
     emoji: '🌱',
+  },
+  {
+    day: 2,
+    date: '2026-06-10',
+    title: 'Confetti when you finish everything',
+    description:
+      'Check off your last task and the app celebrates with you — a burst of confetti, then back to quiet. You earned it.',
+    type: 'design',
+    emoji: '🎊',
   },
 ]
 
