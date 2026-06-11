@@ -30,6 +30,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'design',
     emoji: '🎊',
   },
+  {
+    day: 3,
+    date: '2026-06-11',
+    title: 'Press n to add a task',
+    description:
+      'Hit n from anywhere on the page and the task input snaps into focus — no hunting for the box. Keyboard shortcut people will feel right at home.',
+    type: 'feature',
+    emoji: '⌨️',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

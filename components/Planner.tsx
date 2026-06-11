@@ -20,6 +20,20 @@ export default function Planner() {
   const [newText, setNewText] = useState('')
   const [showConfetti, setShowConfetti] = useState(false)
   const prevAllDone = useRef(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   useEffect(() => {
     savePlanner({ version: 1, tasks })
@@ -144,6 +158,7 @@ export default function Planner() {
       {/* Add task */}
       <div className="flex gap-2 pt-1">
         <input
+          ref={inputRef}
           value={newText}
           onChange={e => setNewText(e.target.value)}
           onKeyDown={e => {
@@ -161,6 +176,9 @@ export default function Planner() {
           Add
         </button>
       </div>
+      <p className="text-xs text-zinc-400 text-right px-1">
+        Press <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">n</kbd> to add a task
+      </p>
     </div>
     </>
   )
