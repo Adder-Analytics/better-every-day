@@ -65,6 +65,10 @@ export default function Planner() {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: todayStr() } : t)))
   }
 
+  const editTask = (id: string, text: string) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
+  }
+
   const today = todayStr()
   const todayTasks = tasks.filter(t => t.createdDate === today)
   const carryovers = tasks.filter(t => t.createdDate < today && !t.done)
@@ -136,6 +140,7 @@ export default function Planner() {
               onToggle={toggleTask}
               onDelete={deleteTask}
               onDoToday={doToday}
+              onEdit={editTask}
             />
           ))}
         </div>
@@ -152,7 +157,7 @@ export default function Planner() {
 
       {/* Today's tasks */}
       {todayTasks.map(task => (
-        <TaskItem key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} />
+        <TaskItem key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
       ))}
 
       {/* Add task */}

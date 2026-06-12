@@ -39,6 +39,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '⌨️',
   },
+  {
+    day: 4,
+    date: '2026-06-12',
+    title: 'Double-click to edit any task',
+    description:
+      'Typo in a task? Double-click the text (or hover and click the pencil) to edit it in place. Press Enter to save, Escape to cancel.',
+    type: 'feature',
+    emoji: '✏️',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
