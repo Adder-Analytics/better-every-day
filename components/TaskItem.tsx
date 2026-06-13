@@ -10,13 +10,33 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
+  onDragStart?: (id: string) => void
+  onDragOver?: (id: string) => void
+  onDrop?: (id: string) => void
+  onDragEnd?: () => void
+  isDragOver?: boolean
+  isDragging?: boolean
 }
 
-export default function TaskItem({ task, onToggle, onDelete, onEdit, carryover = false, onDoToday }: Props) {
+export default function TaskItem({
+  task,
+  onToggle,
+  onDelete,
+  onEdit,
+  carryover = false,
+  onDoToday,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragOver = false,
+  isDragging = false,
+}: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(task.text)
   const editInputRef = useRef<HTMLInputElement>(null)
+  const draggable = !!onDragStart
 
   useEffect(() => {
     if (editing) editInputRef.current?.focus()
@@ -40,8 +60,37 @@ export default function TaskItem({ task, onToggle, onDelete, onEdit, carryover =
   }
 
   return (
-    <div className="group rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
+    <div
+      draggable={draggable}
+      onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart!(task.id) } : undefined}
+      onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
+      onDrop={draggable ? (e) => { e.preventDefault(); onDrop!(task.id) } : undefined}
+      onDragEnd={draggable ? () => onDragEnd!() : undefined}
+      className={`group rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
+        isDragging
+          ? 'opacity-40 scale-[0.98] border-zinc-200 dark:border-zinc-800'
+          : isDragOver
+          ? 'border-zinc-400 dark:border-zinc-500 shadow-md'
+          : 'border-zinc-200 dark:border-zinc-800'
+      }`}
+    >
       <div className="flex items-center gap-3 min-w-0">
+        {draggable && (
+          <div
+            aria-hidden="true"
+            className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 transition-opacity"
+          >
+            <svg className="w-3 h-4" fill="currentColor" viewBox="0 0 8 14">
+              <circle cx="2" cy="2" r="1.2"/>
+              <circle cx="6" cy="2" r="1.2"/>
+              <circle cx="2" cy="7" r="1.2"/>
+              <circle cx="6" cy="7" r="1.2"/>
+              <circle cx="2" cy="12" r="1.2"/>
+              <circle cx="6" cy="12" r="1.2"/>
+            </svg>
+          </div>
+        )}
+
         {carryover ? (
           <button
             onClick={() => onDoToday?.(task.id)}
