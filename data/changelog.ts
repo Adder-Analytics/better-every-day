@@ -48,6 +48,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '✏️',
   },
+  {
+    day: 5,
+    date: '2026-06-13',
+    title: 'Drag tasks to reorder them',
+    description:
+      'Prioritize your day by dragging tasks into the order that matters. A subtle grip handle appears on hover — drag it to slot any task exactly where you want it.',
+    type: 'feature',
+    emoji: '↕️',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

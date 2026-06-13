@@ -19,6 +19,8 @@ export default function Planner() {
   )
   const [newText, setNewText] = useState('')
   const [showConfetti, setShowConfetti] = useState(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -68,6 +70,24 @@ export default function Planner() {
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
   }
+
+  const handleDragStart = (id: string) => setDragId(id)
+  const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id) }
+  const handleDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) return
+    setTasks(prev => {
+      const from = prev.findIndex(t => t.id === dragId)
+      const to = prev.findIndex(t => t.id === targetId)
+      if (from === -1 || to === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+    setDragId(null)
+    setDragOverId(null)
+  }
+  const handleDragEnd = () => { setDragId(null); setDragOverId(null) }
 
   const today = todayStr()
   const todayTasks = tasks.filter(t => t.createdDate === today)
@@ -157,7 +177,19 @@ export default function Planner() {
 
       {/* Today's tasks */}
       {todayTasks.map(task => (
-        <TaskItem key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} onEdit={editTask} />
+        <TaskItem
+          key={task.id}
+          task={task}
+          onToggle={toggleTask}
+          onDelete={deleteTask}
+          onEdit={editTask}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onDragEnd={handleDragEnd}
+          isDragging={dragId === task.id}
+          isDragOver={dragOverId === task.id}
+        />
       ))}
 
       {/* Add task */}
