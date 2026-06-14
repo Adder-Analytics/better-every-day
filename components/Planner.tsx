@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
 import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
+import WeekActivity from '@/components/WeekActivity'
 
 const emptySubscribe = () => () => {}
 
@@ -216,6 +217,10 @@ export default function Planner() {
       <p className="text-xs text-zinc-400 text-right px-1">
         Press <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">n</kbd> to add a task
       </p>
+
+      <div className="pt-2">
+        <WeekActivity tasks={tasks} />
+      </div>
     </div>
     </>
   )

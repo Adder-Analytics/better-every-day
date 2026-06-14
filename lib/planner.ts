@@ -65,6 +65,26 @@ export function savePlanner(data: PlannerData): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
 }
 
+// The last `n` calendar dates (local time), oldest first, ending with today.
+export function lastNDates(n: number): string[] {
+  const out: string[] = []
+  for (let i = n - 1; i >= 0; i--) out.push(daysAgoStr(i))
+  return out
+}
+
+// How many tasks were completed on each of the last 7 days, oldest first.
+// Reads from the completion history the planner already retains.
+export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
+  const counts = new Map(lastNDates(7).map(d => [d, 0]))
+  for (const t of tasks) {
+    if (t.done && t.completedDate !== undefined) {
+      const c = counts.get(t.completedDate)
+      if (c !== undefined) counts.set(t.completedDate, c + 1)
+    }
+  }
+  return [...counts].map(([date, count]) => ({ date, count }))
+}
+
 export function newTask(text: string): Task {
   return {
     id: `t${Date.now()}${Math.random().toString(36).slice(2, 6)}`,

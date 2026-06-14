@@ -57,6 +57,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '↕️',
   },
+  {
+    day: 6,
+    date: '2026-06-14',
+    title: 'See your week at a glance',
+    description:
+      'A quiet little bar chart now shows how many tasks you finished on each of the last 7 days. It appears once you have some history — a gentle sense of momentum, no streaks to break or guilt to feel.',
+    type: 'feature',
+    emoji: '📊',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
