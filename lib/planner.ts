@@ -4,10 +4,15 @@ export type Task = {
   done: boolean
   createdDate: string // YYYY-MM-DD, local time
   completedDate?: string
+  note?: string // optional free-text detail the user attaches to a task
 }
 
+// Bumped to 2 when task notes were added. Stored v1 data has no notes and
+// is still valid v2 data, so loadPlanner accepts both and reads each as v2.
+export const PLANNER_VERSION = 2
+
 export type PlannerData = {
-  version: 1
+  version: typeof PLANNER_VERSION
   tasks: Task[]
 }
 
@@ -36,26 +41,29 @@ function isTask(value: unknown): value is Task {
     typeof t.id === 'string' &&
     typeof t.text === 'string' &&
     typeof t.done === 'boolean' &&
-    typeof t.createdDate === 'string'
+    typeof t.createdDate === 'string' &&
+    (t.note === undefined || typeof t.note === 'string')
   )
 }
 
 // User data lives here. Future shape changes must bump `version` and migrate
 // old data in this function — never discard what a user has saved.
 export function loadPlanner(): PlannerData {
-  const empty: PlannerData = { version: 1, tasks: [] }
+  const empty: PlannerData = { version: PLANNER_VERSION, tasks: [] }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return empty
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
-    if (data.version !== 1 || !Array.isArray(data.tasks)) return empty
+    // v1 (pre-notes) and v2 share the same task shape — v1 tasks simply have
+    // no `note`, so both load cleanly into the current version.
+    if ((data.version !== 1 && data.version !== 2) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
       .filter(t => !(t.done && (t.completedDate ?? t.createdDate) < cutoff))
-    return { version: 1, tasks }
+    return { version: PLANNER_VERSION, tasks }
   } catch {
     return empty
   }

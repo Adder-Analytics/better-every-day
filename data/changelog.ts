@@ -66,6 +66,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '📊',
   },
+  {
+    day: 7,
+    date: '2026-06-15',
+    title: 'Add a note to any task',
+    description:
+      'Some tasks need a little more — a link, an address, the three things to remember. Hover a task and tap the note icon to jot details underneath it. Double-click a note to edit, ⌘/Ctrl+Enter to save. Quiet until you need it.',
+    type: 'feature',
+    emoji: '🗒️',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

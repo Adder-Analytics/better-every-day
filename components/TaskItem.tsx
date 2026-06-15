@@ -8,6 +8,7 @@ type Props = {
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string, text: string) => void
+  onEditNote?: (id: string, note: string) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -23,6 +24,7 @@ export default function TaskItem({
   onToggle,
   onDelete,
   onEdit,
+  onEditNote,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -35,12 +37,24 @@ export default function TaskItem({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(task.text)
+  const [editingNote, setEditingNote] = useState(false)
+  const [noteText, setNoteText] = useState(task.note ?? '')
   const editInputRef = useRef<HTMLInputElement>(null)
+  const noteRef = useRef<HTMLTextAreaElement>(null)
   const draggable = !!onDragStart
+  const canNote = !!onEditNote
 
   useEffect(() => {
     if (editing) editInputRef.current?.focus()
   }, [editing])
+
+  useEffect(() => {
+    if (editingNote) {
+      const el = noteRef.current
+      el?.focus()
+      el?.setSelectionRange(el.value.length, el.value.length)
+    }
+  }, [editingNote])
 
   const startEdit = () => {
     if (task.done) return
@@ -57,6 +71,21 @@ export default function TaskItem({
   const cancelEdit = () => {
     setEditText(task.text)
     setEditing(false)
+  }
+
+  const startNote = () => {
+    setNoteText(task.note ?? '')
+    setEditingNote(true)
+  }
+
+  const saveNote = () => {
+    onEditNote?.(task.id, noteText.trim())
+    setEditingNote(false)
+  }
+
+  const cancelNote = () => {
+    setNoteText(task.note ?? '')
+    setEditingNote(false)
   }
 
   return (
@@ -141,6 +170,23 @@ export default function TaskItem({
 
         {!editing && (
           <>
+            {canNote && !task.done && !editingNote && (
+              <button
+                onClick={startNote}
+                aria-label={task.note ? 'Edit note' : 'Add note'}
+                title={task.note ? 'Edit note' : 'Add note'}
+                className={`flex-shrink-0 p-1 transition-all rounded ${
+                  task.note
+                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
+                </svg>
+              </button>
+            )}
+
             {!task.done && (
               <button
                 onClick={startEdit}
@@ -182,6 +228,31 @@ export default function TaskItem({
           </>
         )}
       </div>
+
+      {editingNote ? (
+        <textarea
+          ref={noteRef}
+          value={noteText}
+          onChange={e => setNoteText(e.target.value)}
+          onBlur={saveNote}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { e.preventDefault(); cancelNote() }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveNote() }
+          }}
+          rows={2}
+          placeholder="Add a note…"
+          className="mt-2 ml-11 w-[calc(100%-2.75rem)] resize-none rounded-lg bg-zinc-50 dark:bg-zinc-800/60 px-2.5 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-300 dark:focus:ring-zinc-600"
+        />
+      ) : (
+        task.note && (
+          <p
+            onDoubleClick={() => { if (!task.done) startNote() }}
+            className={`mt-1.5 ml-11 mr-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 ${task.done ? 'line-through opacity-60' : 'cursor-text'}`}
+          >
+            {task.note}
+          </p>
+        )
+      )}
     </div>
   )
 }

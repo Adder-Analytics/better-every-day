@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate } from '@/lib/planner'
+import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -39,7 +39,7 @@ export default function Planner() {
   }, [])
 
   useEffect(() => {
-    savePlanner({ version: 1, tasks })
+    savePlanner({ version: PLANNER_VERSION, tasks })
   }, [tasks])
 
   const addTask = () => {
@@ -70,6 +70,12 @@ export default function Planner() {
 
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
+  }
+
+  const editNote = (id: string, note: string) => {
+    setTasks(prev =>
+      prev.map(t => (t.id === id ? { ...t, note: note || undefined } : t))
+    )
   }
 
   const handleDragStart = (id: string) => setDragId(id)
@@ -162,6 +168,7 @@ export default function Planner() {
               onDelete={deleteTask}
               onDoToday={doToday}
               onEdit={editTask}
+              onEditNote={editNote}
             />
           ))}
         </div>
@@ -184,6 +191,7 @@ export default function Planner() {
           onToggle={toggleTask}
           onDelete={deleteTask}
           onEdit={editTask}
+          onEditNote={editNote}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
