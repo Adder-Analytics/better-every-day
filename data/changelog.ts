@@ -75,6 +75,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '🗒️',
   },
+  {
+    day: 8,
+    date: '2026-06-16',
+    title: 'Finished tasks drop to the bottom',
+    description:
+      'Check something off and it gently slides below the work that’s still left, so what remains stays right at the top where your focus is. Your order is kept within each group, and you can still drag to reorder. Less scrolling past done things, more momentum.',
+    type: 'design',
+    emoji: '⬇️',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

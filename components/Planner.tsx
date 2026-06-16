@@ -98,6 +98,11 @@ export default function Planner() {
 
   const today = todayStr()
   const todayTasks = tasks.filter(t => t.createdDate === today)
+  // Finished tasks sink below what's still left, so the work that remains
+  // stays at the top where your attention is. Relative order is preserved
+  // within each group, and reordering still works (drag keys off task ids).
+  const todayActive = todayTasks.filter(t => !t.done)
+  const todayDone = todayTasks.filter(t => t.done)
   const carryovers = tasks.filter(t => t.createdDate < today && !t.done)
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
@@ -183,8 +188,8 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Today's tasks */}
-      {todayTasks.map(task => (
+      {/* Today's tasks — still-to-do first, finished ones sink below */}
+      {todayActive.map(task => (
         <TaskItem
           key={task.id}
           task={task}
@@ -198,6 +203,16 @@ export default function Planner() {
           onDragEnd={handleDragEnd}
           isDragging={dragId === task.id}
           isDragOver={dragOverId === task.id}
+        />
+      ))}
+      {todayDone.map(task => (
+        <TaskItem
+          key={task.id}
+          task={task}
+          onToggle={toggleTask}
+          onDelete={deleteTask}
+          onEdit={editTask}
+          onEditNote={editNote}
         />
       ))}
 
