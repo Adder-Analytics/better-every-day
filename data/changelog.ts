@@ -84,6 +84,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'design',
     emoji: '⬇️',
   },
+  {
+    day: 9,
+    date: '2026-06-17',
+    title: 'Focus mode: one task at a time',
+    description:
+      'A long list can feel like noise. Tap Focus and everything fades away except your next task, front and center. Check it off and the following one slides in. Press Esc or “Exit focus” to see the whole day again. Do the thing, then the next thing.',
+    type: 'feature',
+    emoji: '🎯',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

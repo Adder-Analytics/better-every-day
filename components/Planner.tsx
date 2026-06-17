@@ -20,6 +20,7 @@ export default function Planner() {
   )
   const [newText, setNewText] = useState('')
   const [showConfetti, setShowConfetti] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const prevAllDone = useRef(false)
@@ -29,6 +30,11 @@ export default function Planner() {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (e.key === 'Escape' && focusMode) {
+        e.preventDefault()
+        setFocusMode(false)
+        return
+      }
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         inputRef.current?.focus()
@@ -36,7 +42,7 @@ export default function Planner() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [])
+  }, [focusMode])
 
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
@@ -106,6 +112,14 @@ export default function Planner() {
   const carryovers = tasks.filter(t => t.createdDate < today && !t.done)
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
+  // Focus mode shows only the single next thing to do — your active today
+  // tasks come first, then anything carried over — so the rest can wait.
+  const focusQueue = [...todayActive, ...carryovers]
+  const focusTask = focusQueue[0]
+  const focusRemaining = Math.max(0, focusQueue.length - 1)
+  // Only truly "in focus" when there's something to focus on; this guarantees
+  // exactly one of the two views below renders, with no auto-exit effect.
+  const inFocus = focusMode && !!focusTask
 
   useEffect(() => {
     if (allDone && !prevAllDone.current) {
@@ -135,12 +149,27 @@ export default function Planner() {
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Today</h2>
           <p className="text-xs text-zinc-400">{formatDate()}</p>
         </div>
-        {todayTasks.length > 0 && (
-          <p className="text-xs text-zinc-400 tabular-nums">
-            <span className="text-base font-bold text-zinc-900 dark:text-white">{doneCount}</span>
-            /{todayTasks.length} done
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          {!inFocus && focusQueue.length > 0 && (
+            <button
+              onClick={() => setFocusMode(true)}
+              className="flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+              title="Focus on one task at a time"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Focus
+            </button>
+          )}
+          {todayTasks.length > 0 && (
+            <p className="text-xs text-zinc-400 tabular-nums">
+              <span className="text-base font-bold text-zinc-900 dark:text-white">{doneCount}</span>
+              /{todayTasks.length} done
+            </p>
+          )}
+        </div>
       </div>
 
       {todayTasks.length > 0 && (
@@ -152,6 +181,46 @@ export default function Planner() {
         </div>
       )}
 
+      {/* Focus mode — one task, front and center, the rest tucked away */}
+      {inFocus && (
+        <div className="space-y-3 pt-1">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-12 text-center">
+            <button
+              onClick={() => {
+                toggleTask(focusTask.id)
+                // Finishing the last task drops you back to the normal view —
+                // and its all-done celebration — instead of an empty panel.
+                if (focusQueue.length === 1) setFocusMode(false)
+              }}
+              aria-label="Mark complete"
+              className="group mx-auto mb-6 w-14 h-14 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition-colors"
+            >
+              <svg className="w-6 h-6 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </button>
+            <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{focusTask.text}</p>
+            {focusTask.note && (
+              <p className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words">{focusTask.note}</p>
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
+            <span className="tabular-nums">
+              {focusRemaining === 0 ? 'Last one' : `${focusRemaining} more after this`}
+            </span>
+            <span aria-hidden="true">·</span>
+            <button
+              onClick={() => setFocusMode(false)}
+              className="font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              Exit focus
+            </button>
+            <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">Esc</kbd>
+          </div>
+        </div>
+      )}
+
+      {!inFocus && (<>
       {/* All done message */}
       {allDone && (
         <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-5 py-4 text-center">
@@ -244,6 +313,7 @@ export default function Planner() {
       <div className="pt-2">
         <WeekActivity tasks={tasks} />
       </div>
+      </>)}
     </div>
     </>
   )
