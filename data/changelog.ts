@@ -93,6 +93,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '🎯',
   },
+  {
+    day: 10,
+    date: '2026-06-18',
+    title: 'Your tab counts what’s left',
+    description:
+      'Keep Better Every Day open in a background tab and it now shows how many tasks you have left right in the tab title — like “(3) Better Every Day”. A quiet glance tells you what remains; finish everything and the count disappears.',
+    type: 'feature',
+    emoji: '🔢',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

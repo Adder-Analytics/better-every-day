@@ -121,6 +121,17 @@ export default function Planner() {
   // exactly one of the two views below renders, with no auto-exit effect.
   const inFocus = focusMode && !!focusTask
 
+  // Surface what's left in the browser tab, so a pinned or background tab
+  // tells you how many tasks remain at a glance — no need to switch to it.
+  // "Remaining" = today's unfinished tasks plus anything carried over.
+  const remaining = todayActive.length + carryovers.length
+  useEffect(() => {
+    document.title = remaining > 0 ? `(${remaining}) Better Every Day` : 'Better Every Day'
+    return () => {
+      document.title = 'Better Every Day'
+    }
+  }, [remaining])
+
   useEffect(() => {
     if (allDone && !prevAllDone.current) {
       setShowConfetti(true)
