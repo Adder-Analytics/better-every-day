@@ -102,6 +102,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '🔢',
   },
+  {
+    day: 11,
+    date: '2026-06-19',
+    title: 'Links in notes are clickable',
+    description:
+      'Drop a URL into a task note — a meeting link, an address, an article to read — and it now turns into a link you can actually tap. Bare www. links work too. The note still double-clicks open for editing; the link just gets out of the way.',
+    type: 'feature',
+    emoji: '🔗',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

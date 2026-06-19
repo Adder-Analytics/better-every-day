@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task } from '@/lib/planner'
+import NoteText from '@/components/NoteText'
 
 type Props = {
   task: Task
@@ -245,12 +246,11 @@ export default function TaskItem({
         />
       ) : (
         task.note && (
-          <p
+          <NoteText
+            text={task.note}
             onDoubleClick={() => { if (!task.done) startNote() }}
             className={`mt-1.5 ml-11 mr-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 ${task.done ? 'line-through opacity-60' : 'cursor-text'}`}
-          >
-            {task.note}
-          </p>
+          />
         )
       )}
     </div>

@@ -5,6 +5,7 @@ import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate, PLA
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
+import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
 
@@ -212,7 +213,7 @@ export default function Planner() {
             </button>
             <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{focusTask.text}</p>
             {focusTask.note && (
-              <p className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words">{focusTask.note}</p>
+              <NoteText text={focusTask.note} className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words" />
             )}
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
