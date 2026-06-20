@@ -111,6 +111,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '🔗',
   },
+  {
+    day: 12,
+    date: '2026-06-20',
+    title: 'A greeting that knows the hour',
+    description:
+      'Open the planner and it now says hello to the moment — “Good morning,” “Good afternoon,” “Good evening,” or a knowing “Working late?” after ten. A small, warm nod before you get to the day.',
+    type: 'design',
+    emoji: '👋',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

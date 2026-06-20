@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate, greeting, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -158,7 +158,7 @@ export default function Planner() {
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">Today</h2>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">{greeting()}</h2>
           <p className="text-xs text-zinc-400">{formatDate()}</p>
         </div>
         <div className="flex items-center gap-3">

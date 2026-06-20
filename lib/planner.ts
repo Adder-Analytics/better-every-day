@@ -28,6 +28,16 @@ export function formatDate(): string {
   return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 }
 
+// A warm, time-of-day greeting. Depends on the local clock, so only call it
+// on the client (after hydration) to avoid a server/client HTML mismatch.
+export function greeting(date = new Date()): string {
+  const h = date.getHours()
+  if (h >= 5 && h < 12) return 'Good morning'
+  if (h >= 12 && h < 17) return 'Good afternoon'
+  if (h >= 17 && h < 22) return 'Good evening'
+  return 'Working late?'
+}
+
 function daysAgoStr(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() - days)
