@@ -120,6 +120,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'design',
     emoji: '👋',
   },
+  {
+    day: 13,
+    date: '2026-06-21',
+    title: 'Plan tomorrow tonight',
+    description:
+      'Flip the new Today / Tomorrow toggle by the add box to line up tasks for tomorrow before you ever start the day. They wait quietly in a “Tomorrow” section — out of today’s way — and slot right into your list the moment the day turns. Close the laptop knowing tomorrow is already set.',
+    type: 'feature',
+    emoji: '🌙',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

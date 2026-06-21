@@ -44,6 +44,14 @@ function daysAgoStr(days: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Tomorrow's local date. A task created with this date stays out of today's
+// list and quietly becomes a today task when tomorrow actually arrives.
+export function tomorrowStr(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function isTask(value: unknown): value is Task {
   if (typeof value !== 'object' || value === null) return false
   const t = value as Record<string, unknown>
@@ -103,11 +111,11 @@ export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
   return [...counts].map(([date, count]) => ({ date, count }))
 }
 
-export function newTask(text: string): Task {
+export function newTask(text: string, date: string = todayStr()): Task {
   return {
     id: `t${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
     text,
     done: false,
-    createdDate: todayStr(),
+    createdDate: date,
   }
 }

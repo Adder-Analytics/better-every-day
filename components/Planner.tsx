@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, loadPlanner, savePlanner, newTask, todayStr, formatDate, greeting, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -20,6 +20,7 @@ export default function Planner() {
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
   const [newText, setNewText] = useState('')
+  const [addFor, setAddFor] = useState<'today' | 'tomorrow'>('today')
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -52,7 +53,8 @@ export default function Planner() {
   const addTask = () => {
     const text = newText.trim()
     if (!text) return
-    setTasks(prev => [...prev, newTask(text)])
+    const date = addFor === 'tomorrow' ? tomorrowStr() : todayStr()
+    setTasks(prev => [...prev, newTask(text, date)])
     setNewText('')
   }
 
@@ -111,6 +113,9 @@ export default function Planner() {
   const todayActive = todayTasks.filter(t => !t.done)
   const todayDone = todayTasks.filter(t => t.done)
   const carryovers = tasks.filter(t => t.createdDate < today && !t.done)
+  // Tasks you've queued for tomorrow — they sit quietly in their own section
+  // today and slot into your list automatically when tomorrow arrives.
+  const tomorrowTasks = tasks.filter(t => t.createdDate > today)
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // Focus mode shows only the single next thing to do — your active today
@@ -307,7 +312,7 @@ export default function Planner() {
             if (e.key === 'Enter') addTask()
             if (e.key === 'Escape') setNewText('')
           }}
-          placeholder="Add a task for today..."
+          placeholder={addFor === 'tomorrow' ? 'Add a task for tomorrow...' : 'Add a task for today...'}
           className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
         />
         <button
@@ -318,9 +323,44 @@ export default function Planner() {
           Add
         </button>
       </div>
-      <p className="text-xs text-zinc-400 text-right px-1">
-        Press <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">n</kbd> to add a task
-      </p>
+      <div className="flex items-center justify-between px-1">
+        <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 text-xs font-medium">
+          {(['today', 'tomorrow'] as const).map(when => (
+            <button
+              key={when}
+              onClick={() => setAddFor(when)}
+              aria-pressed={addFor === when}
+              className={`px-2.5 py-1 rounded-full capitalize transition-colors ${
+                addFor === when
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+            >
+              {when}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-zinc-400">
+          Press <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">n</kbd> to add
+        </p>
+      </div>
+
+      {/* Tomorrow — what you've planned ahead, waiting quietly until the day turns */}
+      {tomorrowTasks.length > 0 && (
+        <div className="space-y-2.5">
+          <p className="text-xs font-medium text-zinc-400 px-1 pt-2">Tomorrow</p>
+          {tomorrowTasks.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onEdit={editTask}
+              onEditNote={editNote}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="pt-2">
         <WeekActivity tasks={tasks} />
