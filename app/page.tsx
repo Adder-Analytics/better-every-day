@@ -1,6 +1,7 @@
 import { currentDay } from '@/data/changelog'
 import DayBanner from '@/components/DayBanner'
 import Planner from '@/components/Planner'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export default function Page() {
   return (
@@ -9,11 +10,14 @@ export default function Page() {
         <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">Better Every Day</h1>
-            <p className="text-xs text-zinc-400">A planner that improves daily — literally</p>
+            <p className="text-xs text-zinc-400">A quiet place to plan your day</p>
           </div>
-          <span className="px-2.5 py-1 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold tabular-nums">
-            Day {currentDay()}
-          </span>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <span className="px-2.5 py-1 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold tabular-nums">
+              Day {currentDay()}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -24,10 +28,7 @@ export default function Page() {
 
       <footer className="max-w-xl mx-auto px-4 py-10 text-center">
         <p className="text-xs text-zinc-400">
-          Your data stays in your browser. Nothing is sent anywhere.
-        </p>
-        <p className="text-xs text-zinc-300 dark:text-zinc-600 mt-1">
-          This app ships one improvement every day, built by AI.
+          Your tasks stay in your browser. Nothing is sent anywhere.
         </p>
       </footer>
     </main>

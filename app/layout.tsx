@@ -32,6 +32,19 @@ export const metadata: Metadata = {
   },
 };
 
+// Runs before first paint so the chosen theme is applied with no flash of the
+// wrong colors. Reads the saved preference and falls back to the OS setting.
+const themeScript = `
+(function () {
+  try {
+    var pref = localStorage.getItem('bed-theme');
+    var dark = pref === 'dark' || ((!pref || pref === 'system') &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,8 +53,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

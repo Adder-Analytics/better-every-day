@@ -15,10 +15,7 @@ export default function DayBanner() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-zinc-400">What got better today</p>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">
-            {entry.emoji && <span className="mr-1.5">{entry.emoji}</span>}
-            {entry.title}
-          </p>
+          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{entry.title}</p>
         </div>
         <svg
           className="w-4 h-4 flex-shrink-0 text-zinc-300 dark:text-zinc-600 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all"

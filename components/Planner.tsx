@@ -248,8 +248,8 @@ export default function Planner() {
       {/* All done message */}
       {allDone && (
         <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-5 py-4 text-center">
-          <p className="text-emerald-700 dark:text-emerald-400 font-medium text-sm">All done for today 🎉</p>
-          <p className="text-emerald-600/70 dark:text-emerald-500/70 text-xs mt-0.5">Come back tomorrow — this app will be a little better too.</p>
+          <p className="text-emerald-700 dark:text-emerald-400 font-medium text-sm">All done for today</p>
+          <p className="text-emerald-600/70 dark:text-emerald-500/70 text-xs mt-0.5">Everything’s checked off. Enjoy the rest of your day.</p>
         </div>
       )}
 
@@ -276,7 +276,9 @@ export default function Planner() {
       {/* Empty state */}
       {todayTasks.length === 0 && carryovers.length === 0 && (
         <div className="text-center py-14">
-          <div className="text-5xl mb-3">📝</div>
+          <svg className="w-10 h-10 mx-auto mb-3 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
           <p className="text-zinc-600 dark:text-zinc-300 font-medium">What matters today?</p>
           <p className="text-zinc-400 text-sm mt-1">Add your first task below.</p>
         </div>

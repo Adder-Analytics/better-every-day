@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { changelog, currentDay, type ChangeType } from '@/data/changelog'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export const metadata: Metadata = {
   title: 'Changelog',
@@ -31,12 +32,15 @@ export default function ChangelogPage() {
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">Changelog</h1>
             <p className="text-xs text-zinc-400">One improvement, every day</p>
           </div>
-          <Link
-            href="/"
-            className="text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
-          >
-            ← Back to today
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              href="/"
+              className="text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+            >
+              ← Back to today
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -57,17 +61,14 @@ export default function ChangelogPage() {
                 </span>
               )}
             </div>
-            <h2 className="font-medium text-zinc-800 dark:text-zinc-100">
-              {entry.emoji && <span className="mr-1.5">{entry.emoji}</span>}
-              {entry.title}
-            </h2>
+            <h2 className="font-medium text-zinc-800 dark:text-zinc-100">{entry.title}</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{entry.description}</p>
           </article>
         ))}
       </div>
 
       <footer className="max-w-xl mx-auto px-4 py-10 text-center">
-        <p className="text-xs text-zinc-400">Every entry here was shipped by an AI session — one per day, no skips counted.</p>
+        <p className="text-xs text-zinc-400">A running log of what changed, for anyone curious.</p>
       </footer>
     </main>
   )
