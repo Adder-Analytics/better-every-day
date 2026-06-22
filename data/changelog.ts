@@ -129,6 +129,15 @@ export const changelog: ChangelogEntry[] = [
     type: 'feature',
     emoji: '🌙',
   },
+  {
+    day: 14,
+    date: '2026-06-22',
+    title: 'Move a task to tomorrow',
+    description:
+      "Not everything has to happen today. Hover a task and tap the little moon to push it to tomorrow — it leaves today's list, waits in the Tomorrow section, and slides back in when the day turns. Now you can triage in both directions: pull things forward with “Do today,” let them wait with one tap.",
+    type: 'feature',
+    emoji: '🌙',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

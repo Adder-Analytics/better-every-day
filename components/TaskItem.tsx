@@ -10,6 +10,7 @@ type Props = {
   onDelete: (id: string) => void
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
+  onMoveToTomorrow?: (id: string) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -26,6 +27,7 @@ export default function TaskItem({
   onDelete,
   onEdit,
   onEditNote,
+  onMoveToTomorrow,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -184,6 +186,19 @@ export default function TaskItem({
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
+                </svg>
+              </button>
+            )}
+
+            {onMoveToTomorrow && !task.done && (
+              <button
+                onClick={() => onMoveToTomorrow(task.id)}
+                aria-label="Move to tomorrow"
+                title="Move to tomorrow"
+                className="flex-shrink-0 p-1 opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-all rounded"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                 </svg>
               </button>
             )}

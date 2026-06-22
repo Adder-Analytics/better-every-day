@@ -77,6 +77,13 @@ export default function Planner() {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: todayStr() } : t)))
   }
 
+  // Decided it can wait? Push a task to tomorrow — it leaves today's list and
+  // drops into the Tomorrow section, then returns automatically when the day
+  // turns. The inverse of "Do today," so triage works in both directions.
+  const moveToTomorrow = (id: string) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: tomorrowStr() } : t)))
+  }
+
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
   }
@@ -258,6 +265,7 @@ export default function Planner() {
               onToggle={toggleTask}
               onDelete={deleteTask}
               onDoToday={doToday}
+              onMoveToTomorrow={moveToTomorrow}
               onEdit={editTask}
               onEditNote={editNote}
             />
@@ -283,6 +291,7 @@ export default function Planner() {
           onDelete={deleteTask}
           onEdit={editTask}
           onEditNote={editNote}
+          onMoveToTomorrow={moveToTomorrow}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
