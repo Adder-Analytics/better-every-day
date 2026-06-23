@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -61,9 +61,29 @@ export default function Planner() {
   const toggleTask = (id: string) => {
     const today = todayStr()
     setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id) return t
+        // A routine records completion per day, so it returns fresh tomorrow.
+        if (t.repeat) {
+          const done = (t.completions ?? []).includes(today)
+          const completions = done
+            ? (t.completions ?? []).filter(c => c !== today)
+            : [...(t.completions ?? []), today]
+          return { ...t, completions }
+        }
+        return { ...t, done: !t.done, completedDate: t.done ? undefined : today }
+      })
+    )
+  }
+
+  // Turn repeating on/off for a task. Switching off keeps the task as a normal
+  // one-off and clears its completion log; switching on anchors the cadence to
+  // the task's createdDate (which drives the weekly weekday).
+  const setRepeat = (id: string, repeat: RepeatRule | undefined) => {
+    setTasks(prev =>
       prev.map(t =>
         t.id === id
-          ? { ...t, done: !t.done, completedDate: t.done ? undefined : today }
+          ? { ...t, repeat, completions: repeat ? (t.completions ?? []) : undefined }
           : t
       )
     )
@@ -113,16 +133,26 @@ export default function Planner() {
   const handleDragEnd = () => { setDragId(null); setDragOverId(null) }
 
   const today = todayStr()
-  const todayTasks = tasks.filter(t => t.createdDate === today)
+  // A routine renders as a fresh instance each day it's due, with its done-state
+  // read from the per-day completion log. One-off tasks pass through unchanged,
+  // so all the logic below treats both kinds the same via `t.done`.
+  const view = (t: Task): Task =>
+    t.repeat ? { ...t, done: isCompletedOn(t, today) } : t
+  // Today = one-off tasks created today, plus any routines due today. Filtering
+  // the full array preserves order, so drag-reordering still works by id.
+  const todayTasks = tasks
+    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today))
+    .map(view)
   // Finished tasks sink below what's still left, so the work that remains
   // stays at the top where your attention is. Relative order is preserved
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done)
   const todayDone = todayTasks.filter(t => t.done)
-  const carryovers = tasks.filter(t => t.createdDate < today && !t.done)
+  // Routines never carry over or queue for tomorrow — they reappear on schedule.
+  const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
   // Tasks you've queued for tomorrow — they sit quietly in their own section
   // today and slot into your list automatically when tomorrow arrives.
-  const tomorrowTasks = tasks.filter(t => t.createdDate > today)
+  const tomorrowTasks = tasks.filter(t => !t.repeat && t.createdDate > today)
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // Focus mode shows only the single next thing to do — your active today
@@ -294,6 +324,7 @@ export default function Planner() {
           onEdit={editTask}
           onEditNote={editNote}
           onMoveToTomorrow={moveToTomorrow}
+          onSetRepeat={setRepeat}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -310,6 +341,7 @@ export default function Planner() {
           onDelete={deleteTask}
           onEdit={editTask}
           onEditNote={editNote}
+          onSetRepeat={setRepeat}
         />
       ))}
 

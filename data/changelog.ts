@@ -146,6 +146,14 @@ export const changelog: ChangelogEntry[] = [
       'A theme switcher now sits in the header — keep it matched to your device, or force light or dark whenever you want. Your choice is remembered and applied before the page paints, so there is no flash. Along the way, the app now renders in its intended typeface and dropped its decorative emoji for cleaner icons.',
     type: 'feature',
   },
+  {
+    day: 16,
+    date: '2026-06-23',
+    title: 'Tasks that repeat',
+    description:
+      'Routines no longer need re-typing every morning. Hover a task, hit the repeat icon, and set it to recur every day, on weekdays, or weekly. It returns on schedule with a fresh checkbox each day, never clutters your carryovers, and its history still feeds the weekly chart. Done is now tracked per day, so finishing today’s leaves tomorrow’s waiting.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

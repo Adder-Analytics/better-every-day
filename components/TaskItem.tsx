@@ -1,8 +1,29 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import type { Task } from '@/lib/planner'
+import type { Task, RepeatRule } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
+
+const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
+  { value: 'daily', label: 'Every day' },
+  { value: 'weekdays', label: 'Weekdays' },
+  { value: 'weekly', label: 'Weekly' },
+]
+
+const REPEAT_LABEL: Record<RepeatRule, string> = {
+  daily: 'Daily',
+  weekdays: 'Weekdays',
+  weekly: 'Weekly',
+}
+
+// Circular-arrows glyph shared by the repeat action and the recurs indicator.
+function RepeatIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
+    </svg>
+  )
+}
 
 type Props = {
   task: Task
@@ -11,6 +32,7 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
   onMoveToTomorrow?: (id: string) => void
+  onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -28,6 +50,7 @@ export default function TaskItem({
   onEdit,
   onEditNote,
   onMoveToTomorrow,
+  onSetRepeat,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -42,10 +65,17 @@ export default function TaskItem({
   const [editText, setEditText] = useState(task.text)
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(task.note ?? '')
+  const [repeatMenu, setRepeatMenu] = useState(false)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
+  const canRepeat = !!onSetRepeat
+
+  const chooseRepeat = (repeat: RepeatRule | undefined) => {
+    onSetRepeat?.(task.id, repeat)
+    setRepeatMenu(false)
+  }
 
   useEffect(() => {
     if (editing) editInputRef.current?.focus()
@@ -98,7 +128,7 @@ export default function TaskItem({
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
       onDrop={draggable ? (e) => { e.preventDefault(); onDrop!(task.id) } : undefined}
       onDragEnd={draggable ? () => onDragEnd!() : undefined}
-      className={`group rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
+      className={`group relative rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
         isDragging
           ? 'opacity-40 scale-[0.98] border-zinc-200 dark:border-zinc-800'
           : isDragOver
@@ -171,8 +201,35 @@ export default function TaskItem({
           </span>
         )}
 
+        {task.repeat && !editing && (
+          <span
+            title={`Repeats ${REPEAT_LABEL[task.repeat].toLowerCase()}`}
+            className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
+          >
+            <RepeatIcon className="w-3 h-3" />
+            <span>{REPEAT_LABEL[task.repeat]}</span>
+          </span>
+        )}
+
         {!editing && (
           <>
+            {canRepeat && !task.done && !editingNote && (
+              <button
+                onClick={() => setRepeatMenu(v => !v)}
+                aria-label={task.repeat ? 'Change repeat' : 'Repeat task'}
+                aria-haspopup="menu"
+                aria-expanded={repeatMenu}
+                title={task.repeat ? 'Change repeat' : 'Repeat task'}
+                className={`flex-shrink-0 p-1 transition-all rounded ${
+                  task.repeat || repeatMenu
+                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+                }`}
+              >
+                <RepeatIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {canNote && !task.done && !editingNote && (
               <button
                 onClick={startNote}
@@ -244,6 +301,55 @@ export default function TaskItem({
           </>
         )}
       </div>
+
+      {repeatMenu && (
+        <>
+          {/* Click-away backdrop, behind the menu but above the page. */}
+          <button
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setRepeatMenu(false)}
+            className="fixed inset-0 z-20 cursor-default"
+          />
+          <div
+            role="menu"
+            className="absolute right-3 top-12 z-30 w-40 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+          >
+            {REPEAT_OPTIONS.map(opt => {
+              const active = task.repeat === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={() => chooseRepeat(opt.value)}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+                    active
+                      ? 'font-medium text-zinc-900 dark:text-white'
+                      : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {opt.label}
+                  {active && (
+                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+            {task.repeat && (
+              <button
+                role="menuitem"
+                onClick={() => chooseRepeat(undefined)}
+                className="mt-1 flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+              >
+                Don’t repeat
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
       {editingNote ? (
         <textarea
