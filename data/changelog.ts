@@ -154,6 +154,14 @@ export const changelog: ChangelogEntry[] = [
       'Routines no longer need re-typing every morning. Hover a task, hit the repeat icon, and set it to recur every day, on weekdays, or weekly. It returns on schedule with a fresh checkbox each day, never clutters your carryovers, and its history still feeds the weekly chart. Done is now tracked per day, so finishing today’s leaves tomorrow’s waiting.',
     type: 'feature',
   },
+  {
+    day: 17,
+    date: '2026-06-25',
+    title: 'Export and import your tasks',
+    description:
+      'Your tasks have always lived only in this browser. Now you can take them with you. A new "Your data" card lets you export a backup file in one click and import it back on another browser or after a fresh start. Import merges rather than overwrites, so nothing already on your list is lost.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

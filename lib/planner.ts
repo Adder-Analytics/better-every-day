@@ -172,3 +172,78 @@ export function newTask(text: string, date: string = todayStr()): Task {
     createdDate: date,
   }
 }
+
+// --- Backup & restore ---------------------------------------------------------
+// The planner lives only in this browser, so the one real risk is losing it:
+// clearing the browser, or switching to a new device. Export writes the tasks
+// to a file the user keeps; import reads one back and merges it in. The wire
+// format is just the stored task shape wrapped with a marker, so any version's
+// export imports cleanly (tasks only ever gain optional fields).
+
+const EXPORT_MARKER = 'better-every-day/tasks'
+
+export type TaskExport = {
+  format: typeof EXPORT_MARKER
+  version: typeof PLANNER_VERSION
+  exportedAt: string
+  tasks: Task[]
+}
+
+// A dated, human-readable filename so backups sort and self-describe on disk.
+export function exportFilename(date: string = todayStr()): string {
+  return `better-every-day-${date}.json`
+}
+
+// Serialize the current tasks to the export format. `at` is injected so the
+// caller owns the clock (this module's other date helpers read it directly,
+// but a timestamp is data worth keeping explicit).
+export function serializeExport(tasks: Task[], at: string = new Date().toISOString()): string {
+  const payload: TaskExport = {
+    format: EXPORT_MARKER,
+    version: PLANNER_VERSION,
+    exportedAt: at,
+    tasks,
+  }
+  return JSON.stringify(payload, null, 2)
+}
+
+// Read tasks back out of an exported file. Lenient about the wrapper (accepts
+// our envelope, a raw planner blob, or a bare task array) but strict about the
+// tasks themselves — anything that isn't a valid Task is dropped. Throws a
+// human-readable message when the file clearly isn't a backup, so the UI can
+// show it verbatim.
+export function parseImportedTasks(raw: string): Task[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error("That file isn't valid JSON — pick a backup exported from here.")
+  }
+  const rawTasks: unknown[] | null = Array.isArray(parsed)
+    ? parsed
+    : typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as Record<string, unknown>).tasks)
+      ? ((parsed as Record<string, unknown>).tasks as unknown[])
+      : null
+  if (!rawTasks) {
+    throw new Error("That doesn't look like a Better Every Day backup.")
+  }
+  const valid = rawTasks.filter(isTask)
+  if (rawTasks.length > 0 && valid.length === 0) {
+    throw new Error("That backup didn't contain any readable tasks.")
+  }
+  return valid
+}
+
+// Merge imported tasks into what's already here. Existing tasks always win on
+// an id collision, so importing never overwrites or duplicates — it only adds
+// what's genuinely new. Returns how many were added so the UI can report it.
+export function mergeTasks(existing: Task[], incoming: Task[]): { tasks: Task[]; added: number } {
+  const have = new Set(existing.map(t => t.id))
+  const seen = new Set<string>()
+  const fresh = incoming.filter(t => {
+    if (have.has(t.id) || seen.has(t.id)) return false
+    seen.add(t.id)
+    return true
+  })
+  return { tasks: fresh.length ? [...existing, ...fresh] : existing, added: fresh.length }
+}

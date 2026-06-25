@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
+import DataControls from '@/components/DataControls'
 import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
@@ -112,6 +113,16 @@ export default function Planner() {
     setTasks(prev =>
       prev.map(t => (t.id === id ? { ...t, note: note || undefined } : t))
     )
+  }
+
+  // Merge a restored backup into the current tasks. Existing tasks always win
+  // on an id collision, so importing only ever adds what's new — it can't
+  // overwrite or duplicate what's already here. Returns the count added so the
+  // data card can report exactly what happened.
+  const importTasks = (incoming: Task[]): number => {
+    const { tasks: merged, added } = mergeTasks(tasks, incoming)
+    if (added > 0) setTasks(merged)
+    return added
   }
 
   const handleDragStart = (id: string) => setDragId(id)
@@ -405,8 +416,9 @@ export default function Planner() {
         </div>
       )}
 
-      <div className="pt-2">
+      <div className="pt-2 space-y-2.5">
         <WeekActivity tasks={tasks} />
+        <DataControls tasks={tasks} onImport={importTasks} />
       </div>
       </>)}
     </div>
