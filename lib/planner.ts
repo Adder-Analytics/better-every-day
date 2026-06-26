@@ -173,6 +173,69 @@ export function newTask(text: string, date: string = todayStr()): Task {
   }
 }
 
+// --- Quick add parsing --------------------------------------------------------
+// People say *when* at the end of a task without thinking: "Pay rent tomorrow",
+// "Stretch every day". Quick-add reads that trailing phrase, schedules the task
+// accordingly, and removes it from the title — so adding stays as fast as
+// talking, and a routine never needs the repeat menu. Only a *trailing* phrase
+// is recognized, and never the ambiguous word "today", so it can't quietly
+// rewrite a real title like "Plan the week" or "What did I get done today".
+
+export type QuickAddSchedule = { kind: 'date' | 'repeat'; label: string }
+
+export type QuickAdd = {
+  text: string // the task title with any recognized schedule phrase removed
+  when?: 'tomorrow' // an explicit due day read from the text
+  repeat?: RepeatRule // a recurrence read from the text
+  schedule?: QuickAddSchedule // what was recognized, for the live preview
+}
+
+// Trailing recurrence phrases, most specific first so "every weekday" isn't
+// mistaken for a daily "every day". A leading \s+ keeps a bare word like
+// "weekly" a literal task; the optional trailing period tolerates "tomorrow.".
+const REPEAT_PHRASES: { re: RegExp; rule: RepeatRule; label: string }[] = [
+  { re: /\s+(?:every\s+weekday|on\s+weekdays|weekdays?)\.?\s*$/i, rule: 'weekdays', label: 'Weekdays' },
+  { re: /\s+(?:every\s+week|weekly)\.?\s*$/i, rule: 'weekly', label: 'Weekly' },
+  { re: /\s+(?:every\s*day|everyday|daily)\.?\s*$/i, rule: 'daily', label: 'Every day' },
+]
+const TOMORROW_RE = /\s+(?:tomorrow|tmrw|tmw)\.?\s*$/i
+
+// Strip a trailing schedule phrase from `input`, returning the cleaned title
+// and what was found. Never strips down to an empty title (so "tomorrow" typed
+// alone stays a literal task). Recognizes at most one recurrence plus one due
+// day; recurrence wins, since the task will actually recur.
+export function parseQuickAdd(input: string): QuickAdd {
+  let text = input.trim()
+  if (!text) return { text }
+
+  let repeat: RepeatRule | undefined
+  let repeatLabel = ''
+  for (const { re, rule, label } of REPEAT_PHRASES) {
+    const stripped = text.replace(re, '').trim()
+    if (stripped && stripped !== text) {
+      text = stripped
+      repeat = rule
+      repeatLabel = label
+      break
+    }
+  }
+
+  let when: 'tomorrow' | undefined
+  const strippedTomorrow = text.replace(TOMORROW_RE, '').trim()
+  if (strippedTomorrow && strippedTomorrow !== text) {
+    text = strippedTomorrow
+    when = 'tomorrow'
+  }
+
+  const schedule: QuickAddSchedule | undefined = repeat
+    ? { kind: 'repeat', label: repeatLabel }
+    : when === 'tomorrow'
+      ? { kind: 'date', label: 'Tomorrow' }
+      : undefined
+
+  return { text, when, repeat, schedule }
+}
+
 // --- Backup & restore ---------------------------------------------------------
 // The planner lives only in this browser, so the one real risk is losing it:
 // clearing the browser, or switching to a new device. Export writes the tasks

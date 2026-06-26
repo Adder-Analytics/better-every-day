@@ -162,6 +162,14 @@ export const changelog: ChangelogEntry[] = [
       'Your tasks have always lived only in this browser. Now you can take them with you. A new "Your data" card lets you export a backup file in one click and import it back on another browser or after a fresh start. Import merges rather than overwrites, so nothing already on your list is lost.',
     type: 'feature',
   },
+  {
+    day: 18,
+    date: '2026-06-26',
+    title: 'Type the day, skip the menus',
+    description:
+      'The add box now reads plain language. End a task with “tomorrow” and it schedules for tomorrow; end with “every day”, “weekdays”, or “weekly” and it becomes a routine — no toggles or menus. A small preview shows the cleaned title and detected schedule before you add, so the phrase is never stripped by surprise. The word “today” is left alone, so real titles stay intact.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

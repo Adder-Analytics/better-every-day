@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -9,6 +9,20 @@ import DataControls from '@/components/DataControls'
 import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
+
+// Heroicons calendar (a due day) and circular-arrows (a recurrence), sized for
+// the quick-add preview line.
+function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat'; className?: string }) {
+  return kind === 'repeat' ? (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
+    </svg>
+  ) : (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  )
+}
 
 // True only after hydration, so localStorage-backed UI never mismatches server HTML.
 function useHydrated(): boolean {
@@ -52,10 +66,17 @@ export default function Planner() {
   }, [tasks])
 
   const addTask = () => {
-    const text = newText.trim()
-    if (!text) return
-    const date = addFor === 'tomorrow' ? tomorrowStr() : todayStr()
-    setTasks(prev => [...prev, newTask(text, date)])
+    if (!newText.trim()) return
+    // The text decides the schedule when it says so ("...tomorrow", "...every
+    // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
+    // recurrence becomes a routine anchored to today.
+    const { text, when, repeat } = parseQuickAdd(newText)
+    if (repeat) {
+      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat }])
+    } else {
+      const date = (when ?? addFor) === 'tomorrow' ? tomorrowStr() : todayStr()
+      setTasks(prev => [...prev, newTask(text, date)])
+    }
     setNewText('')
   }
 
@@ -196,6 +217,10 @@ export default function Planner() {
     if (!allDone) prevAllDone.current = false
   }, [allDone])
 
+  // What the add box would create as you type — used to preview a recognized
+  // schedule (and the title with its phrase removed) before you commit.
+  const parsed = parseQuickAdd(newText)
+
   if (!mounted) {
     return (
       <div className="py-14 flex items-center justify-center">
@@ -321,7 +346,11 @@ export default function Planner() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
           <p className="text-zinc-600 dark:text-zinc-300 font-medium">What matters today?</p>
-          <p className="text-zinc-400 text-sm mt-1">Add your first task below.</p>
+          <p className="text-zinc-400 text-sm mt-1">
+            Add your first task below — end with{' '}
+            <span className="text-zinc-500 dark:text-zinc-300">“tomorrow”</span> or{' '}
+            <span className="text-zinc-500 dark:text-zinc-300">“every day”</span> to schedule it.
+          </p>
         </div>
       )}
 
@@ -377,6 +406,23 @@ export default function Planner() {
           Add
         </button>
       </div>
+
+      {/* Quick-add preview: when the text names a schedule, show what will be
+          created — the cleaned title and its day/recurrence — so the stripped
+          phrase is never a surprise. */}
+      {parsed.schedule && parsed.text && (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400"
+        >
+          <ScheduleIcon kind={parsed.schedule.kind} className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="min-w-0 truncate text-zinc-500 dark:text-zinc-300">{parsed.text}</span>
+          <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+            {parsed.schedule.label}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between px-1">
         <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 text-xs font-medium">
           {(['today', 'tomorrow'] as const).map(when => (
