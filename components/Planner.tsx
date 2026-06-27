@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -70,12 +70,14 @@ export default function Planner() {
     // The text decides the schedule when it says so ("...tomorrow", "...every
     // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
     // recurrence becomes a routine anchored to today.
-    const { text, when, repeat } = parseQuickAdd(newText)
+    const { text, date, repeat } = parseQuickAdd(newText)
     if (repeat) {
       setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat }])
     } else {
-      const date = (when ?? addFor) === 'tomorrow' ? tomorrowStr() : todayStr()
-      setTasks(prev => [...prev, newTask(text, date)])
+      // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
+      // toggle decides.
+      const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
+      setTasks(prev => [...prev, newTask(text, day)])
     }
     setNewText('')
   }
@@ -115,16 +117,14 @@ export default function Planner() {
     setTasks(prev => prev.filter(t => t.id !== id))
   }
 
-  const doToday = (id: string) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: todayStr() } : t)))
+  // Move a task to any day. The whole today / tomorrow / upcoming / carryover
+  // split is driven by createdDate, so changing it is all rescheduling needs:
+  // a task slides into the right section and resurfaces in Today on its day.
+  const scheduleTask = (id: string, date: string) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date } : t)))
   }
 
-  // Decided it can wait? Push a task to tomorrow — it leaves today's list and
-  // drops into the Tomorrow section, then returns automatically when the day
-  // turns. The inverse of "Do today," so triage works in both directions.
-  const moveToTomorrow = (id: string) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: tomorrowStr() } : t)))
-  }
+  const doToday = (id: string) => scheduleTask(id, todayStr())
 
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
@@ -182,9 +182,13 @@ export default function Planner() {
   const todayDone = todayTasks.filter(t => t.done)
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
-  // Tasks you've queued for tomorrow — they sit quietly in their own section
-  // today and slot into your list automatically when tomorrow arrives.
-  const tomorrowTasks = tasks.filter(t => !t.repeat && t.createdDate > today)
+  // Tasks scheduled past today — they wait in their own per-day sections and
+  // slot into Today automatically when their day arrives. Grouped by date and
+  // shown soonest-first; YYYY-MM-DD sorts chronologically as plain strings.
+  const upcoming = tasks.filter(t => !t.repeat && t.createdDate > today)
+  const upcomingDays = [...new Set(upcoming.map(t => t.createdDate))]
+    .sort()
+    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date) }))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // Focus mode shows only the single next thing to do — your active today
@@ -331,7 +335,7 @@ export default function Planner() {
               onToggle={toggleTask}
               onDelete={deleteTask}
               onDoToday={doToday}
-              onMoveToTomorrow={moveToTomorrow}
+              onSchedule={scheduleTask}
               onEdit={editTask}
               onEditNote={editNote}
             />
@@ -363,7 +367,7 @@ export default function Planner() {
           onDelete={deleteTask}
           onEdit={editTask}
           onEditNote={editNote}
-          onMoveToTomorrow={moveToTomorrow}
+          onSchedule={scheduleTask}
           onSetRepeat={setRepeat}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
@@ -445,11 +449,12 @@ export default function Planner() {
         </p>
       </div>
 
-      {/* Tomorrow — what you've planned ahead, waiting quietly until the day turns */}
-      {tomorrowTasks.length > 0 && (
-        <div className="space-y-2.5">
-          <p className="text-xs font-medium text-zinc-400 px-1 pt-2">Tomorrow</p>
-          {tomorrowTasks.map(task => (
+      {/* Upcoming — what you've planned ahead, grouped by day and waiting
+          quietly until each one turns into today. */}
+      {upcomingDays.map(group => (
+        <div key={group.date} className="space-y-2.5">
+          <p className="text-xs font-medium text-zinc-400 px-1 pt-2">{formatDayLabel(group.date)}</p>
+          {group.items.map(task => (
             <TaskItem
               key={task.id}
               task={task}
@@ -457,10 +462,11 @@ export default function Planner() {
               onDelete={deleteTask}
               onEdit={editTask}
               onEditNote={editNote}
+              onSchedule={scheduleTask}
             />
           ))}
         </div>
-      )}
+      ))}
 
       <div className="pt-2 space-y-2.5">
         <WeekActivity tasks={tasks} />

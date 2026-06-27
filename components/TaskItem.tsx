@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, todayStr } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
@@ -25,13 +26,31 @@ function RepeatIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "calendar" — the schedule action.
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  )
+}
+
+// A small checkmark, reused by the open menus to flag the active choice.
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
 type Props = {
   task: Task
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
-  onMoveToTomorrow?: (id: string) => void
+  onSchedule?: (id: string, date: string) => void
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
@@ -49,7 +68,7 @@ export default function TaskItem({
   onDelete,
   onEdit,
   onEditNote,
-  onMoveToTomorrow,
+  onSchedule,
   onSetRepeat,
   carryover = false,
   onDoToday,
@@ -65,17 +84,29 @@ export default function TaskItem({
   const [editText, setEditText] = useState(task.text)
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(task.note ?? '')
-  const [repeatMenu, setRepeatMenu] = useState(false)
+  // Only one popover per task is open at a time, so a single value tracks both.
+  const [menu, setMenu] = useState<null | 'repeat' | 'schedule'>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
+  const canSchedule = !!onSchedule
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
     onSetRepeat?.(task.id, repeat)
-    setRepeatMenu(false)
+    setMenu(null)
   }
+
+  const chooseDate = (date: string) => {
+    onSchedule?.(task.id, date)
+    setMenu(null)
+  }
+
+  // The handful of days the schedule menu offers as one tap — today through a
+  // week out — with the current day flagged. Anything further is the date field.
+  const today = todayStr()
+  const dayOptions = Array.from({ length: 7 }, (_, i) => addDaysStr(i))
 
   useEffect(() => {
     if (editing) editInputRef.current?.focus()
@@ -215,18 +246,35 @@ export default function TaskItem({
           <>
             {canRepeat && !task.done && !editingNote && (
               <button
-                onClick={() => setRepeatMenu(v => !v)}
+                onClick={() => setMenu(m => (m === 'repeat' ? null : 'repeat'))}
                 aria-label={task.repeat ? 'Change repeat' : 'Repeat task'}
                 aria-haspopup="menu"
-                aria-expanded={repeatMenu}
+                aria-expanded={menu === 'repeat'}
                 title={task.repeat ? 'Change repeat' : 'Repeat task'}
                 className={`flex-shrink-0 p-1 transition-all rounded ${
-                  task.repeat || repeatMenu
+                  task.repeat || menu === 'repeat'
                     ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
                     : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
                 }`}
               >
                 <RepeatIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {canSchedule && !task.done && !editingNote && (
+              <button
+                onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
+                aria-label="Schedule for a day"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'schedule'}
+                title="Schedule for a day"
+                className={`flex-shrink-0 p-1 transition-all rounded ${
+                  menu === 'schedule'
+                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+                }`}
+              >
+                <CalendarIcon className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -243,19 +291,6 @@ export default function TaskItem({
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
-                </svg>
-              </button>
-            )}
-
-            {onMoveToTomorrow && !task.done && (
-              <button
-                onClick={() => onMoveToTomorrow(task.id)}
-                aria-label="Move to tomorrow"
-                title="Move to tomorrow"
-                className="flex-shrink-0 p-1 opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-all rounded"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                 </svg>
               </button>
             )}
@@ -302,53 +337,90 @@ export default function TaskItem({
         )}
       </div>
 
-      {repeatMenu && (
-        <>
-          {/* Click-away backdrop, behind the menu but above the page. */}
-          <button
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={() => setRepeatMenu(false)}
-            className="fixed inset-0 z-20 cursor-default"
-          />
-          <div
-            role="menu"
-            className="absolute right-3 top-12 z-30 w-40 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
-          >
-            {REPEAT_OPTIONS.map(opt => {
-              const active = task.repeat === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  role="menuitemradio"
-                  aria-checked={active}
-                  onClick={() => chooseRepeat(opt.value)}
-                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
-                    active
-                      ? 'font-medium text-zinc-900 dark:text-white'
-                      : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  {opt.label}
-                  {active && (
-                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              )
-            })}
-            {task.repeat && (
+      {menu && (
+        // Click-away backdrop shared by both popovers, behind the menu but
+        // above the page.
+        <button
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={() => setMenu(null)}
+          className="fixed inset-0 z-20 cursor-default"
+        />
+      )}
+
+      {menu === 'repeat' && (
+        <div
+          role="menu"
+          className="absolute right-3 top-12 z-30 w-40 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          {REPEAT_OPTIONS.map(opt => {
+            const active = task.repeat === opt.value
+            return (
               <button
-                role="menuitem"
-                onClick={() => chooseRepeat(undefined)}
-                className="mt-1 flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                key={opt.value}
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => chooseRepeat(opt.value)}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+                  active
+                    ? 'font-medium text-zinc-900 dark:text-white'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
               >
-                Don’t repeat
+                {opt.label}
+                {active && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
-            )}
-          </div>
-        </>
+            )
+          })}
+          {task.repeat && (
+            <button
+              role="menuitem"
+              onClick={() => chooseRepeat(undefined)}
+              className="mt-1 flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            >
+              Don’t repeat
+            </button>
+          )}
+        </div>
+      )}
+
+      {menu === 'schedule' && (
+        <div
+          role="menu"
+          className="absolute right-3 top-12 z-30 w-44 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          {dayOptions.map(date => {
+            const active = task.createdDate === date
+            return (
+              <button
+                key={date}
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => chooseDate(date)}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+                  active
+                    ? 'font-medium text-zinc-900 dark:text-white'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {formatDayLabel(date)}
+                {active && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+            )
+          })}
+          {/* Anything further out than a week: a native date field, floored at
+              today so a task can't be scheduled into the past. */}
+          <label className="mt-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            Pick a date
+            <input
+              type="date"
+              min={today}
+              defaultValue={task.createdDate > today ? task.createdDate : ''}
+              onChange={e => { if (e.target.value) chooseDate(e.target.value) }}
+              className="w-[6.5rem] rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 focus:outline-none"
+            />
+          </label>
+        </div>
       )}
 
       {editingNote ? (

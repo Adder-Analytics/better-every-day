@@ -56,9 +56,38 @@ function daysAgoStr(days: number): string {
 // Tomorrow's local date. A task created with this date stays out of today's
 // list and quietly becomes a today task when tomorrow actually arrives.
 export function tomorrowStr(): string {
+  return addDaysStr(1)
+}
+
+// N days from today (local), YYYY-MM-DD. The general form behind today/tomorrow
+// and any further-out scheduling. Negative N reaches into the past.
+export function addDaysStr(n: number): string {
   const d = new Date()
-  d.setDate(d.getDate() + 1)
+  d.setDate(d.getDate() + n)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// The next future date (1–7 days out) that lands on the given weekday
+// (0 = Sun … 6 = Sat). Naming a weekday always points ahead: "Monday" on a
+// Monday means next Monday, never today.
+export function nextWeekdayStr(dow: number): string {
+  const delta = ((dow - new Date().getDay() + 7) % 7) || 7
+  return addDaysStr(delta)
+}
+
+// A friendly heading for a scheduled day: "Today"/"Tomorrow", a weekday name
+// within the coming week ("Saturday"), or "Mon, Jul 3" further out. Parsed
+// from parts so the weekday is correct in every timezone.
+export function formatDayLabel(dateStr: string): string {
+  if (dateStr === todayStr()) return 'Today'
+  if (dateStr === tomorrowStr()) return 'Tomorrow'
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const [ty, tm, td] = todayStr().split('-').map(Number)
+  const diff = Math.round((date.getTime() - new Date(ty, tm - 1, td).getTime()) / 86_400_000)
+  return diff > 1 && diff < 7
+    ? date.toLocaleDateString('en-US', { weekday: 'long' })
+    : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function isRepeatRule(value: unknown): value is RepeatRule {
@@ -185,7 +214,7 @@ export type QuickAddSchedule = { kind: 'date' | 'repeat'; label: string }
 
 export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
-  when?: 'tomorrow' // an explicit due day read from the text
+  date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
@@ -198,12 +227,47 @@ const REPEAT_PHRASES: { re: RegExp; rule: RepeatRule; label: string }[] = [
   { re: /\s+(?:every\s+week|weekly)\.?\s*$/i, rule: 'weekly', label: 'Weekly' },
   { re: /\s+(?:every\s*day|everyday|daily)\.?\s*$/i, rule: 'daily', label: 'Every day' },
 ]
+// Trailing day phrases, each resolving the title to an absolute date so the
+// preview and the stored task always agree. The three-letter prefix of a
+// matched weekday name keys its day-of-week. "today" is intentionally absent,
+// so a real title like "What did I get done today" is never rewritten.
+const DOW3: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
 const TOMORROW_RE = /\s+(?:tomorrow|tmrw|tmw)\.?\s*$/i
+const NEXT_WEEK_RE = /\s+next\s+week\.?\s*$/i
+const IN_DAYS_RE = /\s+in\s+(\d{1,3})\s+days?\.?\s*$/i
+const WEEKDAY_RE =
+  /\s+(?:(?:on|next|this)\s+)?(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\.?\s*$/i
+
+// Strip a trailing day phrase ("tomorrow", "friday", "in 3 days", "next week")
+// and resolve it to an absolute date. Returns null when nothing is recognized,
+// or when stripping would empty the title (so "friday" typed alone stays a
+// literal task).
+function parseTrailingDate(text: string): { text: string; date: string } | null {
+  const tomorrow = text.replace(TOMORROW_RE, '').trim()
+  if (tomorrow && tomorrow !== text) return { text: tomorrow, date: addDaysStr(1) }
+
+  const nextWeek = text.replace(NEXT_WEEK_RE, '').trim()
+  if (nextWeek && nextWeek !== text) return { text: nextWeek, date: addDaysStr(7) }
+
+  const inDays = text.match(IN_DAYS_RE)
+  if (inDays) {
+    const n = Number(inDays[1])
+    const stripped = text.replace(IN_DAYS_RE, '').trim()
+    if (stripped && n >= 1 && n <= 365) return { text: stripped, date: addDaysStr(n) }
+  }
+
+  const weekday = text.match(WEEKDAY_RE)
+  if (weekday) {
+    const stripped = text.replace(WEEKDAY_RE, '').trim()
+    if (stripped) return { text: stripped, date: nextWeekdayStr(DOW3[weekday[1].slice(0, 3).toLowerCase()]) }
+  }
+
+  return null
+}
 
 // Strip a trailing schedule phrase from `input`, returning the cleaned title
-// and what was found. Never strips down to an empty title (so "tomorrow" typed
-// alone stays a literal task). Recognizes at most one recurrence plus one due
-// day; recurrence wins, since the task will actually recur.
+// and what was found. Never strips down to an empty title. Recognizes at most
+// one recurrence plus one day; recurrence wins, since the task will recur.
 export function parseQuickAdd(input: string): QuickAdd {
   let text = input.trim()
   if (!text) return { text }
@@ -220,20 +284,20 @@ export function parseQuickAdd(input: string): QuickAdd {
     }
   }
 
-  let when: 'tomorrow' | undefined
-  const strippedTomorrow = text.replace(TOMORROW_RE, '').trim()
-  if (strippedTomorrow && strippedTomorrow !== text) {
-    text = strippedTomorrow
-    when = 'tomorrow'
+  let date: string | undefined
+  const trailing = parseTrailingDate(text)
+  if (trailing) {
+    text = trailing.text
+    date = trailing.date
   }
 
   const schedule: QuickAddSchedule | undefined = repeat
     ? { kind: 'repeat', label: repeatLabel }
-    : when === 'tomorrow'
-      ? { kind: 'date', label: 'Tomorrow' }
+    : date
+      ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, when, repeat, schedule }
+  return { text, date, repeat, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------
