@@ -170,6 +170,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now reads plain language. End a task with “tomorrow” and it schedules for tomorrow; end with “every day”, “weekdays”, or “weekly” and it becomes a routine — no toggles or menus. A small preview shows the cleaned title and detected schedule before you add, so the phrase is never stripped by surprise. The word “today” is left alone, so real titles stay intact.',
     type: 'feature',
   },
+  {
+    day: 19,
+    date: '2026-06-27',
+    title: 'Schedule a task for any day',
+    description:
+      'Planning is no longer limited to today and tomorrow. Type a day at the end of a task — "call Sam friday", "pay rent in 3 days", "review notes next week" — and it schedules itself, or use the new calendar button on any task to pick a date. Tasks scheduled ahead are grouped under their day ("Tomorrow", "Saturday", "Mon, Jul 6") and drop into Today automatically when their day arrives.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
