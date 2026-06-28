@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -70,14 +70,14 @@ export default function Planner() {
     // The text decides the schedule when it says so ("...tomorrow", "...every
     // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
     // recurrence becomes a routine anchored to today.
-    const { text, date, repeat } = parseQuickAdd(newText)
+    const { text, date, repeat, estimateMin } = parseQuickAdd(newText)
     if (repeat) {
-      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat }])
+      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin }])
     } else {
       // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
       // toggle decides.
       const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-      setTasks(prev => [...prev, newTask(text, day)])
+      setTasks(prev => [...prev, { ...newTask(text, day), estimateMin }])
     }
     setNewText('')
   }
@@ -111,6 +111,10 @@ export default function Planner() {
           : t
       )
     )
+  }
+
+  const setEstimate = (id: string, estimateMin: number | undefined) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, estimateMin } : t)))
   }
 
   const deleteTask = (id: string) => {
@@ -191,6 +195,10 @@ export default function Planner() {
     .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date) }))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
+  // A gentle read on how full today is. Only today's estimated tasks count, so
+  // the number stays honest and never nags when nothing's been estimated.
+  const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
+  const doneMin = todayTasks.filter(t => t.done).reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
   // Focus mode shows only the single next thing to do — your active today
   // tasks come first, then anything carried over — so the rest can wait.
   const focusQueue = [...todayActive, ...carryovers]
@@ -275,6 +283,20 @@ export default function Planner() {
         </div>
       )}
 
+      {/* Time on your plate today — a quiet, honest read on how full the day is.
+          Stays hidden until at least one task carries an estimate. */}
+      {plannedMin > 0 && !inFocus && (
+        <p className="flex items-center gap-1.5 px-1 text-xs text-zinc-400">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="tabular-nums">
+            About <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatDuration(plannedMin)}</span> planned today
+            {doneMin > 0 && <> · {formatDuration(doneMin)} done</>}
+          </span>
+        </p>
+      )}
+
       {/* Focus mode — one task, front and center, the rest tucked away */}
       {inFocus && (
         <div className="space-y-3 pt-1">
@@ -338,6 +360,7 @@ export default function Planner() {
               onSchedule={scheduleTask}
               onEdit={editTask}
               onEditNote={editNote}
+              onSetEstimate={setEstimate}
             />
           ))}
         </div>
@@ -369,6 +392,7 @@ export default function Planner() {
           onEditNote={editNote}
           onSchedule={scheduleTask}
           onSetRepeat={setRepeat}
+          onSetEstimate={setEstimate}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -414,16 +438,29 @@ export default function Planner() {
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {parsed.schedule && parsed.text && (
+      {(parsed.schedule || parsed.estimateMin) && parsed.text && (
         <div
           aria-live="polite"
           className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400"
         >
-          <ScheduleIcon kind={parsed.schedule.kind} className="w-3.5 h-3.5 flex-shrink-0" />
+          {parsed.schedule ? (
+            <ScheduleIcon kind={parsed.schedule.kind} className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : (
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
           <span className="min-w-0 truncate text-zinc-500 dark:text-zinc-300">{parsed.text}</span>
-          <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
-            {parsed.schedule.label}
-          </span>
+          {parsed.schedule && (
+            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+              {parsed.schedule.label}
+            </span>
+          )}
+          {parsed.estimateMin && (
+            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+              {formatDuration(parsed.estimateMin)}
+            </span>
+          )}
         </div>
       )}
 
@@ -463,6 +500,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onSetEstimate={setEstimate}
             />
           ))}
         </div>

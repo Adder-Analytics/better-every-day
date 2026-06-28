@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, todayStr } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, todayStr } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
@@ -10,6 +10,10 @@ const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
   { value: 'weekdays', label: 'Weekdays' },
   { value: 'weekly', label: 'Weekly' },
 ]
+
+// The one-tap estimates the menu offers, in minutes. Anything in between is
+// quick-add territory ("Stand-up 20m").
+const ESTIMATE_OPTIONS = [15, 30, 45, 60, 90, 120, 180, 240]
 
 const REPEAT_LABEL: Record<RepeatRule, string> = {
   daily: 'Daily',
@@ -35,6 +39,15 @@ function CalendarIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "clock" — the estimate action and indicator.
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
 // A small checkmark, reused by the open menus to flag the active choice.
 function CheckIcon({ className }: { className?: string }) {
   return (
@@ -52,6 +65,7 @@ type Props = {
   onEditNote?: (id: string, note: string) => void
   onSchedule?: (id: string, date: string) => void
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
+  onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -70,6 +84,7 @@ export default function TaskItem({
   onEditNote,
   onSchedule,
   onSetRepeat,
+  onSetEstimate,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -84,14 +99,15 @@ export default function TaskItem({
   const [editText, setEditText] = useState(task.text)
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(task.note ?? '')
-  // Only one popover per task is open at a time, so a single value tracks both.
-  const [menu, setMenu] = useState<null | 'repeat' | 'schedule'>(null)
+  // Only one popover per task is open at a time, so a single value tracks them.
+  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate'>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
   const canSchedule = !!onSchedule
+  const canEstimate = !!onSetEstimate
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
     onSetRepeat?.(task.id, repeat)
@@ -100,6 +116,11 @@ export default function TaskItem({
 
   const chooseDate = (date: string) => {
     onSchedule?.(task.id, date)
+    setMenu(null)
+  }
+
+  const chooseEstimate = (estimateMin: number | undefined) => {
+    onSetEstimate?.(task.id, estimateMin)
     setMenu(null)
   }
 
@@ -242,6 +263,31 @@ export default function TaskItem({
           </span>
         )}
 
+        {/* The estimate, shown as a quiet pill once set. It's its own opener for
+            the estimate menu, so an estimated task needs no extra hover icon. */}
+        {task.estimateMin && !editing && (
+          canEstimate && !task.done ? (
+            <button
+              onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
+              aria-haspopup="menu"
+              aria-expanded={menu === 'estimate'}
+              title="Change estimate"
+              className="flex-shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <ClockIcon className="w-3 h-3" />
+              {formatDuration(task.estimateMin)}
+            </button>
+          ) : (
+            <span
+              title="Estimated time"
+              className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
+            >
+              <ClockIcon className="w-3 h-3" />
+              {formatDuration(task.estimateMin)}
+            </span>
+          )
+        )}
+
         {!editing && (
           <>
             {canRepeat && !task.done && !editingNote && (
@@ -275,6 +321,23 @@ export default function TaskItem({
                 }`}
               >
                 <CalendarIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {canEstimate && !task.estimateMin && !task.done && !editingNote && (
+              <button
+                onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
+                aria-label="Estimate time"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'estimate'}
+                title="Estimate time"
+                className={`flex-shrink-0 p-1 transition-all rounded ${
+                  menu === 'estimate'
+                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+                }`}
+              >
+                <ClockIcon className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -420,6 +483,43 @@ export default function TaskItem({
               className="w-[6.5rem] rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 focus:outline-none"
             />
           </label>
+        </div>
+      )}
+
+      {menu === 'estimate' && (
+        <div
+          role="menu"
+          className="absolute right-3 top-12 z-30 w-44 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          <div className="grid grid-cols-3 gap-1">
+            {ESTIMATE_OPTIONS.map(min => {
+              const active = task.estimateMin === min
+              return (
+                <button
+                  key={min}
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={() => chooseEstimate(min)}
+                  className={`rounded-lg px-1 py-1.5 text-center text-xs tabular-nums transition-colors ${
+                    active
+                      ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 font-medium'
+                      : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {formatDuration(min)}
+                </button>
+              )
+            })}
+          </div>
+          {task.estimateMin && (
+            <button
+              role="menuitem"
+              onClick={() => chooseEstimate(undefined)}
+              className="mt-1.5 flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            >
+              Clear estimate
+            </button>
+          )}
         </div>
       )}
 

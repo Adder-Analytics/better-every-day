@@ -13,12 +13,14 @@ export type Task = {
   // finished is recorded in `completions`, so it shows up fresh the next day.
   repeat?: RepeatRule
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
+  estimateMin?: number // optional rough time estimate, in minutes
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
-// Each version only adds optional fields, so older stored data is already
-// valid under the current shape — loadPlanner reads v1/v2/v3 alike.
-export const PLANNER_VERSION = 3
+// v4: added optional time estimates. Each version only adds optional fields,
+// so older stored data is already valid under the current shape — loadPlanner
+// reads v1/v2/v3/v4 alike.
+export const PLANNER_VERSION = 4
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -105,8 +107,19 @@ function isTask(value: unknown): value is Task {
     (t.note === undefined || typeof t.note === 'string') &&
     (t.repeat === undefined || isRepeatRule(t.repeat)) &&
     (t.completions === undefined ||
-      (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string')))
+      (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
+    (t.estimateMin === undefined ||
+      (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0))
   )
+}
+
+// A compact, human duration: "45m", "1h", "1h 30m". Used by the estimate pill,
+// the quick-add preview, and the day's time summary.
+export function formatDuration(min: number): string {
+  if (min < 60) return `${min}m`
+  const h = Math.floor(min / 60)
+  const m = Math.round(min % 60)
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
@@ -143,9 +156,9 @@ export function loadPlanner(): PlannerData {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
-    // v1 (pre-notes), v2 (notes) and v3 (routines) only add optional fields, so
-    // every version's tasks load cleanly into the current shape.
-    if (![1, 2, 3].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // v1 (pre-notes), v2 (notes), v3 (routines) and v4 (estimates) only add
+    // optional fields, so every version's tasks load cleanly into the current shape.
+    if (![1, 2, 3, 4].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -216,6 +229,7 @@ export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
+  estimateMin?: number // a rough time estimate (minutes) read from the text
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -265,6 +279,33 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
   return null
 }
 
+// Trailing time-estimate phrases: "30m", "45 min", "1h", "2 hours", "1h 30m".
+// An hours unit always needs h/hr/hour and a minutes unit always needs
+// m/min/minute, so a bare trailing number ("Read chapter 3", "Run 5km") is
+// never mistaken for a duration. The combined form is tried first.
+const EST_HM_RE = /\s+(\d{1,2})\s*h(?:rs?|ours?)?\s*(\d{1,2})\s*m(?:ins?|inutes?)?\.?\s*$/i
+const EST_H_RE = /\s+(\d{1,2})\s*h(?:rs?|ours?)?\.?\s*$/i
+const EST_M_RE = /\s+(\d{1,3})\s*m(?:ins?|inutes?)?\.?\s*$/i
+
+// Strip a trailing duration and resolve it to minutes (1–1440). Returns null
+// when nothing is recognized, or when stripping would empty the title (so a
+// bare "30m" stays a literal task).
+function parseTrailingEstimate(text: string): { text: string; estimateMin: number } | null {
+  const tries: { re: RegExp; minutes: (m: RegExpMatchArray) => number }[] = [
+    { re: EST_HM_RE, minutes: m => Number(m[1]) * 60 + Number(m[2]) },
+    { re: EST_H_RE, minutes: m => Number(m[1]) * 60 },
+    { re: EST_M_RE, minutes: m => Number(m[1]) },
+  ]
+  for (const { re, minutes } of tries) {
+    const match = text.match(re)
+    if (!match) continue
+    const min = minutes(match)
+    const stripped = text.replace(re, '').trim()
+    if (stripped && min >= 1 && min <= 1440) return { text: stripped, estimateMin: min }
+  }
+  return null
+}
+
 // Strip a trailing schedule phrase from `input`, returning the cleaned title
 // and what was found. Never strips down to an empty title. Recognizes at most
 // one recurrence plus one day; recurrence wins, since the task will recur.
@@ -291,13 +332,22 @@ export function parseQuickAdd(input: string): QuickAdd {
     date = trailing.date
   }
 
+  // The estimate sits innermost in the phrase ("Write report 30m tomorrow"),
+  // so it's read after any day has been stripped off the end.
+  let estimateMin: number | undefined
+  const estimate = parseTrailingEstimate(text)
+  if (estimate) {
+    text = estimate.text
+    estimateMin = estimate.estimateMin
+  }
+
   const schedule: QuickAddSchedule | undefined = repeat
     ? { kind: 'repeat', label: repeatLabel }
     : date
       ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, date, repeat, schedule }
+  return { text, date, repeat, estimateMin, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------

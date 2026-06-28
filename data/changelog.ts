@@ -178,6 +178,14 @@ export const changelog: ChangelogEntry[] = [
       'Planning is no longer limited to today and tomorrow. Type a day at the end of a task — "call Sam friday", "pay rent in 3 days", "review notes next week" — and it schedules itself, or use the new calendar button on any task to pick a date. Tasks scheduled ahead are grouped under their day ("Tomorrow", "Saturday", "Mon, Jul 6") and drop into Today automatically when their day arrives.',
     type: 'feature',
   },
+  {
+    day: 20,
+    date: '2026-06-28',
+    title: 'Estimate how long a task takes',
+    description:
+      'Give any task a rough time estimate — type it inline ("Write the report 30m", "Deep work 1h 30m") or pick one from the clock menu. A quiet line then shows about how much time the day holds, so you can tell at a glance whether you\'ve planned a realistic day or packed in more than fits. No estimate, no number — it stays out of the way until you ask for it.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
