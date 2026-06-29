@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -70,14 +70,14 @@ export default function Planner() {
     // The text decides the schedule when it says so ("...tomorrow", "...every
     // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
     // recurrence becomes a routine anchored to today.
-    const { text, date, repeat, estimateMin } = parseQuickAdd(newText)
+    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(newText)
     if (repeat) {
-      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin }])
+      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }])
     } else {
       // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
       // toggle decides.
       const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-      setTasks(prev => [...prev, { ...newTask(text, day), estimateMin }])
+      setTasks(prev => [...prev, { ...newTask(text, day), estimateMin, timeMin }])
     }
     setNewText('')
   }
@@ -115,6 +115,10 @@ export default function Planner() {
 
   const setEstimate = (id: string, estimateMin: number | undefined) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, estimateMin } : t)))
+  }
+
+  const setTime = (id: string, timeMin: number | undefined) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, timeMin } : t)))
   }
 
   const deleteTask = (id: string) => {
@@ -179,10 +183,19 @@ export default function Planner() {
   const todayTasks = tasks
     .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today))
     .map(view)
+  // Tasks with a time of day lead the list in chronological order, turning the
+  // day into a quiet agenda; untimed tasks keep their manual order below (sort
+  // is stable, so dragging still works among them).
+  const byTime = (a: Task, b: Task) => {
+    if (a.timeMin == null && b.timeMin == null) return 0
+    if (a.timeMin == null) return 1
+    if (b.timeMin == null) return -1
+    return a.timeMin - b.timeMin
+  }
   // Finished tasks sink below what's still left, so the work that remains
   // stays at the top where your attention is. Relative order is preserved
   // within each group, and reordering still works (drag keys off task ids).
-  const todayActive = todayTasks.filter(t => !t.done)
+  const todayActive = todayTasks.filter(t => !t.done).sort(byTime)
   const todayDone = todayTasks.filter(t => t.done)
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
@@ -192,7 +205,7 @@ export default function Planner() {
   const upcoming = tasks.filter(t => !t.repeat && t.createdDate > today)
   const upcomingDays = [...new Set(upcoming.map(t => t.createdDate))]
     .sort()
-    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date) }))
+    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date).sort(byTime) }))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -315,6 +328,9 @@ export default function Planner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </button>
+            {focusTask.timeMin != null && (
+              <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">{formatTime(focusTask.timeMin)}</p>
+            )}
             <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{focusTask.text}</p>
             {focusTask.note && (
               <NoteText text={focusTask.note} className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words" />
@@ -361,6 +377,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSetEstimate={setEstimate}
+              onSetTime={setTime}
             />
           ))}
         </div>
@@ -382,25 +399,31 @@ export default function Planner() {
       )}
 
       {/* Today's tasks — still-to-do first, finished ones sink below */}
-      {todayActive.map(task => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          onToggle={toggleTask}
-          onDelete={deleteTask}
-          onEdit={editTask}
-          onEditNote={editNote}
-          onSchedule={scheduleTask}
-          onSetRepeat={setRepeat}
-          onSetEstimate={setEstimate}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onDragEnd={handleDragEnd}
-          isDragging={dragId === task.id}
-          isDragOver={dragOverId === task.id}
-        />
-      ))}
+      {todayActive.map(task => {
+        // Timed tasks are ordered by their time, so they aren't drag-reorderable;
+        // untimed tasks keep the manual drag handle.
+        const draggable = task.timeMin == null
+        return (
+          <TaskItem
+            key={task.id}
+            task={task}
+            onToggle={toggleTask}
+            onDelete={deleteTask}
+            onEdit={editTask}
+            onEditNote={editNote}
+            onSchedule={scheduleTask}
+            onSetRepeat={setRepeat}
+            onSetEstimate={setEstimate}
+            onSetTime={setTime}
+            onDragStart={draggable ? handleDragStart : undefined}
+            onDragOver={draggable ? handleDragOver : undefined}
+            onDrop={draggable ? handleDrop : undefined}
+            onDragEnd={draggable ? handleDragEnd : undefined}
+            isDragging={dragId === task.id}
+            isDragOver={dragOverId === task.id}
+          />
+        )
+      })}
       {todayDone.map(task => (
         <TaskItem
           key={task.id}
@@ -438,7 +461,7 @@ export default function Planner() {
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {(parsed.schedule || parsed.estimateMin) && parsed.text && (
+      {(parsed.schedule || parsed.estimateMin || parsed.timeMin != null) && parsed.text && (
         <div
           aria-live="polite"
           className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400"
@@ -454,6 +477,11 @@ export default function Planner() {
           {parsed.schedule && (
             <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
               {parsed.schedule.label}
+            </span>
+          )}
+          {parsed.timeMin != null && (
+            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
+              {formatTime(parsed.timeMin)}
             </span>
           )}
           {parsed.estimateMin && (
@@ -501,6 +529,7 @@ export default function Planner() {
               onEditNote={editNote}
               onSchedule={scheduleTask}
               onSetEstimate={setEstimate}
+              onSetTime={setTime}
             />
           ))}
         </div>
