@@ -14,13 +14,14 @@ export type Task = {
   repeat?: RepeatRule
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   estimateMin?: number // optional rough time estimate, in minutes
+  timeMin?: number // optional time of day, minutes since local midnight (0–1439)
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
-// v4: added optional time estimates. Each version only adds optional fields,
-// so older stored data is already valid under the current shape — loadPlanner
-// reads v1/v2/v3/v4 alike.
-export const PLANNER_VERSION = 4
+// v4: added optional time estimates. v5: added optional time of day. Each
+// version only adds optional fields, so older stored data is already valid
+// under the current shape — loadPlanner reads v1–v5 alike.
+export const PLANNER_VERSION = 5
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -109,7 +110,9 @@ function isTask(value: unknown): value is Task {
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
     (t.estimateMin === undefined ||
-      (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0))
+      (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0)) &&
+    (t.timeMin === undefined ||
+      (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439))
   )
 }
 
@@ -120,6 +123,16 @@ export function formatDuration(min: number): string {
   const h = Math.floor(min / 60)
   const m = Math.round(min % 60)
   return m === 0 ? `${h}h` : `${h}h ${m}m`
+}
+
+// A time of day from minutes-since-midnight: "9 AM", "9:30 AM", "12 PM",
+// "2:30 PM". Used by the agenda time pill and the quick-add preview.
+export function formatTime(min: number): string {
+  const h24 = Math.floor(min / 60)
+  const m = min % 60
+  const period = h24 < 12 ? 'AM' : 'PM'
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
@@ -156,9 +169,10 @@ export function loadPlanner(): PlannerData {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
-    // v1 (pre-notes), v2 (notes), v3 (routines) and v4 (estimates) only add
-    // optional fields, so every version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates) and v5 (time of
+    // day) only add optional fields, so every version's tasks load cleanly into
+    // the current shape.
+    if (![1, 2, 3, 4, 5].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -230,6 +244,7 @@ export type QuickAdd = {
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
   estimateMin?: number // a rough time estimate (minutes) read from the text
+  timeMin?: number // a time of day (minutes since midnight) read from the text
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -306,39 +321,91 @@ function parseTrailingEstimate(text: string): { text: string; estimateMin: numbe
   return null
 }
 
-// Strip a trailing schedule phrase from `input`, returning the cleaned title
-// and what was found. Never strips down to an empty title. Recognizes at most
-// one recurrence plus one day; recurrence wins, since the task will recur.
+// Trailing time-of-day phrases: "9am", "9:30 am", "at 2pm", "at 14:00". A
+// meridiem (am/pm) or a 24-hour "HH:MM" makes the intent unambiguous, so a bare
+// trailing number ("Read chapter 5", "Call 911") is never read as a time.
+const TIME_AMPM_RE = /\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s*$/i
+const TIME_24H_RE = /\s+(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\.?\s*$/i
+
+// Strip a trailing time of day and resolve it to minutes since midnight.
+// Returns null when nothing is recognized, or when stripping would empty the
+// title (so a bare "9am" stays a literal task).
+function parseTrailingTime(text: string): { text: string; timeMin: number } | null {
+  const ampm = text.match(TIME_AMPM_RE)
+  if (ampm) {
+    let h = Number(ampm[1])
+    const m = ampm[2] ? Number(ampm[2]) : 0
+    const stripped = text.replace(TIME_AMPM_RE, '').trim()
+    if (stripped && h >= 1 && h <= 12 && m <= 59) {
+      if (h === 12) h = 0 // 12am → 0, 12pm → 12 (after the +12 below)
+      if (ampm[3].toLowerCase() === 'p') h += 12
+      return { text: stripped, timeMin: h * 60 + m }
+    }
+  }
+  const h24 = text.match(TIME_24H_RE)
+  if (h24) {
+    const stripped = text.replace(TIME_24H_RE, '').trim()
+    if (stripped) return { text: stripped, timeMin: Number(h24[1]) * 60 + Number(h24[2]) }
+  }
+  return null
+}
+
+// Strip recognized trailing phrases from `input`, returning the cleaned title
+// and everything found. People stack these in any order ("Standup 9am 15m",
+// "Call Sam friday 2pm"), so each kind — recurrence, day, time of day, estimate
+// — is peeled off the end in turn until none remains, at most one of each.
+// Never strips down to an empty title. Recurrence wins as the schedule, since
+// the task will recur.
 export function parseQuickAdd(input: string): QuickAdd {
   let text = input.trim()
   if (!text) return { text }
 
   let repeat: RepeatRule | undefined
   let repeatLabel = ''
-  for (const { re, rule, label } of REPEAT_PHRASES) {
-    const stripped = text.replace(re, '').trim()
-    if (stripped && stripped !== text) {
-      text = stripped
-      repeat = rule
-      repeatLabel = label
-      break
-    }
-  }
-
   let date: string | undefined
-  const trailing = parseTrailingDate(text)
-  if (trailing) {
-    text = trailing.text
-    date = trailing.date
-  }
-
-  // The estimate sits innermost in the phrase ("Write report 30m tomorrow"),
-  // so it's read after any day has been stripped off the end.
+  let timeMin: number | undefined
   let estimateMin: number | undefined
-  const estimate = parseTrailingEstimate(text)
-  if (estimate) {
-    text = estimate.text
-    estimateMin = estimate.estimateMin
+
+  // Peel one recognized trailing token per pass, newest match first, until a
+  // pass finds nothing — so order in the text doesn't matter.
+  for (;;) {
+    if (repeat === undefined) {
+      const hit = REPEAT_PHRASES.find(({ re }) => {
+        const stripped = text.replace(re, '').trim()
+        return stripped && stripped !== text
+      })
+      if (hit) {
+        text = text.replace(hit.re, '').trim()
+        repeat = hit.rule
+        repeatLabel = hit.label
+        continue
+      }
+    }
+    if (date === undefined) {
+      const trailing = parseTrailingDate(text)
+      if (trailing) {
+        text = trailing.text
+        date = trailing.date
+        continue
+      }
+    }
+    if (timeMin === undefined) {
+      const time = parseTrailingTime(text)
+      if (time) {
+        text = time.text
+        timeMin = time.timeMin
+        continue
+      }
+    }
+    if (estimateMin === undefined) {
+      const estimate = parseTrailingEstimate(text)
+      if (estimate) {
+        text = estimate.text
+        estimateMin = estimate.estimateMin
+        continue
+      }
+    }
+    break
   }
 
   const schedule: QuickAddSchedule | undefined = repeat
@@ -347,7 +414,7 @@ export function parseQuickAdd(input: string): QuickAdd {
       ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, date, repeat, estimateMin, schedule }
+  return { text, date, repeat, estimateMin, timeMin, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------

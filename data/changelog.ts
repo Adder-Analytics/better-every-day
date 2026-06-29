@@ -186,6 +186,14 @@ export const changelog: ChangelogEntry[] = [
       'Give any task a rough time estimate — type it inline ("Write the report 30m", "Deep work 1h 30m") or pick one from the clock menu. A quiet line then shows about how much time the day holds, so you can tell at a glance whether you\'ve planned a realistic day or packed in more than fits. No estimate, no number — it stays out of the way until you ask for it.',
     type: 'feature',
   },
+  {
+    day: 21,
+    date: '2026-06-29',
+    title: 'Give a task a time of day',
+    description:
+      'Tasks can now have a time, turning today into a simple agenda. Type it inline ("Standup 9am", "Lunch 12:30pm", "Call Sam at 2pm") or pick one from the schedule menu. Timed tasks rise to the top in chronological order — and lead the way in Focus mode — while everything untimed keeps its place below, still free to drag. The time shows as a quiet label and never gets in the way of tasks you’d rather leave loose.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

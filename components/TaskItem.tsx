@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, todayStr } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatTime, todayStr } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
@@ -14,6 +14,14 @@ const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
 // The one-tap estimates the menu offers, in minutes. Anything in between is
 // quick-add territory ("Stand-up 20m").
 const ESTIMATE_OPTIONS = [15, 30, 45, 60, 90, 120, 180, 240]
+
+// minutes-since-midnight ↔ the "HH:MM" a native <input type="time"> uses.
+const toTimeInput = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+const fromTimeInput = (value: string): number | null => {
+  const [h, m] = value.split(':').map(Number)
+  return Number.isInteger(h) && Number.isInteger(m) ? h * 60 + m : null
+}
 
 const REPEAT_LABEL: Record<RepeatRule, string> = {
   daily: 'Daily',
@@ -66,6 +74,7 @@ type Props = {
   onSchedule?: (id: string, date: string) => void
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
+  onSetTime?: (id: string, timeMin: number | undefined) => void
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -85,6 +94,7 @@ export default function TaskItem({
   onSchedule,
   onSetRepeat,
   onSetEstimate,
+  onSetTime,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -108,6 +118,7 @@ export default function TaskItem({
   const canRepeat = !!onSetRepeat
   const canSchedule = !!onSchedule
   const canEstimate = !!onSetEstimate
+  const canSetTime = !!onSetTime
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
     onSetRepeat?.(task.id, repeat)
@@ -121,6 +132,11 @@ export default function TaskItem({
 
   const chooseEstimate = (estimateMin: number | undefined) => {
     onSetEstimate?.(task.id, estimateMin)
+    setMenu(null)
+  }
+
+  const chooseTime = (timeMin: number | undefined) => {
+    onSetTime?.(task.id, timeMin)
     setMenu(null)
   }
 
@@ -228,6 +244,29 @@ export default function TaskItem({
               </svg>
             )}
           </button>
+        )}
+
+        {/* Time of day — a quiet agenda timestamp that leads the task. Opens the
+            schedule menu (where the time lives) when the task is editable. */}
+        {task.timeMin != null && !editing && (
+          canSetTime && !task.done ? (
+            <button
+              onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
+              aria-haspopup="menu"
+              aria-expanded={menu === 'schedule'}
+              title="Change time"
+              className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+            >
+              {formatTime(task.timeMin)}
+            </button>
+          ) : (
+            <span
+              title="Scheduled time"
+              className={`flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
+            >
+              {formatTime(task.timeMin)}
+            </span>
+          )
         )}
 
         {editing ? (
@@ -483,6 +522,28 @@ export default function TaskItem({
               className="w-[6.5rem] rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 focus:outline-none"
             />
           </label>
+          {/* A time of day, so the task slots into the day's agenda. Tasks with a
+              time sort ahead of untimed ones, earliest first. */}
+          {canSetTime && (
+            <label className="mt-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              Time of day
+              <input
+                type="time"
+                defaultValue={task.timeMin != null ? toTimeInput(task.timeMin) : ''}
+                onChange={e => { const v = fromTimeInput(e.target.value); if (v != null) chooseTime(v) }}
+                className="w-[6.5rem] rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 focus:outline-none"
+              />
+            </label>
+          )}
+          {canSetTime && task.timeMin != null && (
+            <button
+              role="menuitem"
+              onClick={() => chooseTime(undefined)}
+              className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            >
+              Clear time
+            </button>
+          )}
         </div>
       )}
 
