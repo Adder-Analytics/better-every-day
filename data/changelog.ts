@@ -194,6 +194,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks can now have a time, turning today into a simple agenda. Type it inline ("Standup 9am", "Lunch 12:30pm", "Call Sam at 2pm") or pick one from the schedule menu. Timed tasks rise to the top in chronological order — and lead the way in Focus mode — while everything untimed keeps its place below, still free to drag. The time shows as a quiet label and never gets in the way of tasks you’d rather leave loose.',
     type: 'feature',
   },
+  {
+    day: 22,
+    date: '2026-06-30',
+    title: 'A live line for right now',
+    description:
+      'Once your day has times on it, a quiet “now” line tracks the real clock and sits between what’s behind you and what’s ahead — so a glance tells you where you are in the day. The next timed task still coming up gets a small “in 25m” hint beside its time. Both stay out of the way until your agenda has something to anchor them.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
