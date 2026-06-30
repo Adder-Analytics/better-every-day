@@ -125,6 +125,23 @@ export function formatDuration(min: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+// Minutes since local midnight, right now. Reads the wall clock, so it's
+// client-only — call it after hydration to keep server and client HTML in sync.
+export function currentMin(): number {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+// How far ahead a time is, as a short phrase: "in 25m", "in 1h", "in 2h 30m".
+// Only the future is described; callers gate on a positive delta. Used by the
+// live agenda to label the next timed task that's coming up.
+export function formatStartsIn(deltaMin: number): string {
+  if (deltaMin < 60) return `in ${deltaMin}m`
+  const h = Math.floor(deltaMin / 60)
+  const m = deltaMin % 60
+  return m === 0 ? `in ${h}h` : `in ${h}h ${m}m`
+}
+
 // A time of day from minutes-since-midnight: "9 AM", "9:30 AM", "12 PM",
 // "2:30 PM". Used by the agenda time pill and the quick-add preview.
 export function formatTime(min: number): string {

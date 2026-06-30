@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -29,8 +29,46 @@ function useHydrated(): boolean {
   return useSyncExternalStore(emptySubscribe, () => true, () => false)
 }
 
+// The current minute of the day, kept live so the agenda's "now" line tracks the
+// real clock. Ticks on each minute boundary (not a fixed interval, so it stays
+// aligned) and refreshes whenever the tab is shown again after being hidden.
+function useCurrentMin(): number {
+  const [min, setMin] = useState(() => (typeof window === 'undefined' ? 0 : currentMin()))
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
+      setMin(currentMin())
+      timer = setTimeout(tick, 60_000 - (Date.now() % 60_000))
+    }
+    timer = setTimeout(tick, 60_000 - (Date.now() % 60_000))
+    const onVisible = () => { if (!document.hidden) setMin(currentMin()) }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
+  return min
+}
+
+// The live "now" marker that sits in the agenda at the current time — a small
+// pulsing dot, the clock, and a hairline. It quietly answers "where am I in my
+// day?" by separating what's already passed from what's still ahead.
+function NowLine({ min }: { min: number }) {
+  return (
+    <div className="flex items-center gap-2 py-0.5 pl-1.5 pr-1" aria-label={`Now, ${formatTime(min)}`}>
+      <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      </span>
+      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide tabular-nums text-emerald-600 dark:text-emerald-400">
+        {formatTime(min)}
+      </span>
+      <span className="h-px flex-1 rounded-full bg-gradient-to-r from-emerald-500/30 to-transparent" />
+    </div>
+  )
+}
+
 export default function Planner() {
   const mounted = useHydrated()
+  const nowMin = useCurrentMin()
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
@@ -197,6 +235,16 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byTime)
   const todayDone = todayTasks.filter(t => t.done)
+  // The live agenda. Timed tasks lead the list in time order, so a single "now"
+  // line dropped after the ones that have already started turns today into a
+  // real timeline — everything above the line is behind you, everything below
+  // is still ahead. The line only appears once there's a timed task to anchor it.
+  const timedActive = todayActive.filter(t => t.timeMin != null)
+  const showNowLine = mounted && timedActive.length > 0
+  const startedCount = todayActive.filter(t => t.timeMin != null && t.timeMin <= nowMin).length
+  // The next timed task still ahead gets a quiet "in 25m" hint, so what's coming
+  // up — and how soon — reads at a glance without crowding the rest of the list.
+  const nextUp = todayActive.find(t => t.timeMin != null && t.timeMin > nowMin)
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
   // Tasks scheduled past today — they wait in their own per-day sections and
@@ -398,32 +446,38 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Today's tasks — still-to-do first, finished ones sink below */}
-      {todayActive.map(task => {
-        // Timed tasks are ordered by their time, so they aren't drag-reorderable;
-        // untimed tasks keep the manual drag handle.
-        const draggable = task.timeMin == null
-        return (
-          <TaskItem
-            key={task.id}
-            task={task}
-            onToggle={toggleTask}
-            onDelete={deleteTask}
-            onEdit={editTask}
-            onEditNote={editNote}
-            onSchedule={scheduleTask}
-            onSetRepeat={setRepeat}
-            onSetEstimate={setEstimate}
-            onSetTime={setTime}
-            onDragStart={draggable ? handleDragStart : undefined}
-            onDragOver={draggable ? handleDragOver : undefined}
-            onDrop={draggable ? handleDrop : undefined}
-            onDragEnd={draggable ? handleDragEnd : undefined}
-            isDragging={dragId === task.id}
-            isDragOver={dragOverId === task.id}
-          />
-        )
-      })}
+      {/* Today's tasks — still-to-do first, finished ones sink below. The live
+          "now" line is dropped in among the timed tasks at the current time. */}
+      {(() => {
+        const nodes = todayActive.map(task => {
+          // Timed tasks are ordered by their time, so they aren't drag-reorderable;
+          // untimed tasks keep the manual drag handle.
+          const draggable = task.timeMin == null
+          return (
+            <TaskItem
+              key={task.id}
+              task={task}
+              upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onEdit={editTask}
+              onEditNote={editNote}
+              onSchedule={scheduleTask}
+              onSetRepeat={setRepeat}
+              onSetEstimate={setEstimate}
+              onSetTime={setTime}
+              onDragStart={draggable ? handleDragStart : undefined}
+              onDragOver={draggable ? handleDragOver : undefined}
+              onDrop={draggable ? handleDrop : undefined}
+              onDragEnd={draggable ? handleDragEnd : undefined}
+              isDragging={dragId === task.id}
+              isDragOver={dragOverId === task.id}
+            />
+          )
+        })
+        if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} />)
+        return nodes
+      })()}
       {todayDone.map(task => (
         <TaskItem
           key={task.id}

@@ -75,6 +75,8 @@ type Props = {
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
+  // A live "in 25m" hint shown on the next timed task that's still ahead today.
+  upNextLabel?: string
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -95,6 +97,7 @@ export default function TaskItem({
   onSetRepeat,
   onSetEstimate,
   onSetTime,
+  upNextLabel,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -267,6 +270,14 @@ export default function TaskItem({
               {formatTime(task.timeMin)}
             </span>
           )
+        )}
+
+        {/* The live "starts in" hint on today's next timed task — a quiet nudge
+            for what's coming, sitting right beside its time. */}
+        {upNextLabel && !editing && (
+          <span className="flex-shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+            {upNextLabel}
+          </span>
         )}
 
         {editing ? (
