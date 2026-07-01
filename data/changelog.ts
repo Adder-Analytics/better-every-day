@@ -202,6 +202,14 @@ export const changelog: ChangelogEntry[] = [
       'Once your day has times on it, a quiet “now” line tracks the real clock and sits between what’s behind you and what’s ahead — so a glance tells you where you are in the day. The next timed task still coming up gets a small “in 25m” hint beside its time. Both stay out of the way until your agenda has something to anchor them.',
     type: 'feature',
   },
+  {
+    day: 23,
+    date: '2026-07-01',
+    title: 'Reminders when a task’s time arrives',
+    description:
+      'Give a task a time of day and the agenda can now nudge you when its moment comes. A bell in the header turns on reminders; the browser asks once, then a quiet notification fires the instant each timed task is due, so you can look away from the clock and still start on time. Finishing, rescheduling, or deleting a task cancels its reminder, and if notifications are blocked the app says so plainly. It only fires while this tab is open — nothing leaves your device.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

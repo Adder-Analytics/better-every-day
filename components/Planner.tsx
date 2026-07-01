@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useSyncExternalStore } from 'react'
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
@@ -46,6 +46,108 @@ function useCurrentMin(): number {
     return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [])
   return min
+}
+
+// Heroicons "bell" (reminders on) and "bell-slash" (reminders off), sized for
+// the small header toggle.
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+    </svg>
+  )
+}
+function BellSlashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 003.844.148m-3.844-.148a23.856 23.856 0 01-5.455-1.31 8.964 8.964 0 002.3-5.542m3.155 6.852a3 3 0 005.667 1.97m1.965-2.277L21 21m-4.225-4.225a23.81 23.81 0 003.536-1.003 8.967 8.967 0 01-2.312-6.022V9a6 6 0 00-9.75-4.685M4.5 4.5l3.75 3.75M8.25 9v.75" />
+    </svg>
+  )
+}
+
+// Reminders turn today's agenda from something you read into something that
+// nudges you: when a timed task's moment arrives, a browser notification fires
+// so you don't have to keep an eye on the clock. It's opt-in (a bell in the
+// header), remembered across visits, and honest about its one limit — the tab
+// has to be open for a notification to fire, since everything here stays on your
+// device with nothing sent anywhere.
+const REMINDERS_KEY = 'bed-reminders'
+
+type ReminderTask = { id: string; timeMin: number; text: string }
+type Reminders = { supported: boolean; enabled: boolean; blocked: boolean; toggle: () => void }
+
+function useReminders(timedTasks: ReminderTask[]): Reminders {
+  // These read the browser directly at init. That's hydration-safe here because
+  // the toggle only ever renders after mount (Planner shows a spinner until
+  // then), so there's no server HTML for it to mismatch.
+  const [supported] = useState(() => typeof window !== 'undefined' && 'Notification' in window)
+  const [pref, setPref] = useState(() => {
+    try { return typeof window !== 'undefined' && localStorage.getItem(REMINDERS_KEY) === 'on' } catch { return false }
+  })
+  const [permission, setPermission] = useState<NotificationPermission>(() =>
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
+  )
+  // Which (day, task, time) reminders have already fired, so a re-schedule (the
+  // list changed, the tab woke, a new day began) never double-notifies.
+  const firedRef = useRef<Set<string>>(new Set())
+  // Latest tasks read inside the timer effect without making it a dependency —
+  // the signature below is what decides when to reschedule. Kept current in its
+  // own effect (declared before the scheduler, so it runs first).
+  const tasksRef = useRef(timedTasks)
+  useEffect(() => { tasksRef.current = timedTasks })
+
+  const enabled = supported && pref && permission === 'granted'
+  const blocked = supported && pref && permission === 'denied'
+
+  const toggle = useCallback(() => {
+    if (!supported) return
+    const next = !pref
+    setPref(next)
+    try { localStorage.setItem(REMINDERS_KEY, next ? 'on' : 'off') } catch {}
+    // Turning on for the first time asks the browser; a later toggle just flips
+    // the preference (permission, once decided, can't be re-requested here).
+    if (next && Notification.permission === 'default') {
+      Notification.requestPermission().then(setPermission)
+    } else if (next) {
+      setPermission(Notification.permission)
+    }
+  }, [supported, pref])
+
+  // A signature of what to remind about — id, time, and text — plus the day, so
+  // the timers reschedule exactly when the set of upcoming reminders changes
+  // (a task edited, completed, or rescheduled; midnight turning routines over)
+  // and not on every minute tick.
+  const today = todayStr()
+  const signature = today + '#' + timedTasks.map(t => `${t.id}:${t.timeMin}:${t.text}`).join('|')
+
+  useEffect(() => {
+    if (!enabled) return
+    const now = Date.now()
+    const d = new Date()
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (const t of tasksRef.current) {
+      const key = `${today}:${t.id}:${t.timeMin}`
+      if (firedRef.current.has(key)) continue
+      const delay = midnight + t.timeMin * 60_000 - now
+      if (delay <= 0) continue // its time already passed today — nothing to fire
+      timers.push(
+        setTimeout(() => {
+          firedRef.current.add(key)
+          try {
+            new Notification(t.text, {
+              body: `It’s ${formatTime(t.timeMin)} — time to start.`,
+              tag: key, // collapse duplicates at the OS level too
+              icon: '/favicon.ico',
+            })
+          } catch {}
+        }, delay)
+      )
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [enabled, signature, today])
+
+  return { supported, enabled, blocked, toggle }
 }
 
 // The live "now" marker that sits in the agenda at the current time — a small
@@ -245,6 +347,11 @@ export default function Planner() {
   // The next timed task still ahead gets a quiet "in 25m" hint, so what's coming
   // up — and how soon — reads at a glance without crowding the rest of the list.
   const nextUp = todayActive.find(t => t.timeMin != null && t.timeMin > nowMin)
+  // Reminders watch today's still-to-do timed tasks: finishing, deleting, or
+  // rescheduling one cancels its pending notification automatically.
+  const reminders = useReminders(
+    timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
+  )
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
   // Tasks scheduled past today — they wait in their own per-day sections and
@@ -313,6 +420,25 @@ export default function Planner() {
           <p className="text-xs text-zinc-400">{formatDate()}</p>
         </div>
         <div className="flex items-center gap-3">
+          {!inFocus && reminders.supported && timedActive.length > 0 && (
+            <button
+              onClick={reminders.toggle}
+              aria-pressed={reminders.enabled}
+              title={
+                reminders.enabled
+                  ? 'Reminders on — you’ll be notified when a task’s time arrives, while this tab is open'
+                  : 'Remind me when a timed task’s moment arrives'
+              }
+              className={`flex items-center transition-colors ${
+                reminders.enabled
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {reminders.enabled ? <BellIcon className="w-4 h-4" /> : <BellSlashIcon className="w-4 h-4" />}
+              <span className="sr-only">{reminders.enabled ? 'Turn reminders off' : 'Turn reminders on'}</span>
+            </button>
+          )}
           {!inFocus && focusQueue.length > 0 && (
             <button
               onClick={() => setFocusMode(true)}
@@ -342,6 +468,14 @@ export default function Planner() {
             style={{ width: `${(doneCount / todayTasks.length) * 100}%` }}
           />
         </div>
+      )}
+
+      {/* If the browser is blocking notifications, say so plainly instead of
+          leaving the bell looking broken — the fix lives in site settings. */}
+      {reminders.blocked && !inFocus && (
+        <p className="px-1 text-xs text-amber-600 dark:text-amber-500">
+          Notifications are blocked for this site. Allow them in your browser to get reminders.
+        </p>
       )}
 
       {/* Time on your plate today — a quiet, honest read on how full the day is.
