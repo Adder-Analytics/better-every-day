@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { currentDay, latestEntry } from "@/data/changelog";
 import "./globals.css";
@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const description = `A tiny daily planner that gets better every day — one improvement shipped by AI, every single day. Currently on Day ${currentDay()}: ${latestEntry().title}.`;
+const description = `A small daily planner that improves a little every day. Day ${currentDay()}: ${latestEntry().title}.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
@@ -22,6 +22,12 @@ export const metadata: Metadata = {
     template: "%s — Better Every Day",
   },
   description,
+  applicationName: "Better Every Day",
+  appleWebApp: {
+    capable: true,
+    title: "Every Day",
+    statusBarStyle: "default",
+  },
   openGraph: {
     title: "Better Every Day",
     description,
@@ -30,6 +36,15 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+};
+
+// Matches the page background (zinc-50 / zinc-950) so the browser chrome and
+// the installed app's title bar blend with the app in either theme.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
 };
 
 // Runs before first paint so the chosen theme is applied with no flash of the

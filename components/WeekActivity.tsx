@@ -29,21 +29,24 @@ export default function WeekActivity({ tasks }: { tasks: Task[] }) {
           <span className="font-semibold text-zinc-700 dark:text-zinc-200">{total}</span> done
         </p>
       </div>
-      <div className="flex items-end justify-between gap-1.5 h-12">
+      <div className="flex justify-between gap-1.5 h-12">
         {days.map((d, i) => {
           const isToday = i === days.length - 1
           const heightPct = d.count === 0 ? 0 : Math.max((d.count / max) * 100, 14)
           return (
             <div key={d.date} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
+              {/* Bars are absolutely anchored to the bottom of this box — a
+                  percentage height on a plain flex child resolves against an
+                  auto height and collapses to nothing. */}
               <div
-                className="w-full flex-1 flex items-end"
+                className="relative w-full flex-1"
                 title={`${d.count} task${d.count === 1 ? '' : 's'} on ${d.date}`}
               >
                 {d.count === 0 ? (
-                  <div className="w-full h-1 rounded-full bg-zinc-100 dark:bg-zinc-800" />
+                  <div className="absolute bottom-0 w-full h-1 rounded-full bg-zinc-100 dark:bg-zinc-800" />
                 ) : (
                   <div
-                    className={`w-full rounded-md transition-all duration-500 ${
+                    className={`absolute bottom-0 w-full rounded-md transition-all duration-500 ${
                       isToday ? 'bg-emerald-500' : 'bg-emerald-400/70 dark:bg-emerald-500/55'
                     }`}
                     style={{ height: `${heightPct}%` }}
