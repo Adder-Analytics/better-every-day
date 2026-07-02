@@ -1,4 +1,3 @@
-import { currentDay } from '@/data/changelog'
 import DayBanner from '@/components/DayBanner'
 import Planner from '@/components/Planner'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -12,12 +11,7 @@ export default function Page() {
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">Better Every Day</h1>
             <p className="text-xs text-zinc-400">A quiet place to plan your day</p>
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <span className="px-2.5 py-1 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-bold tabular-nums">
-              Day {currentDay()}
-            </span>
-          </div>
+          <ThemeToggle />
         </div>
       </header>
 

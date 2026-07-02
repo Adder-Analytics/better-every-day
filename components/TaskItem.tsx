@@ -65,6 +65,46 @@ function CheckIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "ellipsis-horizontal" — opens the task actions menu on touch
+// screens, where the hover-revealed icons can't appear.
+function EllipsisIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </svg>
+  )
+}
+
+// Heroicons "pencil" — the edit action, shared by the hover icon and the
+// touch actions menu.
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  )
+}
+
+// Note lines glyph — the note action, shared by the hover icon and the touch
+// actions menu.
+function NoteIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
+    </svg>
+  )
+}
+
+// Hover-revealed action icons: hidden until the row is hovered or focused
+// with the keyboard. On touch screens (no hover) they're removed entirely —
+// the ellipsis menu carries those actions instead.
+const hoverAction =
+  'flex-shrink-0 p-1 transition-all rounded pointer-coarse:hidden opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
+const visibleAction =
+  'flex-shrink-0 p-1 transition-all rounded pointer-coarse:hidden text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+
 type Props = {
   task: Task
   onToggle: (id: string) => void
@@ -113,7 +153,7 @@ export default function TaskItem({
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(task.note ?? '')
   // Only one popover per task is open at a time, so a single value tracks them.
-  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate'>(null)
+  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate' | 'actions'>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const draggable = !!onDragStart
@@ -211,7 +251,7 @@ export default function TaskItem({
         {draggable && (
           <div
             aria-hidden="true"
-            className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 transition-opacity"
+            className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 pointer-coarse:hidden text-zinc-300 dark:text-zinc-600 transition-opacity"
           >
             <svg className="w-3 h-4" fill="currentColor" viewBox="0 0 8 14">
               <circle cx="2" cy="2" r="1.2"/>
@@ -347,11 +387,7 @@ export default function TaskItem({
                 aria-haspopup="menu"
                 aria-expanded={menu === 'repeat'}
                 title={task.repeat ? 'Change repeat' : 'Repeat task'}
-                className={`flex-shrink-0 p-1 transition-all rounded ${
-                  task.repeat || menu === 'repeat'
-                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
-                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
-                }`}
+                className={task.repeat || menu === 'repeat' ? visibleAction : hoverAction}
               >
                 <RepeatIcon className="w-3.5 h-3.5" />
               </button>
@@ -364,11 +400,7 @@ export default function TaskItem({
                 aria-haspopup="menu"
                 aria-expanded={menu === 'schedule'}
                 title="Schedule for a day"
-                className={`flex-shrink-0 p-1 transition-all rounded ${
-                  menu === 'schedule'
-                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
-                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
-                }`}
+                className={menu === 'schedule' ? visibleAction : hoverAction}
               >
                 <CalendarIcon className="w-3.5 h-3.5" />
               </button>
@@ -381,11 +413,7 @@ export default function TaskItem({
                 aria-haspopup="menu"
                 aria-expanded={menu === 'estimate'}
                 title="Estimate time"
-                className={`flex-shrink-0 p-1 transition-all rounded ${
-                  menu === 'estimate'
-                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
-                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
-                }`}
+                className={menu === 'estimate' ? visibleAction : hoverAction}
               >
                 <ClockIcon className="w-3.5 h-3.5" />
               </button>
@@ -396,27 +424,33 @@ export default function TaskItem({
                 onClick={startNote}
                 aria-label={task.note ? 'Edit note' : 'Add note'}
                 title={task.note ? 'Edit note' : 'Add note'}
-                className={`flex-shrink-0 p-1 transition-all rounded ${
-                  task.note
-                    ? 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
-                    : 'opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
-                }`}
+                className={task.note ? visibleAction : hoverAction}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
-                </svg>
+                <NoteIcon className="w-3.5 h-3.5" />
               </button>
             )}
 
-            {!task.done && (
+            {!task.done && onEdit && (
               <button
                 onClick={startEdit}
                 aria-label="Edit task"
-                className="flex-shrink-0 p-1 opacity-0 group-hover:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-all rounded"
+                className={hoverAction}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
+                <PencilIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Touch screens have no hover, so the actions above live behind
+                one always-visible menu button there instead. */}
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate) && (
+              <button
+                onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
+                aria-label="Task actions"
+                aria-haspopup="menu"
+                aria-expanded={menu === 'actions'}
+                className="hidden pointer-coarse:block flex-shrink-0 p-1 rounded text-zinc-400 dark:text-zinc-500"
+              >
+                <EllipsisIcon className="w-4 h-4" />
               </button>
             )}
 
@@ -459,6 +493,36 @@ export default function TaskItem({
           onClick={() => setMenu(null)}
           className="fixed inset-0 z-20 cursor-default"
         />
+      )}
+
+      {menu === 'actions' && (
+        <div
+          role="menu"
+          className="absolute right-3 top-12 z-30 w-44 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          {(
+            [
+              onEdit && { label: 'Edit', icon: <PencilIcon className="w-3.5 h-3.5" />, run: startEdit },
+              canNote && { label: task.note ? 'Edit note' : 'Add note', icon: <NoteIcon className="w-3.5 h-3.5" />, run: startNote },
+              canSchedule && { label: 'Schedule', icon: <CalendarIcon className="w-3.5 h-3.5" />, run: () => setMenu('schedule') },
+              canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
+              canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
+            ].filter(Boolean) as { label: string; icon: React.ReactNode; run: () => void }[]
+          ).map(item => (
+            <button
+              key={item.label}
+              role="menuitem"
+              onClick={() => {
+                setMenu(null)
+                item.run()
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <span className="text-zinc-400 dark:text-zinc-500">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {menu === 'repeat' && (

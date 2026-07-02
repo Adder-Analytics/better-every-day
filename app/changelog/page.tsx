@@ -1,24 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { changelog, currentDay, type ChangeType } from '@/data/changelog'
+import { changelog, currentDay } from '@/data/changelog'
 import ThemeToggle from '@/components/ThemeToggle'
 
 export const metadata: Metadata = {
   title: 'Changelog',
-  description: `Every improvement this app has shipped, one per day. Currently on Day ${currentDay()}.`,
-}
-
-const TYPE_STYLES: Record<ChangeType, string> = {
-  feature: 'bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-400',
-  design: 'bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-400',
-  fix: 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400',
-  speed: 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400',
-  content: 'bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400',
+  description: `What changed, day by day. Currently on Day ${currentDay()}.`,
 }
 
 function formatEntryDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export default function ChangelogPage() {
@@ -30,7 +22,7 @@ export default function ChangelogPage() {
         <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">Changelog</h1>
-            <p className="text-xs text-zinc-400">One improvement, every day</p>
+            <p className="text-xs text-zinc-400">What changed, day by day</p>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
@@ -38,33 +30,30 @@ export default function ChangelogPage() {
               href="/"
               className="text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
             >
-              ← Back to today
+              Back to today
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-4 py-5 space-y-2.5">
-        {entries.map(entry => (
-          <article
-            key={entry.day}
-            className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-4"
-          >
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-xs font-bold tabular-nums">
-                Day {entry.day}
-              </span>
-              <span className="text-xs text-zinc-400">{formatEntryDate(entry.date)}</span>
-              {entry.type && (
-                <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_STYLES[entry.type]}`}>
-                  {entry.type}
-                </span>
-              )}
-            </div>
-            <h2 className="font-medium text-zinc-800 dark:text-zinc-100">{entry.title}</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">{entry.description}</p>
-          </article>
-        ))}
+      <div className="max-w-xl mx-auto px-4 py-2">
+        <ol className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+          {entries.map(entry => (
+            <li key={entry.day} className="py-4">
+              <div className="flex items-baseline gap-2 text-xs text-zinc-400">
+                <span className="font-medium tabular-nums text-zinc-500 dark:text-zinc-400">Day {entry.day}</span>
+                <time dateTime={entry.date}>{formatEntryDate(entry.date)}</time>
+                {entry.type && (
+                  <span className="ml-auto text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    {entry.type}
+                  </span>
+                )}
+              </div>
+              <h2 className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-100">{entry.title}</h2>
+              <p className="mt-0.5 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{entry.description}</p>
+            </li>
+          ))}
+        </ol>
       </div>
 
       <footer className="max-w-xl mx-auto px-4 py-10 text-center">

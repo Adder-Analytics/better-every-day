@@ -24,7 +24,9 @@ the improvement (they may accompany it).
 3. Pick one improvement — see the idea bank below, or invent one. Prefer small over clever.
 4. Implement it. Keep the diff small and focused.
 5. Append exactly one entry to the END of the `changelog` array in `data/changelog.ts`:
-   `{ day, date (today, YYYY-MM-DD), title (short, OG-card-friendly), description, type?, emoji? }`
+   `{ day, date (today, YYYY-MM-DD), title (short, OG-card-friendly), description, type? }`.
+   The description is a plain, factual note of what changed — a log line for the curious,
+   not marketing copy. No superlatives, no selling.
 6. Verify (below), then commit and push with the message `Day {N}: {title}`.
 
 ### Hard constraints
@@ -36,6 +38,10 @@ the improvement (they may accompany it).
 - Day numbers are sacred: strictly sequential, one entry per session, never edit past entries.
 - No new dependencies unless absolutely necessary; if you must add one, use bun.
 - Don't redesign the whole app. One improvement, in the existing zinc/dark visual language.
+- No emojis anywhere in the product or the changelog — use inline SVG icons
+  (Heroicons-style) instead.
+- The app must stay genuinely usable on touch screens: never gate an action behind
+  hover alone.
 
 ### Verification (must pass before commit)
 
