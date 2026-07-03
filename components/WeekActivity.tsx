@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import type { Task } from '@/lib/planner'
 import { weekActivity } from '@/lib/planner'
 
@@ -25,9 +26,27 @@ export default function WeekActivity({ tasks }: { tasks: Task[] }) {
     <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
       <div className="flex items-center justify-between mb-2.5 px-0.5">
         <p className="text-xs font-medium text-zinc-400">This week</p>
-        <p className="text-xs text-zinc-400 tabular-nums">
-          <span className="font-semibold text-zinc-700 dark:text-zinc-200">{total}</span> done
-        </p>
+        {/* The count doubles as the way into the full look-back — visible (not
+            hover-revealed), so it works by touch too. */}
+        <Link
+          href="/history"
+          title="See everything you got done, day by day"
+          className="group/history flex items-center gap-0.5 text-xs text-zinc-400 tabular-nums hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        >
+          <span>
+            <span className="font-semibold text-zinc-700 dark:text-zinc-200">{total}</span> done
+          </span>
+          <svg
+            className="w-3 h-3 text-zinc-300 dark:text-zinc-600 group-hover/history:text-zinc-500 group-hover/history:translate-x-0.5 transition-all"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          <span className="sr-only">Open history</span>
+        </Link>
       </div>
       <div className="flex justify-between gap-1.5 h-12">
         {days.map((d, i) => {

@@ -237,6 +237,58 @@ export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
   return [...counts].map(([date, count]) => ({ date, count }))
 }
 
+// A friendly heading for a past day: "Today"/"Yesterday", a weekday name
+// within the past week ("Tuesday"), or "Mon, Jun 23" further back. The
+// look-back counterpart of formatDayLabel, parsed from parts for the same
+// timezone reasons.
+export function formatPastDayLabel(dateStr: string): string {
+  if (dateStr === todayStr()) return 'Today'
+  if (dateStr === addDaysStr(-1)) return 'Yesterday'
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const [ty, tm, td] = todayStr().split('-').map(Number)
+  const diff = Math.round((new Date(ty, tm - 1, td).getTime() - date.getTime()) / 86_400_000)
+  return diff > 1 && diff < 7
+    ? date.toLocaleDateString('en-US', { weekday: 'long' })
+    : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+export type HistoryDay = { date: string; items: Task[] }
+
+// Everything completed in the last `days` days, grouped by day, newest first.
+// Days with nothing done are skipped. A one-off lands on its completedDate; a
+// routine appears on every day in its completion log, so the same task can
+// show up under several days. Within a day, timed tasks lead chronologically —
+// the order the day itself ran in.
+export function historyByDay(tasks: Task[], days = COMPLETED_RETENTION_DAYS): HistoryDay[] {
+  const today = todayStr()
+  const cutoff = daysAgoStr(days - 1)
+  const byDate = new Map<string, Task[]>()
+  const add = (date: string, t: Task) => {
+    if (date < cutoff || date > today) return
+    const list = byDate.get(date)
+    if (list) list.push(t)
+    else byDate.set(date, [t])
+  }
+  for (const t of tasks) {
+    if (t.repeat) {
+      for (const c of t.completions ?? []) add(c, t)
+    } else if (t.done && t.completedDate) {
+      add(t.completedDate, t)
+    }
+  }
+  const byTime = (a: Task, b: Task) => {
+    if (a.timeMin == null && b.timeMin == null) return 0
+    if (a.timeMin == null) return 1
+    if (b.timeMin == null) return -1
+    return a.timeMin - b.timeMin
+  }
+  return [...byDate.keys()]
+    .sort()
+    .reverse()
+    .map(date => ({ date, items: byDate.get(date)!.sort(byTime) }))
+}
+
 export function newTask(text: string, date: string = todayStr()): Task {
   return {
     id: `t${Date.now()}${Math.random().toString(36).slice(2, 6)}`,

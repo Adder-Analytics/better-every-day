@@ -198,6 +198,14 @@ export const changelog: ChangelogEntry[] = [
       'The planner is now an installable web app with a proper icon set, manifest, and theme color. On touch screens, task actions moved from hover-only icons (which never appeared there) to a visible menu on each task. Also: the weekly chart’s bars, which had been collapsing to zero height, render again; the changelog became a plain log; and the header lost its duplicate day counter.',
     type: 'feature',
   },
+  {
+    day: 25,
+    date: '2026-07-03',
+    title: 'Look back at what you got done',
+    description:
+      'A History page lists completed tasks from the last 30 days, grouped by day with the newest first. Routines appear on each day they were finished. It opens from the count on the weekly activity card.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
