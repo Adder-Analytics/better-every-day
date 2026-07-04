@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatTime, todayStr } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatTime, routineStreak, todayStr } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
@@ -34,6 +34,16 @@ function RepeatIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
+    </svg>
+  )
+}
+
+// Heroicons "fire" — a routine's streak.
+function FlameIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.601a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 00.495-7.468 5.99 5.99 0 00-1.925 3.547 5.975 5.975 0 01-2.133-1.001A3.75 3.75 0 0012 18z" />
     </svg>
   )
 }
@@ -182,6 +192,11 @@ export default function TaskItem({
     onSetTime?.(task.id, timeMin)
     setMenu(null)
   }
+
+  // A routine's current streak. Only a real run (2+) earns the flame — a
+  // single completion is just a task done, not yet a streak.
+  const streak = task.repeat ? routineStreak(task) : 0
+  const streakUnit = task.repeat === 'weekly' ? 'week' : 'day'
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -340,6 +355,19 @@ export default function TaskItem({
             } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
           >
             {task.text}
+          </span>
+        )}
+
+        {/* The streak — consecutive due days completed, counted by the
+            routine's own cadence. It ticks up the moment today is checked off,
+            which is exactly when the reward should land. */}
+        {streak >= 2 && !editing && (
+          <span
+            title={`${streak}-${streakUnit} streak — completed ${streak} ${streakUnit}s in a row`}
+            className={`flex-shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400 ${task.done ? 'opacity-60' : ''}`}
+          >
+            <FlameIcon className="w-3 h-3" />
+            {streak}
           </span>
         )}
 

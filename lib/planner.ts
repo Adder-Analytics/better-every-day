@@ -176,6 +176,61 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.completions ?? []).includes(dateStr)
 }
 
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// A routine's current streak: how many of its due days in a row have been
+// completed, counting back from today. The streak follows the task's own
+// cadence — a weekend never breaks a weekday streak, and a weekly routine
+// counts weeks — and today is a grace day: not-yet-done doesn't break the
+// run while the day is still in progress, but completing it counts.
+export function routineStreak(task: Task, today: string = todayStr()): number {
+  if (!task.repeat) return 0
+  const done = new Set(task.completions ?? [])
+  if (done.size === 0) return 0
+  const [y, m, d] = today.split('-').map(Number)
+  const cursor = new Date(y, m - 1, d)
+  let streak = 0
+  for (let isToday = true; streak < done.size; isToday = false) {
+    const date = fmtDate(cursor)
+    if (date < task.createdDate) break
+    if (isDueOn(task, date)) {
+      if (done.has(date)) streak++
+      else if (!isToday) break
+    }
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+// A routine's longest-ever run of completed due days, by the same cadence
+// rules as routineStreak. An unfinished today never ends a run early.
+export function bestRoutineStreak(task: Task, today: string = todayStr()): number {
+  if (!task.repeat) return 0
+  const done = new Set(task.completions ?? [])
+  if (done.size === 0) return 0
+  const first = [...done].sort()[0]
+  const [y, m, d] = first.split('-').map(Number)
+  const cursor = new Date(y, m - 1, d)
+  let best = 0
+  let run = 0
+  for (;;) {
+    const date = fmtDate(cursor)
+    if (date > today) break
+    if (isDueOn(task, date)) {
+      if (done.has(date)) {
+        run++
+        if (run > best) best = run
+      } else if (date !== today) {
+        run = 0
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return best
+}
+
 // User data lives here. Future shape changes must bump `version` and migrate
 // old data in this function — never discard what a user has saved.
 export function loadPlanner(): PlannerData {
@@ -193,14 +248,11 @@ export function loadPlanner(): PlannerData {
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
-      // Forget long-finished one-off tasks; routines persist, but their
-      // completion log is trimmed to the same window to stay tidy.
+      // Forget long-finished one-off tasks. Routines keep their full
+      // completion log — it's what streaks are counted from, so trimming it
+      // would cap every streak at the retention window. (History and the
+      // weekly chart window their own views at render time.)
       .filter(t => !(!t.repeat && t.done && (t.completedDate ?? t.createdDate) < cutoff))
-      .map(t =>
-        t.repeat && t.completions
-          ? { ...t, completions: t.completions.filter(c => c >= cutoff) }
-          : t
-      )
     return { version: PLANNER_VERSION, tasks }
   } catch {
     return empty

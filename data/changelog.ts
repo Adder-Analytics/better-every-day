@@ -206,6 +206,14 @@ export const changelog: ChangelogEntry[] = [
       'A History page lists completed tasks from the last 30 days, grouped by day with the newest first. Routines appear on each day they were finished. It opens from the count on the weekly activity card.',
     type: 'feature',
   },
+  {
+    day: 26,
+    date: '2026-07-04',
+    title: 'Streaks for routines',
+    description:
+      'Repeating tasks now show their current streak once it reaches two — consecutive due days completed, counted by each routine’s own cadence, so a weekend never breaks a weekday streak and an unfinished today never breaks anything. The History page lists every live streak alongside the routine’s best-ever run. Routine completion logs are no longer trimmed to 30 days, so long streaks survive.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
