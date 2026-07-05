@@ -214,6 +214,14 @@ export const changelog: ChangelogEntry[] = [
       'Repeating tasks now show their current streak once it reaches two — consecutive due days completed, counted by each routine’s own cadence, so a weekend never breaks a weekday streak and an unfinished today never breaks anything. The History page lists every live streak alongside the routine’s best-ever run. Routine completion logs are no longer trimmed to 30 days, so long streaks survive.',
     type: 'feature',
   },
+  {
+    day: 27,
+    date: '2026-07-05',
+    title: 'Undo a delete',
+    description:
+      'Deleting a task now shows a brief toast with an Undo button; Cmd/Ctrl+Z works too. Undo puts the task back exactly where it was, with its notes, schedule, and completion history intact. Several deletes in a row can be walked back one by one. The window lasts about eight seconds, then the deletion becomes final as before.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

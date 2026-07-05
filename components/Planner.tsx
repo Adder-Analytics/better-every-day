@@ -10,6 +10,9 @@ import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
 
+// How long a deleted task can be taken back before the deletion is final.
+const UNDO_WINDOW_MS = 8000
+
 // Heroicons calendar (a due day) and circular-arrows (a recurrence), sized for
 // the quick-add preview line.
 function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat'; className?: string }) {
@@ -180,8 +183,39 @@ export default function Planner() {
   const [focusMode, setFocusMode] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // Recently deleted tasks, each with the list position it came from, kept
+  // just long enough to be taken back. Newest last; undo restores from the end.
+  const [deleted, setDeleted] = useState<{ task: Task; index: number }[]>([])
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const armUndoTimer = useCallback(() => {
+    if (undoTimer.current) clearTimeout(undoTimer.current)
+    undoTimer.current = setTimeout(() => setDeleted([]), UNDO_WINDOW_MS)
+  }, [])
+
+  // Put the most recently deleted task back exactly where it was — same list
+  // position, notes, schedule, and completion history intact. Returns whether
+  // there was anything to undo, so the key handler knows to swallow the press.
+  const undoDelete = useCallback((): boolean => {
+    const last = deleted[deleted.length - 1]
+    if (!last) return false
+    setTasks(prev => {
+      if (prev.some(t => t.id === last.task.id)) return prev
+      const next = [...prev]
+      next.splice(Math.min(last.index, next.length), 0, last.task)
+      return next
+    })
+    const rest = deleted.slice(0, -1)
+    setDeleted(rest)
+    // More to take back: give them a fresh window. Otherwise stop the clock.
+    if (rest.length > 0) armUndoTimer()
+    else if (undoTimer.current) clearTimeout(undoTimer.current)
+    return true
+  }, [deleted, armUndoTimer])
+
+  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -192,6 +226,12 @@ export default function Planner() {
         setFocusMode(false)
         return
       }
+      // Cmd/Ctrl+Z takes back the last delete while the undo window is open.
+      // Inputs are already excluded above, so their native undo still works.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        if (undoDelete()) e.preventDefault()
+        return
+      }
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         inputRef.current?.focus()
@@ -199,7 +239,7 @@ export default function Planner() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [focusMode])
+  }, [focusMode, undoDelete])
 
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
@@ -261,8 +301,16 @@ export default function Planner() {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, timeMin } : t)))
   }
 
+  // Deleting keeps the task around briefly so it can be undone — the toast's
+  // Undo button or Cmd/Ctrl+Z puts it back. The window resets with each
+  // delete, so a run of deletes can be walked back in order.
   const deleteTask = (id: string) => {
+    const index = tasks.findIndex(t => t.id === id)
+    if (index === -1) return
+    const task = tasks[index]
     setTasks(prev => prev.filter(t => t.id !== id))
+    setDeleted(prev => [...prev, { task, index }])
+    armUndoTimer()
   }
 
   // Move a task to any day. The whole today / tomorrow / upcoming / carryover
@@ -412,6 +460,33 @@ export default function Planner() {
   return (
     <>
     <Confetti active={showConfetti} />
+
+    {/* Undo toast — a deleted task's way back, for the few seconds it exists.
+        Fixed above the bottom edge (safe-area aware for the installed app) and
+        announced politely to screen readers via role="status". */}
+    {deleted.length > 0 && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-1.5 pl-4 pr-1.5 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          <span className="min-w-0 truncate text-xs text-zinc-400 dark:text-zinc-500">
+            Deleted{' '}
+            <span className="font-medium text-white dark:text-zinc-900">
+              “{deleted[deleted.length - 1].task.text}”
+            </span>
+          </span>
+          <button
+            onClick={undoDelete}
+            title="Undo delete (Ctrl+Z)"
+            className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    )}
+
     <div className="space-y-2.5">
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
