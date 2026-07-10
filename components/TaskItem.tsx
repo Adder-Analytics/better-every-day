@@ -75,6 +75,23 @@ function CheckIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "star" — solid marks an important (starred) task, outline is the
+// action to star one.
+function StarIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+    </svg>
+  )
+}
+function StarOutlineIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+    </svg>
+  )
+}
+
 // Heroicons "ellipsis-horizontal" — opens the task actions menu on touch
 // screens, where the hover-revealed icons can't appear.
 function EllipsisIcon({ className }: { className?: string }) {
@@ -125,6 +142,7 @@ type Props = {
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
+  onSetPriority?: (id: string, priority: boolean) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
   carryover?: boolean
@@ -147,6 +165,7 @@ export default function TaskItem({
   onSetRepeat,
   onSetEstimate,
   onSetTime,
+  onSetPriority,
   upNextLabel,
   carryover = false,
   onDoToday,
@@ -172,6 +191,7 @@ export default function TaskItem({
   const canSchedule = !!onSchedule
   const canEstimate = !!onSetEstimate
   const canSetTime = !!onSetTime
+  const canPrioritize = !!onSetPriority
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
     onSetRepeat?.(task.id, repeat)
@@ -358,6 +378,26 @@ export default function TaskItem({
           </span>
         )}
 
+        {/* The star — an important task, floated to the top of the day. Solid
+            and amber when set; clicking it clears the star when the task is
+            editable, otherwise it's just a quiet marker. */}
+        {task.priority && !editing && (
+          canPrioritize && !task.done ? (
+            <button
+              onClick={() => onSetPriority!(task.id, false)}
+              aria-label="Remove star"
+              title="Starred as important — click to unstar"
+              className="flex-shrink-0 text-amber-400 hover:text-amber-500 transition-colors"
+            >
+              <StarIcon className="w-4 h-4" />
+            </button>
+          ) : (
+            <span title="Important" className={`flex-shrink-0 text-amber-400 ${task.done ? 'opacity-60' : ''}`}>
+              <StarIcon className="w-4 h-4" />
+            </span>
+          )
+        )}
+
         {/* The streak — consecutive due days completed, counted by the
             routine's own cadence. It ticks up the moment today is checked off,
             which is exactly when the reward should land. */}
@@ -408,6 +448,17 @@ export default function TaskItem({
 
         {!editing && (
           <>
+            {canPrioritize && !task.priority && !task.done && !editingNote && (
+              <button
+                onClick={() => onSetPriority!(task.id, true)}
+                aria-label="Star as important"
+                title="Star as important"
+                className={hoverAction}
+              >
+                <StarOutlineIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {canRepeat && !task.done && !editingNote && (
               <button
                 onClick={() => setMenu(m => (m === 'repeat' ? null : 'repeat'))}
@@ -470,7 +521,7 @@ export default function TaskItem({
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -530,6 +581,11 @@ export default function TaskItem({
         >
           {(
             [
+              canPrioritize && {
+                label: task.priority ? 'Remove star' : 'Star as important',
+                icon: task.priority ? <StarIcon className="w-3.5 h-3.5" /> : <StarOutlineIcon className="w-3.5 h-3.5" />,
+                run: () => onSetPriority!(task.id, !task.priority),
+              },
               onEdit && { label: 'Edit', icon: <PencilIcon className="w-3.5 h-3.5" />, run: startEdit },
               canNote && { label: task.note ? 'Edit note' : 'Add note', icon: <NoteIcon className="w-3.5 h-3.5" />, run: startNote },
               canSchedule && { label: 'Schedule', icon: <CalendarIcon className="w-3.5 h-3.5" />, run: () => setMenu('schedule') },

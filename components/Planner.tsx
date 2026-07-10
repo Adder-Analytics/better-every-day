@@ -301,6 +301,12 @@ export default function Planner() {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, timeMin } : t)))
   }
 
+  // Star a task as important, or clear the star. Stored as undefined when off so
+  // the saved shape stays clean (a plain task carries no priority field).
+  const setPriority = (id: string, priority: boolean) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, priority: priority || undefined } : t)))
+  }
+
   // Deleting keeps the task around briefly so it can be undone — the toast's
   // Undo button or Cmd/Ctrl+Z puts it back. The window resets with each
   // delete, so a run of deletes can be walked back in order.
@@ -380,10 +386,19 @@ export default function Planner() {
     if (b.timeMin == null) return -1
     return a.timeMin - b.timeMin
   }
+  // Starred tasks float to the top — but only among untimed tasks, so the
+  // timed agenda (and the "now" line dropped into it) keeps its chronological
+  // order. Sort is stable, so manual order holds within each priority group and
+  // drag-to-reorder still works.
+  const byPriorityTime = (a: Task, b: Task) => {
+    const t = byTime(a, b)
+    if (t !== 0) return t
+    return (b.priority ? 1 : 0) - (a.priority ? 1 : 0)
+  }
   // Finished tasks sink below what's still left, so the work that remains
   // stays at the top where your attention is. Relative order is preserved
   // within each group, and reordering still works (drag keys off task ids).
-  const todayActive = todayTasks.filter(t => !t.done).sort(byTime)
+  const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
   // The live agenda. Timed tasks lead the list in time order, so a single "now"
   // line dropped after the ones that have already started turns today into a
@@ -401,14 +416,14 @@ export default function Planner() {
     timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
   )
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
-  const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done)
+  const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done).sort(byPriorityTime)
   // Tasks scheduled past today — they wait in their own per-day sections and
   // slot into Today automatically when their day arrives. Grouped by date and
   // shown soonest-first; YYYY-MM-DD sorts chronologically as plain strings.
   const upcoming = tasks.filter(t => !t.repeat && t.createdDate > today)
   const upcomingDays = [...new Set(upcoming.map(t => t.createdDate))]
     .sort()
-    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date).sort(byTime) }))
+    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date).sort(byPriorityTime) }))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -585,6 +600,14 @@ export default function Planner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </button>
+            {focusTask.priority && (
+              <p className="mb-1 flex items-center justify-center gap-1 text-xs font-semibold text-amber-500">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                </svg>
+                Important
+              </p>
+            )}
             {focusTask.timeMin != null && (
               <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">{formatTime(focusTask.timeMin)}</p>
             )}
@@ -635,6 +658,7 @@ export default function Planner() {
               onEditNote={editNote}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
+              onSetPriority={setPriority}
             />
           ))}
         </div>
@@ -675,6 +699,7 @@ export default function Planner() {
               onSetRepeat={setRepeat}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
+              onSetPriority={setPriority}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}
@@ -793,6 +818,7 @@ export default function Planner() {
               onSchedule={scheduleTask}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
+              onSetPriority={setPriority}
             />
           ))}
         </div>
