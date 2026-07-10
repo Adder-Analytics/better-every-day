@@ -222,6 +222,14 @@ export const changelog: ChangelogEntry[] = [
       'Deleting a task now shows a brief toast with an Undo button; Cmd/Ctrl+Z works too. Undo puts the task back exactly where it was, with its notes, schedule, and completion history intact. Several deletes in a row can be walked back one by one. The window lasts about eight seconds, then the deletion becomes final as before.',
     type: 'feature',
   },
+  {
+    day: 28,
+    date: '2026-07-10',
+    title: 'Star what matters most',
+    description:
+      'Any task can be starred as important from its actions, and starred tasks float to the top of the list. Timed tasks keep their agenda order, so the star only reorders untimed ones. Focus mode marks a starred task as important. Stored data bumps to version 6 with the added optional field.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

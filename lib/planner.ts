@@ -15,13 +15,15 @@ export type Task = {
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   estimateMin?: number // optional rough time estimate, in minutes
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
+  priority?: boolean // starred as important — floats to the top of the day
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
-// v4: added optional time estimates. v5: added optional time of day. Each
-// version only adds optional fields, so older stored data is already valid
-// under the current shape — loadPlanner reads v1–v5 alike.
-export const PLANNER_VERSION = 5
+// v4: added optional time estimates. v5: added optional time of day. v6: added
+// an optional priority (star) flag. Each version only adds optional fields, so
+// older stored data is already valid under the current shape — loadPlanner
+// reads v1–v6 alike.
+export const PLANNER_VERSION = 6
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -112,7 +114,8 @@ function isTask(value: unknown): value is Task {
     (t.estimateMin === undefined ||
       (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0)) &&
     (t.timeMin === undefined ||
-      (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439))
+      (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439)) &&
+    (t.priority === undefined || typeof t.priority === 'boolean')
   )
 }
 
@@ -241,10 +244,10 @@ export function loadPlanner(): PlannerData {
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
-    // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates) and v5 (time of
-    // day) only add optional fields, so every version's tasks load cleanly into
-    // the current shape.
-    if (![1, 2, 3, 4, 5].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
+    // day) and v6 (priority) only add optional fields, so every version's tasks
+    // load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
