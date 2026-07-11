@@ -230,6 +230,14 @@ export const changelog: ChangelogEntry[] = [
       'Any task can be starred as important from its actions, and starred tasks float to the top of the list. Timed tasks keep their agenda order, so the star only reorders untimed ones. Focus mode marks a starred task as important. Stored data bumps to version 6 with the added optional field.',
     type: 'feature',
   },
+  {
+    day: 29,
+    date: '2026-07-11',
+    title: 'See what’s slipped past its time',
+    description:
+      'A timed task that’s still unfinished after its moment has passed now shows a quiet amber "25m late" hint, mirroring the emerald "in 25m" on the next task coming up. It updates with the clock and clears when the task is completed or rescheduled.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

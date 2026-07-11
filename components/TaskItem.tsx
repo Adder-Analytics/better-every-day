@@ -145,6 +145,8 @@ type Props = {
   onSetPriority?: (id: string, priority: boolean) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
+  // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
+  overdueLabel?: string
   carryover?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
@@ -167,6 +169,7 @@ export default function TaskItem({
   onSetTime,
   onSetPriority,
   upNextLabel,
+  overdueLabel,
   carryover = false,
   onDoToday,
   onDragStart,
@@ -352,6 +355,15 @@ export default function TaskItem({
         {upNextLabel && !editing && (
           <span className="flex-shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
             {upNextLabel}
+          </span>
+        )}
+
+        {/* The counterpart for a timed task whose moment has slipped by while
+            it's still unfinished — a quiet "25m late" in amber, so the agenda
+            shows what you're behind on, not just what's coming. */}
+        {overdueLabel && !editing && (
+          <span className="flex-shrink-0 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+            {overdueLabel}
           </span>
         )}
 
