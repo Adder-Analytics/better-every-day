@@ -145,6 +145,16 @@ export function formatStartsIn(deltaMin: number): string {
   return m === 0 ? `in ${h}h` : `in ${h}h ${m}m`
 }
 
+// How far past a time is, as a short phrase: "5m late", "1h late", "2h 30m late".
+// The mirror of formatStartsIn — callers gate on a positive delta — used by the
+// live agenda to flag a timed task whose moment has slipped by unfinished.
+export function formatOverdue(deltaMin: number): string {
+  if (deltaMin < 60) return `${deltaMin}m late`
+  const h = Math.floor(deltaMin / 60)
+  const m = deltaMin % 60
+  return m === 0 ? `${h}h late` : `${h}h ${m}m late`
+}
+
 // A time of day from minutes-since-midnight: "9 AM", "9:30 AM", "12 PM",
 // "2:30 PM". Used by the agenda time pill and the quick-add preview.
 export function formatTime(min: number): string {
