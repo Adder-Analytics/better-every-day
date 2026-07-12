@@ -283,23 +283,56 @@ export function lastNDates(n: number): string[] {
   return out
 }
 
-// How many tasks were completed on each of the last 7 days, oldest first.
-// Reads from the completion history the planner already retains.
-export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
-  const counts = new Map(lastNDates(7).map(d => [d, 0]))
-  const bump = (date: string) => {
-    const c = counts.get(date)
-    if (c !== undefined) counts.set(date, c + 1)
-  }
+// How many tasks were completed on each date, across all of history. A one-off
+// counts once on its completedDate; a routine counts on every day it was done.
+// The shared basis for the weekly bars and the activity calendar.
+export function completionCounts(tasks: Task[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  const bump = (date: string) => counts.set(date, (counts.get(date) ?? 0) + 1)
   for (const t of tasks) {
     if (t.repeat) {
-      // Each day a routine was completed counts toward that day's total.
       for (const c of t.completions ?? []) bump(c)
     } else if (t.done && t.completedDate !== undefined) {
       bump(t.completedDate)
     }
   }
-  return [...counts].map(([date, count]) => ({ date, count }))
+  return counts
+}
+
+// How many tasks were completed on each of the last 7 days, oldest first.
+// Reads from the completion history the planner already retains.
+export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
+  const counts = completionCounts(tasks)
+  return lastNDates(7).map(date => ({ date, count: counts.get(date) ?? 0 }))
+}
+
+// One square in the activity calendar: a date, how many tasks were completed on
+// it, and flags for the two special cells the grid renders differently.
+export type CalendarCell = { date: string; count: number; isToday: boolean; isFuture: boolean }
+
+// A calendar grid of the last `weeks` weeks, laid out Sunday-first and ending
+// with the week containing today. Rows are weeks (oldest first), each a run of
+// seven cells; days past today fill out the final week as `isFuture` blanks.
+// Built from parts so weekday alignment is correct in every timezone.
+export function activityCalendar(tasks: Task[], weeks = 5, today: string = todayStr()): CalendarCell[][] {
+  const counts = completionCounts(tasks)
+  const [ty, tm, td] = today.split('-').map(Number)
+  // Saturday that closes today's week — the last cell of the grid's final row.
+  const end = new Date(ty, tm - 1, td)
+  end.setDate(end.getDate() + (6 - end.getDay()))
+  const cursor = new Date(end)
+  cursor.setDate(end.getDate() - (weeks * 7 - 1))
+  const rows: CalendarCell[][] = []
+  for (let w = 0; w < weeks; w++) {
+    const row: CalendarCell[] = []
+    for (let d = 0; d < 7; d++) {
+      const date = fmtDate(cursor)
+      row.push({ date, count: counts.get(date) ?? 0, isToday: date === today, isFuture: date > today })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    rows.push(row)
+  }
+  return rows
 }
 
 // A friendly heading for a past day: "Today"/"Yesterday", a weekday name

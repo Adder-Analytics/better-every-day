@@ -238,6 +238,14 @@ export const changelog: ChangelogEntry[] = [
       'A timed task that’s still unfinished after its moment has passed now shows a quiet amber "25m late" hint, mirroring the emerald "in 25m" on the next task coming up. It updates with the clock and clears when the task is completed or rescheduled.',
     type: 'feature',
   },
+  {
+    day: 30,
+    date: '2026-07-12',
+    title: 'A calendar of what you got done',
+    description:
+      'The History page now opens with an activity calendar: one square per day for the last five weeks, shaded from light to dark by how many tasks were completed, with today outlined and a legend for the scale. It reads from the completion history the planner already keeps, so nothing is stored differently. Each square names its day and count on hover, and the weekly bars now share the same counting.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

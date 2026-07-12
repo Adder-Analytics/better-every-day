@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from 'react'
 import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import ActivityCalendar from '@/components/ActivityCalendar'
 
 const emptySubscribe = () => () => {}
 
@@ -55,6 +56,7 @@ export default function HistoryList() {
 
   return (
     <div className="py-2">
+      <ActivityCalendar tasks={tasks} />
       {streaks.length > 0 && (
         <div className="mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
           <p className="mb-2 px-0.5 text-xs font-medium text-zinc-400">Streaks</p>
