@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
@@ -305,6 +305,12 @@ export default function Planner() {
   // the saved shape stays clean (a plain task carries no priority field).
   const setPriority = (id: string, priority: boolean) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, priority: priority || undefined } : t)))
+  }
+
+  // Replace a task's checklist of steps. Stored as undefined when empty so a
+  // task with no steps carries no subtasks field, keeping the saved shape clean.
+  const setSubtasks = (id: string, subtasks: Subtask[]) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, subtasks: subtasks.length ? subtasks : undefined } : t)))
   }
 
   // Deleting keeps the task around briefly so it can be undone — the toast's
@@ -659,6 +665,7 @@ export default function Planner() {
               onSetEstimate={setEstimate}
               onSetTime={setTime}
               onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
             />
           ))}
         </div>
@@ -691,6 +698,7 @@ export default function Planner() {
               key={task.id}
               task={task}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
+              overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onEdit={editTask}
@@ -700,6 +708,7 @@ export default function Planner() {
               onSetEstimate={setEstimate}
               onSetTime={setTime}
               onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}
@@ -819,6 +828,7 @@ export default function Planner() {
               onSetEstimate={setEstimate}
               onSetTime={setTime}
               onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
             />
           ))}
         </div>
