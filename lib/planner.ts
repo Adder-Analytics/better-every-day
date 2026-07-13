@@ -1,6 +1,15 @@
 // How often a task repeats. Absent means it's a one-off.
 export type RepeatRule = 'daily' | 'weekdays' | 'weekly'
 
+// A single step within a task — a way to break one thing into the smaller
+// pieces it actually takes. Each is checked off on its own; they don't drive
+// the parent's completion, they just show how far along it is.
+export type Subtask = {
+  id: string
+  text: string
+  done: boolean
+}
+
 export type Task = {
   id: string
   text: string
@@ -16,14 +25,15 @@ export type Task = {
   estimateMin?: number // optional rough time estimate, in minutes
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
   priority?: boolean // starred as important — floats to the top of the day
+  subtasks?: Subtask[] // optional checklist of steps that make up the task
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
 // v4: added optional time estimates. v5: added optional time of day. v6: added
-// an optional priority (star) flag. Each version only adds optional fields, so
-// older stored data is already valid under the current shape — loadPlanner
-// reads v1–v6 alike.
-export const PLANNER_VERSION = 6
+// an optional priority (star) flag. v7: added an optional subtask checklist.
+// Each version only adds optional fields, so older stored data is already valid
+// under the current shape — loadPlanner reads v1–v7 alike.
+export const PLANNER_VERSION = 7
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -99,6 +109,12 @@ function isRepeatRule(value: unknown): value is RepeatRule {
   return value === 'daily' || value === 'weekdays' || value === 'weekly'
 }
 
+function isSubtask(value: unknown): value is Subtask {
+  if (typeof value !== 'object' || value === null) return false
+  const s = value as Record<string, unknown>
+  return typeof s.id === 'string' && typeof s.text === 'string' && typeof s.done === 'boolean'
+}
+
 function isTask(value: unknown): value is Task {
   if (typeof value !== 'object' || value === null) return false
   const t = value as Record<string, unknown>
@@ -115,7 +131,8 @@ function isTask(value: unknown): value is Task {
       (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0)) &&
     (t.timeMin === undefined ||
       (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439)) &&
-    (t.priority === undefined || typeof t.priority === 'boolean')
+    (t.priority === undefined || typeof t.priority === 'boolean') &&
+    (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask)))
   )
 }
 
@@ -255,9 +272,9 @@ export function loadPlanner(): PlannerData {
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
-    // day) and v6 (priority) only add optional fields, so every version's tasks
-    // load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // day), v6 (priority) and v7 (subtasks) only add optional fields, so every
+    // version's tasks load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -394,6 +411,19 @@ export function newTask(text: string, date: string = todayStr()): Task {
     done: false,
     createdDate: date,
   }
+}
+
+// A fresh, unchecked step. Its own id namespace ("s…") keeps it distinct from a
+// task id, though the two never mix in the same list.
+export function newSubtask(text: string): Subtask {
+  return { id: `s${Date.now()}${Math.random().toString(36).slice(2, 6)}`, text, done: false }
+}
+
+// How many of a task's steps are done, and how many there are. Zero total means
+// the task has no checklist. Used for the progress pill on a task row.
+export function subtaskProgress(task: Task): { done: number; total: number } {
+  const subs = task.subtasks ?? []
+  return { done: subs.filter(s => s.done).length, total: subs.length }
 }
 
 // --- Quick add parsing --------------------------------------------------------

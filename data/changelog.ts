@@ -246,6 +246,14 @@ export const changelog: ChangelogEntry[] = [
       'The History page now opens with an activity calendar: one square per day for the last five weeks, shaded from light to dark by how many tasks were completed, with today outlined and a legend for the scale. It reads from the completion history the planner already keeps, so nothing is stored differently. Each square names its day and count on hover, and the weekly bars now share the same counting.',
     type: 'feature',
   },
+  {
+    day: 31,
+    date: '2026-07-13',
+    title: 'Break a task into steps',
+    description:
+      'A task can now hold a checklist of steps. Open one from a task’s actions ("Break into steps"), then add, check off, rename (double-click), or remove each step; the row shows a "2/3" count that turns green when every step is done. Steps don’t complete the task on their own — the task is still checked off as one thing. They ride along in exports and backups. Stored data bumps to version 7 with the added optional field.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
