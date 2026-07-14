@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, PLANNER_VERSION } from '@/lib/planner'
+import { useRouter } from 'next/navigation'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Theme, themeStore } from '@/lib/theme'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import NoteText from '@/components/NoteText'
+import CommandPalette, { type Command, openCommandPalette } from '@/components/CommandPalette'
 
 const emptySubscribe = () => () => {}
 
@@ -64,6 +67,83 @@ function BellSlashIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 003.844.148m-3.844-.148a23.856 23.856 0 01-5.455-1.31 8.964 8.964 0 002.3-5.542m3.155 6.852a3 3 0 005.667 1.97m1.965-2.277L21 21m-4.225-4.225a23.81 23.81 0 003.536-1.003 8.967 8.967 0 01-2.312-6.022V9a6 6 0 00-9.75-4.685M4.5 4.5l3.75 3.75M8.25 9v.75" />
+    </svg>
+  )
+}
+
+// Small inline icons for the command palette entries and its opener. Heroicons
+// (outline), sized to sit on a menu row.
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  )
+}
+function TargetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+function SunIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="4" />
+      <path strokeLinecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41" />
+    </svg>
+  )
+}
+function MonitorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3" y="4" width="18" height="12" rx="1.5" />
+      <path strokeLinecap="round" d="M8 20h8m-4-4v4" />
+    </svg>
+  )
+}
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+    </svg>
+  )
+}
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+  )
+}
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 2.4-5.92M3.5 4.5V9H8" />
+    </svg>
+  )
+}
+function SparkIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+    </svg>
+  )
+}
+function DownToTodayIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v11m0 0 4-4m-4 4-4-4M5 20h14" />
+    </svg>
+  )
+}
+// Heroicons "command-line" — the palette opener.
+function CommandIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
     </svg>
   )
 }
@@ -189,6 +269,10 @@ export default function Planner() {
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
+  // The live theme preference, so the palette can flag the active one and set
+  // the others. Shared with the header switcher via the same store.
+  const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get, () => 'system' as Theme)
 
   const armUndoTimer = useCallback(() => {
     if (undoTimer.current) clearTimeout(undoTimer.current)
@@ -354,6 +438,28 @@ export default function Planner() {
     return added
   }
 
+  // Download a backup of the current tasks — the same export the "Your data"
+  // card offers, reachable in one keystroke from the command palette.
+  const exportBackup = () => {
+    if (tasks.length === 0) return
+    const blob = new Blob([serializeExport(tasks)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = exportFilename()
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  // Pull every unfinished task carried over from a past day into today at once —
+  // the bulk form of each row's "Do today", for mornings with a full backlog.
+  const bringCarryoversToToday = () => {
+    const today = todayStr()
+    setTasks(prev => prev.map(t => (!t.repeat && !t.done && t.createdDate < today ? { ...t, createdDate: today } : t)))
+  }
+
   const handleDragStart = (id: string) => setDragId(id)
   const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id) }
   const handleDrop = (targetId: string) => {
@@ -470,6 +576,82 @@ export default function Planner() {
   // schedule (and the title with its phrase removed) before you commit.
   const parsed = parseQuickAdd(newText)
 
+  // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
+  // on the client; the opener only renders after mount, so it's never on the
+  // server's HTML.
+  const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent)
+  const modLabel = isMac ? '⌘K' : 'Ctrl K'
+
+  // The command palette's entries, rebuilt from the live view so each one is
+  // only offered when it makes sense (focus only with a queue, reminders only
+  // for timed tasks, export only with something to export). Every command here
+  // has an equivalent in the normal UI — the palette is an accelerator.
+  const commands: Command[] = [
+    {
+      id: 'add',
+      label: 'Add a task',
+      hint: 'n',
+      keywords: 'new create',
+      icon: <PlusIcon className="h-4 w-4" />,
+      run: () => {
+        setFocusMode(false)
+        setTimeout(() => inputRef.current?.focus(), 60)
+      },
+    },
+    ...(inFocus
+      ? [{ id: 'focus-exit', label: 'Exit focus mode', keywords: 'focus', icon: <TargetIcon className="h-4 w-4" />, run: () => setFocusMode(false) }]
+      : focusQueue.length > 0
+        ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => setFocusMode(true) }]
+        : []),
+    ...(carryovers.length > 0
+      ? [{
+          id: 'carryovers',
+          label: `Bring ${carryovers.length} carried-over ${carryovers.length === 1 ? 'task' : 'tasks'} to today`,
+          keywords: 'carryover yesterday move backlog do today',
+          icon: <DownToTodayIcon className="h-4 w-4" />,
+          run: bringCarryoversToToday,
+        }]
+      : []),
+    ...(reminders.supported && timedActive.length > 0
+      ? [{
+          id: 'reminders',
+          label: reminders.enabled ? 'Turn reminders off' : 'Turn reminders on',
+          keywords: 'notify notification alert bell',
+          icon: reminders.enabled ? <BellIcon className="h-4 w-4" /> : <BellSlashIcon className="h-4 w-4" />,
+          run: reminders.toggle,
+        }]
+      : []),
+    {
+      id: 'theme-light',
+      label: 'Use light theme',
+      hint: theme === 'light' ? 'Active' : undefined,
+      keywords: 'theme appearance color mode',
+      icon: <SunIcon className="h-4 w-4" />,
+      run: () => themeStore.set('light'),
+    },
+    {
+      id: 'theme-system',
+      label: 'Match system theme',
+      hint: theme === 'system' ? 'Active' : undefined,
+      keywords: 'theme appearance auto mode',
+      icon: <MonitorIcon className="h-4 w-4" />,
+      run: () => themeStore.set('system'),
+    },
+    {
+      id: 'theme-dark',
+      label: 'Use dark theme',
+      hint: theme === 'dark' ? 'Active' : undefined,
+      keywords: 'theme appearance night mode',
+      icon: <MoonIcon className="h-4 w-4" />,
+      run: () => themeStore.set('dark'),
+    },
+    ...(tasks.length > 0
+      ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
+      : []),
+    { id: 'history', label: 'Open History', keywords: 'past done completed calendar activity', icon: <HistoryIcon className="h-4 w-4" />, run: () => router.push('/history') },
+    { id: 'changelog', label: 'What’s new', keywords: 'changelog updates releases day', icon: <SparkIcon className="h-4 w-4" />, run: () => router.push('/changelog') },
+  ]
+
   if (!mounted) {
     return (
       <div className="py-14 flex items-center justify-center">
@@ -481,6 +663,7 @@ export default function Planner() {
   return (
     <>
     <Confetti active={showConfetti} />
+    <CommandPalette commands={commands} />
 
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
@@ -806,9 +989,18 @@ export default function Planner() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-zinc-400">
-          Press <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">n</kbd> to add
-        </p>
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          title="Open the command menu"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        >
+          <CommandIcon className="h-3.5 w-3.5" />
+          <span>Commands</span>
+          <kbd className="pointer-coarse:hidden rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] px-1 py-0.5 border border-zinc-200 dark:border-zinc-700">
+            {modLabel}
+          </kbd>
+        </button>
       </div>
 
       {/* Upcoming — what you've planned ahead, grouped by day and waiting

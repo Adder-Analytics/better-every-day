@@ -254,6 +254,14 @@ export const changelog: ChangelogEntry[] = [
       'A task can now hold a checklist of steps. Open one from a task’s actions ("Break into steps"), then add, check off, rename (double-click), or remove each step; the row shows a "2/3" count that turns green when every step is done. Steps don’t complete the task on their own — the task is still checked off as one thing. They ride along in exports and backups. Stored data bumps to version 7 with the added optional field.',
     type: 'feature',
   },
+  {
+    day: 32,
+    date: '2026-07-14',
+    title: 'A command menu, a keystroke away',
+    description:
+      'Press Cmd/Ctrl+K — or the new Commands button by the add box — to open a searchable menu of the app’s actions: add a task, enter or exit focus mode, toggle reminders, switch theme, bring carried-over tasks to today, export a backup, and open History or What’s new. Filter by typing; move with the arrow keys, Enter runs, Esc closes. Each command appears only when it applies, and every one is also reachable in the normal UI, so the menu is a shortcut rather than the only way. The header theme switcher and the menu now share one preference.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
