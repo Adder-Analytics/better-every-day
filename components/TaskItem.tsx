@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import type { Task, RepeatRule } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatTime, routineStreak, todayStr } from '@/lib/planner'
+import type { Task, RepeatRule, Subtask } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatTime, routineStreak, subtaskProgress, todayStr } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
+import SubtaskList from '@/components/SubtaskList'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
   { value: 'daily', label: 'Every day' },
@@ -124,6 +125,16 @@ function NoteIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "list-bullet" — the steps (subtask checklist) action and the
+// progress pill.
+function StepsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" />
+    </svg>
+  )
+}
+
 // Hover-revealed action icons: hidden until the row is hovered or focused
 // with the keyboard. On touch screens (no hover) they're removed entirely —
 // the ellipsis menu carries those actions instead.
@@ -143,9 +154,15 @@ type Props = {
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
+  onSetSubtasks?: (id: string, subtasks: Subtask[]) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
+  // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
+  overdueLabel?: string
   carryover?: boolean
+  // Marks this row as the keyboard selection — draws a focus ring and scrolls
+  // the row into view. Driven from the parent's list navigation.
+  selected?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -166,8 +183,11 @@ export default function TaskItem({
   onSetEstimate,
   onSetTime,
   onSetPriority,
+  onSetSubtasks,
   upNextLabel,
+  overdueLabel,
   carryover = false,
+  selected = false,
   onDoToday,
   onDragStart,
   onDragOver,
@@ -181,10 +201,14 @@ export default function TaskItem({
   const [editText, setEditText] = useState(task.text)
   const [editingNote, setEditingNote] = useState(false)
   const [noteText, setNoteText] = useState(task.note ?? '')
+  // Reveals the steps checklist on a task that has none yet, so "Add step" opens
+  // an empty list ready to type into; it collapses again if left empty.
+  const [addingStep, setAddingStep] = useState(false)
   // Only one popover per task is open at a time, so a single value tracks them.
   const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate' | 'actions'>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
@@ -192,6 +216,13 @@ export default function TaskItem({
   const canEstimate = !!onSetEstimate
   const canSetTime = !!onSetTime
   const canPrioritize = !!onSetPriority
+  const canSubtask = !!onSetSubtasks
+  const { done: subDone, total: subTotal } = subtaskProgress(task)
+  const hasSubtasks = subTotal > 0
+  // The checklist shows whenever there are steps, or when one is being added.
+  const showSubtasks = hasSubtasks || addingStep
+  // Steps are editable in the same places a task is (not once it's finished).
+  const subtasksEditable = canSubtask && !task.done
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
     onSetRepeat?.(task.id, repeat)
@@ -226,6 +257,12 @@ export default function TaskItem({
   useEffect(() => {
     if (editing) editInputRef.current?.focus()
   }, [editing])
+
+  // Keep the keyboard-selected row in view as the selection moves through the
+  // list. `block: 'nearest'` scrolls the minimum needed, so it never jumps.
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
 
   useEffect(() => {
     if (editingNote) {
@@ -269,6 +306,7 @@ export default function TaskItem({
 
   return (
     <div
+      ref={rowRef}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart!(task.id) } : undefined}
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
@@ -280,6 +318,10 @@ export default function TaskItem({
           : isDragOver
           ? 'border-zinc-400 dark:border-zinc-500 shadow-md'
           : 'border-zinc-200 dark:border-zinc-800'
+      } ${
+        selected
+          ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950'
+          : ''
       }`}
     >
       <div className="flex items-center gap-3 min-w-0">
@@ -352,6 +394,15 @@ export default function TaskItem({
         {upNextLabel && !editing && (
           <span className="flex-shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
             {upNextLabel}
+          </span>
+        )}
+
+        {/* The counterpart for a timed task whose moment has slipped by while
+            it's still unfinished — a quiet "25m late" in amber, so the agenda
+            shows what you're behind on, not just what's coming. */}
+        {overdueLabel && !editing && (
+          <span className="flex-shrink-0 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+            {overdueLabel}
           </span>
         )}
 
@@ -446,6 +497,20 @@ export default function TaskItem({
           )
         )}
 
+        {/* Steps progress — how many of the task's checklist items are done.
+            Turns emerald once every step is checked, a quiet "all clear". */}
+        {hasSubtasks && !editing && (
+          <span
+            title={`${subDone} of ${subTotal} steps done`}
+            className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium tabular-nums ${
+              subDone === subTotal ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400 dark:text-zinc-500'
+            } ${task.done ? 'opacity-60' : ''}`}
+          >
+            <StepsIcon className="w-3 h-3" />
+            {subDone}/{subTotal}
+          </span>
+        )}
+
         {!editing && (
           <>
             {canPrioritize && !task.priority && !task.done && !editingNote && (
@@ -509,6 +574,17 @@ export default function TaskItem({
               </button>
             )}
 
+            {canSubtask && !task.done && !editingNote && !showSubtasks && (
+              <button
+                onClick={() => setAddingStep(true)}
+                aria-label="Add a step"
+                title="Break into steps"
+                className={hoverAction}
+              >
+                <StepsIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {!task.done && onEdit && (
               <button
                 onClick={startEdit}
@@ -521,7 +597,7 @@ export default function TaskItem({
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -588,6 +664,7 @@ export default function TaskItem({
               },
               onEdit && { label: 'Edit', icon: <PencilIcon className="w-3.5 h-3.5" />, run: startEdit },
               canNote && { label: task.note ? 'Edit note' : 'Add note', icon: <NoteIcon className="w-3.5 h-3.5" />, run: startNote },
+              canSubtask && { label: hasSubtasks ? 'Add step' : 'Break into steps', icon: <StepsIcon className="w-3.5 h-3.5" />, run: () => setAddingStep(true) },
               canSchedule && { label: 'Schedule', icon: <CalendarIcon className="w-3.5 h-3.5" />, run: () => setMenu('schedule') },
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
@@ -741,6 +818,16 @@ export default function TaskItem({
             </button>
           )}
         </div>
+      )}
+
+      {showSubtasks && (
+        <SubtaskList
+          subtasks={task.subtasks ?? []}
+          editable={subtasksEditable}
+          onChange={next => onSetSubtasks?.(task.id, next)}
+          autoFocusAdd={addingStep}
+          onDismissEmpty={() => setAddingStep(false)}
+        />
       )}
 
       {editingNote ? (

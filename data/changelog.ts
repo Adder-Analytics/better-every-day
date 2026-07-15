@@ -230,6 +230,46 @@ export const changelog: ChangelogEntry[] = [
       'Any task can be starred as important from its actions, and starred tasks float to the top of the list. Timed tasks keep their agenda order, so the star only reorders untimed ones. Focus mode marks a starred task as important. Stored data bumps to version 6 with the added optional field.',
     type: 'feature',
   },
+  {
+    day: 29,
+    date: '2026-07-11',
+    title: 'See what’s slipped past its time',
+    description:
+      'A timed task that’s still unfinished after its moment has passed now shows a quiet amber "25m late" hint, mirroring the emerald "in 25m" on the next task coming up. It updates with the clock and clears when the task is completed or rescheduled.',
+    type: 'feature',
+  },
+  {
+    day: 30,
+    date: '2026-07-12',
+    title: 'A calendar of what you got done',
+    description:
+      'The History page now opens with an activity calendar: one square per day for the last five weeks, shaded from light to dark by how many tasks were completed, with today outlined and a legend for the scale. It reads from the completion history the planner already keeps, so nothing is stored differently. Each square names its day and count on hover, and the weekly bars now share the same counting.',
+    type: 'feature',
+  },
+  {
+    day: 31,
+    date: '2026-07-13',
+    title: 'Break a task into steps',
+    description:
+      'A task can now hold a checklist of steps. Open one from a task’s actions ("Break into steps"), then add, check off, rename (double-click), or remove each step; the row shows a "2/3" count that turns green when every step is done. Steps don’t complete the task on their own — the task is still checked off as one thing. They ride along in exports and backups. Stored data bumps to version 7 with the added optional field.',
+    type: 'feature',
+  },
+  {
+    day: 32,
+    date: '2026-07-14',
+    title: 'A command menu, a keystroke away',
+    description:
+      'Press Cmd/Ctrl+K — or the new Commands button by the add box — to open a searchable menu of the app’s actions: add a task, enter or exit focus mode, toggle reminders, switch theme, bring carried-over tasks to today, export a backup, and open History or What’s new. Filter by typing; move with the arrow keys, Enter runs, Esc closes. Each command appears only when it applies, and every one is also reachable in the normal UI, so the menu is a shortcut rather than the only way. The header theme switcher and the menu now share one preference.',
+    type: 'feature',
+  },
+  {
+    day: 33,
+    date: '2026-07-15',
+    title: 'Step through your day by keyboard',
+    description:
+      'Today’s list can now be driven from the keyboard. Press j or k to move a selection through it — the arrow keys join in once you’re navigating — then Space or Enter to check the selected task off (or back on), and Backspace to remove it, with the usual undo. The selected row shows a ring and scrolls into view, and checking one off steps the selection to the next task still to do. It covers today’s tasks; carryovers and upcoming days keep their own actions. Mouse and touch are unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
