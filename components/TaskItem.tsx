@@ -160,6 +160,9 @@ type Props = {
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
   carryover?: boolean
+  // Marks this row as the keyboard selection — draws a focus ring and scrolls
+  // the row into view. Driven from the parent's list navigation.
+  selected?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -184,6 +187,7 @@ export default function TaskItem({
   upNextLabel,
   overdueLabel,
   carryover = false,
+  selected = false,
   onDoToday,
   onDragStart,
   onDragOver,
@@ -204,6 +208,7 @@ export default function TaskItem({
   const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate' | 'actions'>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
@@ -253,6 +258,12 @@ export default function TaskItem({
     if (editing) editInputRef.current?.focus()
   }, [editing])
 
+  // Keep the keyboard-selected row in view as the selection moves through the
+  // list. `block: 'nearest'` scrolls the minimum needed, so it never jumps.
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
+
   useEffect(() => {
     if (editingNote) {
       const el = noteRef.current
@@ -295,6 +306,7 @@ export default function TaskItem({
 
   return (
     <div
+      ref={rowRef}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart!(task.id) } : undefined}
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
@@ -306,6 +318,10 @@ export default function TaskItem({
           : isDragOver
           ? 'border-zinc-400 dark:border-zinc-500 shadow-md'
           : 'border-zinc-200 dark:border-zinc-800'
+      } ${
+        selected
+          ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950'
+          : ''
       }`}
     >
       <div className="flex items-center gap-3 min-w-0">

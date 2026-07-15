@@ -262,6 +262,14 @@ export const changelog: ChangelogEntry[] = [
       'Press Cmd/Ctrl+K — or the new Commands button by the add box — to open a searchable menu of the app’s actions: add a task, enter or exit focus mode, toggle reminders, switch theme, bring carried-over tasks to today, export a backup, and open History or What’s new. Filter by typing; move with the arrow keys, Enter runs, Esc closes. Each command appears only when it applies, and every one is also reachable in the normal UI, so the menu is a shortcut rather than the only way. The header theme switcher and the menu now share one preference.',
     type: 'feature',
   },
+  {
+    day: 33,
+    date: '2026-07-15',
+    title: 'Step through your day by keyboard',
+    description:
+      'Today’s list can now be driven from the keyboard. Press j or k to move a selection through it — the arrow keys join in once you’re navigating — then Space or Enter to check the selected task off (or back on), and Backspace to remove it, with the usual undo. The selected row shows a ring and scrolls into view, and checking one off steps the selection to the next task still to do. It covers today’s tasks; carryovers and upcoming days keep their own actions. Mouse and touch are unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

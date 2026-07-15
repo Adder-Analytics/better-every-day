@@ -261,6 +261,10 @@ export default function Planner() {
   const [addFor, setAddFor] = useState<'today' | 'tomorrow'>('today')
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  // The task the keyboard is pointing at in today's list, by id (null = none).
+  // Tracked by id, not index, so it survives reordering when a task is checked
+  // off or dragged. Cleared when the task leaves today's list (see below).
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   // Recently deleted tasks, each with the list position it came from, kept
@@ -269,6 +273,16 @@ export default function Planner() {
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Latest values read by the global key handler without re-binding it every
+  // render: the navigable list (today's tasks, in order), the current
+  // selection, and the toggle/delete actions. Assigned in the render body once
+  // each is computed below.
+  const navRef = useRef<Task[]>([])
+  const selectedRef = useRef<string | null>(null)
+  const actionsRef = useRef<{ toggle: (id: string) => void; del: (id: string) => void }>({
+    toggle: () => {},
+    del: () => {},
+  })
   const router = useRouter()
   // The live theme preference, so the palette can flag the active one and set
   // the others. Shared with the header switcher via the same store.
@@ -316,6 +330,53 @@ export default function Planner() {
         if (undoDelete()) e.preventDefault()
         return
       }
+
+      // --- Keyboard list navigation over today's tasks ---------------------
+      // Move a selection cursor with j/k, then check the selected task off with
+      // Space/Enter or remove it with Backspace. j/k start navigating (letters
+      // have no default action), and the arrow keys join in only once a task is
+      // selected — so arrow-key page scrolling keeps working until you opt in.
+      if (!focusMode && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const nav = navRef.current
+        const selId = selectedRef.current
+        const idx = nav.findIndex(t => t.id === selId)
+        const hasSel = idx !== -1
+        const move = (dir: 1 | -1) => {
+          if (nav.length === 0) return
+          const next = hasSel
+            ? Math.min(nav.length - 1, Math.max(0, idx + dir))
+            : dir === 1 ? 0 : nav.length - 1
+          setSelectedId(nav[next].id)
+        }
+        if (e.key === 'j') { e.preventDefault(); move(1); return }
+        if (e.key === 'k') { e.preventDefault(); move(-1); return }
+        if (hasSel) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
+          if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault()
+            const cur = nav[idx]
+            // Checking one off sinks it below the still-to-do tasks; step the
+            // selection to the next active task so a run of check-offs flows.
+            // (Un-checking keeps the selection on the task as it rises back up.)
+            if (!cur.done) {
+              const activeCount = nav.filter(t => !t.done).length
+              setSelectedId(idx + 1 < activeCount ? nav[idx + 1].id : cur.id)
+            }
+            actionsRef.current.toggle(cur.id)
+            return
+          }
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.preventDefault()
+            // Land the selection on a neighbor so a run of deletes flows.
+            setSelectedId(nav[idx + 1]?.id ?? nav[idx - 1]?.id ?? null)
+            actionsRef.current.del(selId!)
+            return
+          }
+          if (e.key === 'Escape') { e.preventDefault(); setSelectedId(null); return }
+        }
+      }
+
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         inputRef.current?.focus()
@@ -512,6 +573,20 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
+  // The keyboard-navigable list: today's tasks in the order they're rendered,
+  // still-to-do first and finished below. Carryovers and upcoming days are left
+  // out — their primary key action ("Do today") differs, so Space wouldn't have
+  // one clear meaning there. Kept in a ref for the global key handler above.
+  const navList = [...todayActive, ...todayDone]
+  // Keep the global key handler's refs current after each commit (assigning
+  // refs during render isn't allowed). A stale selection needs no cleanup — a
+  // task that leaves the list simply matches no row (no ring), and the next
+  // j/k reselects from the top.
+  useEffect(() => {
+    navRef.current = navList
+    selectedRef.current = selectedId
+    actionsRef.current = { toggle: toggleTask, del: deleteTask }
+  })
   // The live agenda. Timed tasks lead the list in time order, so a single "now"
   // line dropped after the ones that have already started turns today into a
   // real timeline — everything above the line is behind you, everything below
@@ -601,7 +676,7 @@ export default function Planner() {
     ...(inFocus
       ? [{ id: 'focus-exit', label: 'Exit focus mode', keywords: 'focus', icon: <TargetIcon className="h-4 w-4" />, run: () => setFocusMode(false) }]
       : focusQueue.length > 0
-        ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => setFocusMode(true) }]
+        ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => { setSelectedId(null); setFocusMode(true) } }]
         : []),
     ...(carryovers.length > 0
       ? [{
@@ -720,7 +795,7 @@ export default function Planner() {
           )}
           {!inFocus && focusQueue.length > 0 && (
             <button
-              onClick={() => setFocusMode(true)}
+              onClick={() => { setSelectedId(null); setFocusMode(true) }}
               className="flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
               title="Focus on one task at a time"
             >
@@ -880,6 +955,7 @@ export default function Planner() {
             <TaskItem
               key={task.id}
               task={task}
+              selected={task.id === selectedId}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
               overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
               onToggle={toggleTask}
@@ -908,6 +984,7 @@ export default function Planner() {
         <TaskItem
           key={task.id}
           task={task}
+          selected={task.id === selectedId}
           onToggle={toggleTask}
           onDelete={deleteTask}
           onEdit={editTask}
