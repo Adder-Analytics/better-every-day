@@ -270,6 +270,14 @@ export const changelog: ChangelogEntry[] = [
       'Today’s list can now be driven from the keyboard. Press j or k to move a selection through it — the arrow keys join in once you’re navigating — then Space or Enter to check the selected task off (or back on), and Backspace to remove it, with the usual undo. The selected row shows a ring and scrolls into view, and checking one off steps the selection to the next task still to do. It covers today’s tasks; carryovers and upcoming days keep their own actions. Mouse and touch are unchanged.',
     type: 'feature',
   },
+  {
+    day: 34,
+    date: '2026-07-16',
+    title: 'Repeat on the days you choose',
+    description:
+      'A routine can now recur on a specific set of weekdays — Monday, Wednesday, Friday, say — alongside the daily, weekdays, and weekly options. The repeat menu gained a day-of-week picker; the days commit when the menu closes, and clearing them all turns repeating off. The task’s row names the set ("Mon Wed Fri", or "Weekdays"/"Weekends" when it matches one). Like every routine, it shows up only on the days it’s due. Stored data bumps to version 8 with one added optional field; existing routines are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

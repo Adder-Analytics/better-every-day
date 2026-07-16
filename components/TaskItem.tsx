@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatTime, routineStreak, subtaskProgress, todayStr } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
 
@@ -24,11 +24,16 @@ const fromTimeInput = (value: string): number | null => {
   return Number.isInteger(h) && Number.isInteger(m) ? h * 60 + m : null
 }
 
-const REPEAT_LABEL: Record<RepeatRule, string> = {
+// The fixed cadences carry a static label; the 'days' rule is labelled from its
+// weekday set (see formatRepeatDays), so it's kept out of this record.
+const REPEAT_LABEL: Record<'daily' | 'weekdays' | 'weekly', string> = {
   daily: 'Daily',
   weekdays: 'Weekdays',
   weekly: 'Weekly',
 }
+
+// Full weekday names for the day-picker's accessible labels.
+const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Circular-arrows glyph shared by the repeat action and the recurs indicator.
 function RepeatIcon({ className }: { className?: string }) {
@@ -150,7 +155,7 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
   onSchedule?: (id: string, date: string) => void
-  onSetRepeat?: (id: string, repeat: RepeatRule | undefined) => void
+  onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[]) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
@@ -225,9 +230,33 @@ export default function TaskItem({
   const subtasksEditable = canSubtask && !task.done
 
   const chooseRepeat = (repeat: RepeatRule | undefined) => {
+    setDraftDays(null) // a preset (or "Don't repeat") supersedes any day draft
     onSetRepeat?.(task.id, repeat)
     setMenu(null)
   }
+
+  // Editing a routine's weekday set is deferred until the repeat menu closes:
+  // toggling a chip updates a local draft, and the whole set commits once, on
+  // close. That keeps a task from leaving today's list mid-edit (a Mon/Wed/Fri
+  // routine isn't due on a Thursday) and makes picking several days feel like
+  // one deliberate choice. Null means no draft in progress.
+  const [draftDays, setDraftDays] = useState<number[] | null>(null)
+  const repeatDays = draftDays ?? (task.repeat === 'days' ? (task.repeatDays ?? []) : [])
+  const toggleRepeatDay = (day: number) => {
+    setDraftDays(
+      repeatDays.includes(day)
+        ? repeatDays.filter(d => d !== day)
+        : [...repeatDays, day].sort((a, b) => a - b)
+    )
+  }
+  // Commit a pending weekday draft when the repeat menu closes. An empty set
+  // means "no days left" — that turns repeating off entirely.
+  useEffect(() => {
+    if (menu !== 'repeat' && draftDays !== null) {
+      onSetRepeat?.(task.id, draftDays.length ? 'days' : undefined, draftDays)
+      setDraftDays(null)
+    }
+  }, [menu, draftDays, onSetRepeat, task.id])
 
   const chooseDate = (date: string) => {
     onSchedule?.(task.id, date)
@@ -248,6 +277,14 @@ export default function TaskItem({
   // single completion is just a task done, not yet a streak.
   const streak = task.repeat ? routineStreak(task) : 0
   const streakUnit = task.repeat === 'weekly' ? 'week' : 'day'
+
+  // How this task's recurrence reads on its row and in tooltips: the fixed
+  // cadences have a static word; a 'days' routine names its weekdays.
+  const repeatLabel = task.repeat === 'days'
+    ? formatRepeatDays(task.repeatDays ?? [])
+    : task.repeat
+      ? REPEAT_LABEL[task.repeat]
+      : ''
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -464,11 +501,11 @@ export default function TaskItem({
 
         {task.repeat && !editing && (
           <span
-            title={`Repeats ${REPEAT_LABEL[task.repeat].toLowerCase()}`}
+            title={task.repeat === 'days' ? `Repeats ${repeatLabel}` : `Repeats ${repeatLabel.toLowerCase()}`}
             className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
           >
             <RepeatIcon className="w-3 h-3" />
-            <span>{REPEAT_LABEL[task.repeat]}</span>
+            <span>{repeatLabel}</span>
           </span>
         )}
 
@@ -689,7 +726,7 @@ export default function TaskItem({
       {menu === 'repeat' && (
         <div
           role="menu"
-          className="absolute right-3 top-12 z-30 w-40 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+          className="absolute right-3 top-12 z-30 w-48 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
         >
           {REPEAT_OPTIONS.map(opt => {
             const active = task.repeat === opt.value
@@ -710,6 +747,38 @@ export default function TaskItem({
               </button>
             )
           })}
+
+          {/* Pick the exact weekdays a routine recurs on — for the habits that
+              don't fit daily/weekdays/weekly, like a Mon-Wed-Fri workout. Any
+              selection switches the task to a day-set routine; clearing it turns
+              repeating off. The row stays open so a set can be built up. */}
+          <div className="mt-1 border-t border-zinc-100 dark:border-zinc-800 px-1.5 pt-2 pb-1">
+            <p className="mb-1.5 px-1 text-[11px] font-medium text-zinc-400">On specific days</p>
+            <div className="flex justify-between gap-0.5">
+              {WEEKDAY_ABBR.map((abbr, day) => {
+                const on = repeatDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={on}
+                    aria-label={WEEKDAY_FULL[day]}
+                    title={WEEKDAY_FULL[day]}
+                    onClick={() => toggleRepeatDay(day)}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold transition-colors ${
+                      on
+                        ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    {abbr[0]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {task.repeat && (
             <button
               role="menuitem"

@@ -427,12 +427,19 @@ export default function Planner() {
 
   // Turn repeating on/off for a task. Switching off keeps the task as a normal
   // one-off and clears its completion log; switching on anchors the cadence to
-  // the task's createdDate (which drives the weekly weekday).
-  const setRepeat = (id: string, repeat: RepeatRule | undefined) => {
+  // the task's createdDate (which drives the weekly weekday). A 'days' routine
+  // also carries its chosen weekday set; every other rule clears it, so the
+  // stored shape stays clean.
+  const setRepeat = (id: string, repeat: RepeatRule | undefined, repeatDays?: number[]) => {
     setTasks(prev =>
       prev.map(t =>
         t.id === id
-          ? { ...t, repeat, completions: repeat ? (t.completions ?? []) : undefined }
+          ? {
+              ...t,
+              repeat,
+              repeatDays: repeat === 'days' ? repeatDays : undefined,
+              completions: repeat ? (t.completions ?? []) : undefined,
+            }
           : t
       )
     )

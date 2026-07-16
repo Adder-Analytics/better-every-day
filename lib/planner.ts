@@ -1,5 +1,6 @@
-// How often a task repeats. Absent means it's a one-off.
-export type RepeatRule = 'daily' | 'weekdays' | 'weekly'
+// How often a task repeats. Absent means it's a one-off. 'days' recurs on a
+// chosen set of weekdays (see `repeatDays`) — the rest are fixed cadences.
+export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days'
 
 // A single step within a task — a way to break one thing into the smaller
 // pieces it actually takes. Each is checked off on its own; they don't drive
@@ -21,6 +22,9 @@ export type Task = {
   // carrying over. It isn't completed once-and-for-all; instead each day it's
   // finished is recorded in `completions`, so it shows up fresh the next day.
   repeat?: RepeatRule
+  // Which weekdays a 'days' routine recurs on (0 = Sun … 6 = Sat). Only read
+  // when `repeat === 'days'`; the fixed cadences ignore it.
+  repeatDays?: number[]
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   estimateMin?: number // optional rough time estimate, in minutes
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
@@ -31,9 +35,11 @@ export type Task = {
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
 // v4: added optional time estimates. v5: added optional time of day. v6: added
 // an optional priority (star) flag. v7: added an optional subtask checklist.
-// Each version only adds optional fields, so older stored data is already valid
-// under the current shape — loadPlanner reads v1–v7 alike.
-export const PLANNER_VERSION = 7
+// v8: added the 'days' repeat rule and an optional `repeatDays` weekday set.
+// Each version only adds optional fields (or a new repeat value old data never
+// used), so older stored data is already valid under the current shape —
+// loadPlanner reads v1–v8 alike.
+export const PLANNER_VERSION = 8
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -106,7 +112,11 @@ export function formatDayLabel(dateStr: string): string {
 }
 
 function isRepeatRule(value: unknown): value is RepeatRule {
-  return value === 'daily' || value === 'weekdays' || value === 'weekly'
+  return value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days'
+}
+
+function isWeekdaySet(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6)
 }
 
 function isSubtask(value: unknown): value is Subtask {
@@ -125,6 +135,7 @@ function isTask(value: unknown): value is Task {
     typeof t.createdDate === 'string' &&
     (t.note === undefined || typeof t.note === 'string') &&
     (t.repeat === undefined || isRepeatRule(t.repeat)) &&
+    (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
     (t.estimateMin === undefined ||
@@ -197,6 +208,8 @@ export function isDueOn(task: Task, dateStr: string): boolean {
   if (task.repeat === 'daily') return true
   const dow = weekdayOf(dateStr)
   if (task.repeat === 'weekdays') return dow >= 1 && dow <= 5
+  // days: recurs on each chosen weekday (0 = Sun … 6 = Sat).
+  if (task.repeat === 'days') return (task.repeatDays ?? []).includes(dow)
   // weekly: recurs on the same weekday it was created on.
   return weekdayOf(task.createdDate) === dow
 }
@@ -204,6 +217,22 @@ export function isDueOn(task: Task, dateStr: string): boolean {
 // Whether a repeating task has been completed on the given date.
 export function isCompletedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.completions ?? []).includes(dateStr)
+}
+
+// Short weekday names, keyed by day-of-week (0 = Sun … 6 = Sat).
+export const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// A short label for a 'days' routine's weekday set: "Every day", "Weekdays" or
+// "Weekends" when the set matches one, otherwise an abbreviated list like
+// "Mon Wed Fri". Input order and duplicates don't matter.
+export function formatRepeatDays(days: number[]): string {
+  const set = [...new Set(days)].filter(d => d >= 0 && d <= 6).sort((a, b) => a - b)
+  if (set.length === 0) return 'No days'
+  if (set.length === 7) return 'Every day'
+  const key = set.join(',')
+  if (key === '1,2,3,4,5') return 'Weekdays'
+  if (key === '0,6') return 'Weekends'
+  return set.map(d => WEEKDAY_ABBR[d]).join(' ')
 }
 
 function fmtDate(d: Date): string {
@@ -272,9 +301,10 @@ export function loadPlanner(): PlannerData {
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
-    // day), v6 (priority) and v7 (subtasks) only add optional fields, so every
-    // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // day), v6 (priority), v7 (subtasks) and v8 (specific-day routines) only
+    // add optional fields, so every version's tasks load cleanly into the
+    // current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
