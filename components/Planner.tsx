@@ -8,6 +8,7 @@ import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
+import DayNote from '@/components/DayNote'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, openCommandPalette } from '@/components/CommandPalette'
 
@@ -1111,6 +1112,7 @@ export default function Planner() {
       ))}
 
       <div className="pt-2 space-y-2.5">
+        <DayNote />
         <WeekActivity tasks={tasks} />
         <DataControls tasks={tasks} onImport={importTasks} />
       </div>

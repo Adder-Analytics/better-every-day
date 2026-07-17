@@ -2,7 +2,9 @@
 
 import { useState, useSyncExternalStore } from 'react'
 import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import { loadDayNotes } from '@/lib/daynotes'
 import ActivityCalendar from '@/components/ActivityCalendar'
+import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
 
@@ -22,6 +24,7 @@ function formatFullDate(dateStr: string): string {
 export default function HistoryList() {
   const mounted = useHydrated()
   const [tasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
+  const [dayNotes] = useState(() => (typeof window === 'undefined' ? {} : loadDayNotes()))
 
   if (!mounted) {
     return (
@@ -106,6 +109,12 @@ export default function HistoryList() {
               </p>
               <p className="text-xs text-zinc-400 tabular-nums flex-shrink-0">{day.items.length} done</p>
             </div>
+            {dayNotes[day.date] && (
+              <NoteText
+                text={dayNotes[day.date]}
+                className="mt-2 px-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-zinc-500 dark:text-zinc-400"
+              />
+            )}
             <ul className="mt-2 space-y-1.5">
               {/* A routine can appear under several days, so keys pair date + id. */}
               {day.items.map(task => (
