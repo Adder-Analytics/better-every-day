@@ -278,6 +278,14 @@ export const changelog: ChangelogEntry[] = [
       'A routine can now recur on a specific set of weekdays — Monday, Wednesday, Friday, say — alongside the daily, weekdays, and weekly options. The repeat menu gained a day-of-week picker; the days commit when the menu closes, and clearing them all turns repeating off. The task’s row names the set ("Mon Wed Fri", or "Weekdays"/"Weekends" when it matches one). Like every routine, it shows up only on the days it’s due. Stored data bumps to version 8 with one added optional field; existing routines are untouched.',
     type: 'feature',
   },
+  {
+    day: 35,
+    date: '2026-07-17',
+    title: 'A note for each day',
+    description:
+      'A card on the home page holds an optional freeform note for the day — a place for the things a day leaves behind that aren’t tasks: how it went, a number to remember, a line worth keeping. Notes are kept per day in the browser under a new bed-daynotes key, separate from your tasks, and each day’s note shows again in History under that day. URLs in a note are clickable, like task notes.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
