@@ -286,6 +286,14 @@ export const changelog: ChangelogEntry[] = [
       'A card on the home page holds an optional freeform note for the day — a place for the things a day leaves behind that aren’t tasks: how it went, a number to remember, a line worth keeping. Notes are kept per day in the browser under a new bed-daynotes key, separate from your tasks, and each day’s note shows again in History under that day. URLs in a note are clickable, like task notes.',
     type: 'feature',
   },
+  {
+    day: 36,
+    date: '2026-07-18',
+    title: 'Task names that never get squeezed out',
+    description:
+      'Reworked the task row into two tiers so the name always stays readable. Before, a task with a time, an estimate, and a "starts in" hint could crowd its own name down to a letter or nothing on a narrow phone. Now the name gets the full width of its line (with the time leading and a star trailing), and the quieter details — the countdown, an overdue "late" note, a streak, a repeat cadence, an estimate, step progress — sit on a second line beneath it and wrap instead of pushing on the name. Rows with no such details stay a single line. All actions and the layout are otherwise unchanged.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
