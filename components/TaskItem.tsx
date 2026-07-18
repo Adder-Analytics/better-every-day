@@ -403,150 +403,158 @@ export default function TaskItem({
           </button>
         )}
 
-        {/* Time of day — a quiet agenda timestamp that leads the task. Opens the
-            schedule menu (where the time lives) when the task is editable. */}
-        {task.timeMin != null && !editing && (
-          canSetTime && !task.done ? (
-            <button
-              onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
-              aria-haspopup="menu"
-              aria-expanded={menu === 'schedule'}
-              title="Change time"
-              className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-            >
-              {formatTime(task.timeMin)}
-            </button>
-          ) : (
-            <span
-              title="Scheduled time"
-              className={`flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
-            >
-              {formatTime(task.timeMin)}
-            </span>
-          )
-        )}
+        {/* Title and details are the readable heart of the row. The title
+            always keeps the full width of this middle column; the quiet
+            metadata pills (time excepted) drop to a second line beneath it
+            rather than crowding the title off-screen on a narrow phone. */}
+        <div className="min-w-0 flex-1 flex flex-col gap-1">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Time of day — a quiet agenda timestamp that leads the task.
+                Opens the schedule menu (where the time lives) when editable. */}
+            {task.timeMin != null && !editing && (
+              canSetTime && !task.done ? (
+                <button
+                  onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
+                  aria-haspopup="menu"
+                  aria-expanded={menu === 'schedule'}
+                  title="Change time"
+                  className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {formatTime(task.timeMin)}
+                </button>
+              ) : (
+                <span
+                  title="Scheduled time"
+                  className={`flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
+                >
+                  {formatTime(task.timeMin)}
+                </span>
+              )
+            )}
 
-        {/* The live "starts in" hint on today's next timed task — a quiet nudge
-            for what's coming, sitting right beside its time. */}
-        {upNextLabel && !editing && (
-          <span className="flex-shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-            {upNextLabel}
-          </span>
-        )}
+            {editing ? (
+              <input
+                ref={editInputRef}
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onBlur={saveEdit}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+                }}
+                className="flex-1 min-w-0 bg-transparent text-zinc-800 dark:text-zinc-100 font-medium text-sm focus:outline-none"
+              />
+            ) : (
+              <span
+                onDoubleClick={startEdit}
+                className={`flex-1 min-w-0 truncate text-sm ${
+                  task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
+                } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
+              >
+                {task.text}
+              </span>
+            )}
 
-        {/* The counterpart for a timed task whose moment has slipped by while
-            it's still unfinished — a quiet "25m late" in amber, so the agenda
-            shows what you're behind on, not just what's coming. */}
-        {overdueLabel && !editing && (
-          <span className="flex-shrink-0 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
-            {overdueLabel}
-          </span>
-        )}
+            {/* The star — an important task, floated to the top of the day.
+                Solid amber when set; clicking clears it when editable. */}
+            {task.priority && !editing && (
+              canPrioritize && !task.done ? (
+                <button
+                  onClick={() => onSetPriority!(task.id, false)}
+                  aria-label="Remove star"
+                  title="Starred as important — click to unstar"
+                  className="flex-shrink-0 text-amber-400 hover:text-amber-500 transition-colors"
+                >
+                  <StarIcon className="w-4 h-4" />
+                </button>
+              ) : (
+                <span title="Important" className={`flex-shrink-0 text-amber-400 ${task.done ? 'opacity-60' : ''}`}>
+                  <StarIcon className="w-4 h-4" />
+                </span>
+              )
+            )}
+          </div>
 
-        {editing ? (
-          <input
-            ref={editInputRef}
-            value={editText}
-            onChange={e => setEditText(e.target.value)}
-            onBlur={saveEdit}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
-              if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
-            }}
-            className="flex-1 bg-transparent text-zinc-800 dark:text-zinc-100 font-medium text-sm focus:outline-none"
-          />
-        ) : (
-          <span
-            onDoubleClick={startEdit}
-            className={`flex-1 truncate text-sm ${
-              task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
-            } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
-          >
-            {task.text}
-          </span>
-        )}
+          {/* The details line: what's coming, what's late, a streak, a repeat
+              cadence, an estimate, step progress. Wraps instead of pushing on
+              the title, and is absent when a task carries none of them. */}
+          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks) && (
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              {/* The live "starts in" hint on today's next timed task. */}
+              {upNextLabel && (
+                <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {upNextLabel}
+                </span>
+              )}
 
-        {/* The star — an important task, floated to the top of the day. Solid
-            and amber when set; clicking it clears the star when the task is
-            editable, otherwise it's just a quiet marker. */}
-        {task.priority && !editing && (
-          canPrioritize && !task.done ? (
-            <button
-              onClick={() => onSetPriority!(task.id, false)}
-              aria-label="Remove star"
-              title="Starred as important — click to unstar"
-              className="flex-shrink-0 text-amber-400 hover:text-amber-500 transition-colors"
-            >
-              <StarIcon className="w-4 h-4" />
-            </button>
-          ) : (
-            <span title="Important" className={`flex-shrink-0 text-amber-400 ${task.done ? 'opacity-60' : ''}`}>
-              <StarIcon className="w-4 h-4" />
-            </span>
-          )
-        )}
+              {/* Its counterpart: a timed task whose moment has slipped by while
+                  still unfinished — a quiet "25m late" in amber. */}
+              {overdueLabel && (
+                <span className="rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                  {overdueLabel}
+                </span>
+              )}
 
-        {/* The streak — consecutive due days completed, counted by the
-            routine's own cadence. It ticks up the moment today is checked off,
-            which is exactly when the reward should land. */}
-        {streak >= 2 && !editing && (
-          <span
-            title={`${streak}-${streakUnit} streak — completed ${streak} ${streakUnit}s in a row`}
-            className={`flex-shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400 ${task.done ? 'opacity-60' : ''}`}
-          >
-            <FlameIcon className="w-3 h-3" />
-            {streak}
-          </span>
-        )}
+              {/* The streak — consecutive due days a routine was completed. */}
+              {streak >= 2 && (
+                <span
+                  title={`${streak}-${streakUnit} streak — completed ${streak} ${streakUnit}s in a row`}
+                  className={`inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400 ${task.done ? 'opacity-60' : ''}`}
+                >
+                  <FlameIcon className="w-3 h-3" />
+                  {streak}
+                </span>
+              )}
 
-        {task.repeat && !editing && (
-          <span
-            title={task.repeat === 'days' ? `Repeats ${repeatLabel}` : `Repeats ${repeatLabel.toLowerCase()}`}
-            className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
-          >
-            <RepeatIcon className="w-3 h-3" />
-            <span>{repeatLabel}</span>
-          </span>
-        )}
+              {task.repeat && (
+                <span
+                  title={task.repeat === 'days' ? `Repeats ${repeatLabel}` : `Repeats ${repeatLabel.toLowerCase()}`}
+                  className={`inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
+                >
+                  <RepeatIcon className="w-3 h-3" />
+                  <span>{repeatLabel}</span>
+                </span>
+              )}
 
-        {/* The estimate, shown as a quiet pill once set. It's its own opener for
-            the estimate menu, so an estimated task needs no extra hover icon. */}
-        {task.estimateMin && !editing && (
-          canEstimate && !task.done ? (
-            <button
-              onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
-              aria-haspopup="menu"
-              aria-expanded={menu === 'estimate'}
-              title="Change estimate"
-              className="flex-shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
-              <ClockIcon className="w-3 h-3" />
-              {formatDuration(task.estimateMin)}
-            </button>
-          ) : (
-            <span
-              title="Estimated time"
-              className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
-            >
-              <ClockIcon className="w-3 h-3" />
-              {formatDuration(task.estimateMin)}
-            </span>
-          )
-        )}
+              {/* The estimate pill doubles as the opener for the estimate menu. */}
+              {task.estimateMin && (
+                canEstimate && !task.done ? (
+                  <button
+                    onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'estimate'}
+                    title="Change estimate"
+                    className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    <ClockIcon className="w-3 h-3" />
+                    {formatDuration(task.estimateMin)}
+                  </button>
+                ) : (
+                  <span
+                    title="Estimated time"
+                    className={`inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
+                  >
+                    <ClockIcon className="w-3 h-3" />
+                    {formatDuration(task.estimateMin)}
+                  </span>
+                )
+              )}
 
-        {/* Steps progress — how many of the task's checklist items are done.
-            Turns emerald once every step is checked, a quiet "all clear". */}
-        {hasSubtasks && !editing && (
-          <span
-            title={`${subDone} of ${subTotal} steps done`}
-            className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium tabular-nums ${
-              subDone === subTotal ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400 dark:text-zinc-500'
-            } ${task.done ? 'opacity-60' : ''}`}
-          >
-            <StepsIcon className="w-3 h-3" />
-            {subDone}/{subTotal}
-          </span>
-        )}
+              {/* Steps progress — turns emerald once every step is checked. */}
+              {hasSubtasks && (
+                <span
+                  title={`${subDone} of ${subTotal} steps done`}
+                  className={`inline-flex items-center gap-1 text-[10px] font-medium tabular-nums ${
+                    subDone === subTotal ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400 dark:text-zinc-500'
+                  } ${task.done ? 'opacity-60' : ''}`}
+                >
+                  <StepsIcon className="w-3 h-3" />
+                  {subDone}/{subTotal}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
 
         {!editing && (
           <>
