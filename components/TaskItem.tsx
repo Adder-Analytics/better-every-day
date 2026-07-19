@@ -160,6 +160,9 @@ type Props = {
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
   onSetSubtasks?: (id: string, subtasks: Subtask[]) => void
+  // Park this task in the Someday list (given, a dated task can be moved there
+  // from its schedule menu). Someday tasks themselves don't receive this.
+  onSetSomeday?: (id: string, someday: boolean) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
@@ -189,6 +192,7 @@ export default function TaskItem({
   onSetTime,
   onSetPriority,
   onSetSubtasks,
+  onSetSomeday,
   upNextLabel,
   overdueLabel,
   carryover = false,
@@ -222,6 +226,7 @@ export default function TaskItem({
   const canSetTime = !!onSetTime
   const canPrioritize = !!onSetPriority
   const canSubtask = !!onSetSubtasks
+  const canSomeday = !!onSetSomeday
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
   // The checklist shows whenever there are steps, or when one is being added.
@@ -823,6 +828,17 @@ export default function TaskItem({
               </button>
             )
           })}
+          {/* Take the task off the calendar entirely and into the Someday list,
+              to keep without committing it to a day. */}
+          {canSomeday && (
+            <button
+              role="menuitem"
+              onClick={() => { onSetSomeday!(task.id, true); setMenu(null) }}
+              className="flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            >
+              Someday
+            </button>
+          )}
           {/* Anything further out than a week: a native date field, floored at
               today so a task can't be scheduled into the past. */}
           <label className="mt-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-xs text-zinc-500 dark:text-zinc-400">
