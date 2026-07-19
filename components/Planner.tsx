@@ -259,7 +259,7 @@ export default function Planner() {
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
   const [newText, setNewText] = useState('')
-  const [addFor, setAddFor] = useState<'today' | 'tomorrow'>('today')
+  const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   // The task the keyboard is pointing at in today's list, by id (null = none).
@@ -399,6 +399,10 @@ export default function Planner() {
     const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(newText)
     if (repeat) {
       setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }])
+    } else if (!date && addFor === 'someday') {
+      // No day named in the text and the toggle says Someday: park it in the
+      // backlog, anchored to today's date but kept out of every dated section.
+      setTasks(prev => [...prev, { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }])
     } else {
       // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
       // toggle decides.
@@ -481,11 +485,26 @@ export default function Planner() {
   // Move a task to any day. The whole today / tomorrow / upcoming / carryover
   // split is driven by createdDate, so changing it is all rescheduling needs:
   // a task slides into the right section and resurfaces in Today on its day.
+  // Giving a task a day also lifts it out of the Someday list.
   const scheduleTask = (id: string, date: string) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date } : t)))
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date, someday: undefined } : t)))
   }
 
   const doToday = (id: string) => scheduleTask(id, todayStr())
+
+  // Park a task in the Someday list, or take it back out onto today. Someday
+  // tasks are anchored to today's date so they never linger in a past or future
+  // section if the flag is ever cleared some other way. Stored as undefined when
+  // off, so a dated task carries no someday field.
+  const setSomeday = (id: string, someday: boolean) => {
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === id
+          ? { ...t, someday: someday || undefined, createdDate: someday ? todayStr() : t.createdDate }
+          : t
+      )
+    )
+  }
 
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
@@ -553,10 +572,11 @@ export default function Planner() {
   // so all the logic below treats both kinds the same via `t.done`.
   const view = (t: Task): Task =>
     t.repeat ? { ...t, done: isCompletedOn(t, today) } : t
-  // Today = one-off tasks created today, plus any routines due today. Filtering
+  // Today = one-off tasks created today, plus any routines due today. Someday
+  // tasks are held out — they wait in their own list until scheduled. Filtering
   // the full array preserves order, so drag-reordering still works by id.
   const todayTasks = tasks
-    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today))
+    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today && !t.someday))
     .map(view)
   // Tasks with a time of day lead the list in chronological order, turning the
   // day into a quiet agenda; untimed tasks keep their manual order below (sort
@@ -611,14 +631,18 @@ export default function Planner() {
     timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
   )
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
-  const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done).sort(byPriorityTime)
+  const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
   // Tasks scheduled past today — they wait in their own per-day sections and
   // slot into Today automatically when their day arrives. Grouped by date and
   // shown soonest-first; YYYY-MM-DD sorts chronologically as plain strings.
-  const upcoming = tasks.filter(t => !t.repeat && t.createdDate > today)
+  const upcoming = tasks.filter(t => !t.repeat && !t.someday && t.createdDate > today)
   const upcomingDays = [...new Set(upcoming.map(t => t.createdDate))]
     .sort()
     .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date).sort(byPriorityTime) }))
+  // The Someday list — captured tasks with no day yet, waiting until you're
+  // ready to schedule one or bring it to today. Starred ones lead; the rest
+  // keep the order they were added in. Routines are never someday tasks.
+  const somedayTasks = tasks.filter(t => t.someday && !t.repeat).sort(byPriorityTime)
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -932,6 +956,7 @@ export default function Planner() {
               onSetTime={setTime}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
             />
           ))}
         </div>
@@ -976,6 +1001,7 @@ export default function Planner() {
               onSetTime={setTime}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}
@@ -1011,7 +1037,13 @@ export default function Planner() {
             if (e.key === 'Enter') addTask()
             if (e.key === 'Escape') setNewText('')
           }}
-          placeholder={addFor === 'tomorrow' ? 'Add a task for tomorrow...' : 'Add a task for today...'}
+          placeholder={
+            addFor === 'tomorrow'
+              ? 'Add a task for tomorrow...'
+              : addFor === 'someday'
+                ? 'Add something for someday...'
+                : 'Add a task for today...'
+          }
           className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
         />
         <button
@@ -1059,7 +1091,7 @@ export default function Planner() {
 
       <div className="flex items-center justify-between px-1">
         <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 text-xs font-medium">
-          {(['today', 'tomorrow'] as const).map(when => (
+          {(['today', 'tomorrow', 'someday'] as const).map(when => (
             <button
               key={when}
               onClick={() => setAddFor(when)}
@@ -1106,10 +1138,42 @@ export default function Planner() {
               onSetTime={setTime}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
             />
           ))}
         </div>
       ))}
+
+      {/* Someday — a home for tasks you want to keep but not commit to a day.
+          They wait quietly here, out of today and the tab count, until "Do
+          today" or a scheduled day lifts one back into the plan. */}
+      {somedayTasks.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5 px-1 pt-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75h.008v.008H12v-.008z" />
+            </svg>
+            <p className="text-xs font-medium text-zinc-400">Someday</p>
+            <span className="text-xs tabular-nums text-zinc-300 dark:text-zinc-600">{somedayTasks.length}</span>
+          </div>
+          {somedayTasks.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              carryover
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onDoToday={doToday}
+              onSchedule={scheduleTask}
+              onEdit={editTask}
+              onEditNote={editNote}
+              onSetEstimate={setEstimate}
+              onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="pt-2 space-y-2.5">
         <DayNote />

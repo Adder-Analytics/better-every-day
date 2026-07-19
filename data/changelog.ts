@@ -294,6 +294,14 @@ export const changelog: ChangelogEntry[] = [
       'Reworked the task row into two tiers so the name always stays readable. Before, a task with a time, an estimate, and a "starts in" hint could crowd its own name down to a letter or nothing on a narrow phone. Now the name gets the full width of its line (with the time leading and a star trailing), and the quieter details — the countdown, an overdue "late" note, a streak, a repeat cadence, an estimate, step progress — sit on a second line beneath it and wrap instead of pushing on the name. Rows with no such details stay a single line. All actions and the layout are otherwise unchanged.',
     type: 'design',
   },
+  {
+    day: 37,
+    date: '2026-07-19',
+    title: 'A Someday list for tasks without a day',
+    description:
+      'Tasks can now be kept in a Someday list instead of on a specific day — a place to capture what you want to do eventually without committing to when. Add one with the new Someday option beside Today and Tomorrow on the add box, or park an existing task there from its schedule menu. Someday tasks wait in their own section, out of Today, carryovers, and the tab count; "Do today" or scheduling a day lifts one back into the plan. They ride along in exports and backups. Stored data bumps to version 9 with one added optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

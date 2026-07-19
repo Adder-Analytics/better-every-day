@@ -30,16 +30,22 @@ export type Task = {
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
   priority?: boolean // starred as important — floats to the top of the day
   subtasks?: Subtask[] // optional checklist of steps that make up the task
+  // Held in the Someday list instead of on a day: a task captured without
+  // committing it to a date. Someday tasks stay out of Today, carryovers,
+  // upcoming days, and the tab count until they're scheduled or brought to
+  // today (which clears this flag). A routine is never a someday task.
+  someday?: boolean
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
 // v4: added optional time estimates. v5: added optional time of day. v6: added
 // an optional priority (star) flag. v7: added an optional subtask checklist.
 // v8: added the 'days' repeat rule and an optional `repeatDays` weekday set.
+// v9: added an optional `someday` flag (the Someday backlog list).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v8 alike.
-export const PLANNER_VERSION = 8
+// loadPlanner reads v1–v9 alike.
+export const PLANNER_VERSION = 9
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -143,7 +149,8 @@ function isTask(value: unknown): value is Task {
     (t.timeMin === undefined ||
       (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439)) &&
     (t.priority === undefined || typeof t.priority === 'boolean') &&
-    (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask)))
+    (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask))) &&
+    (t.someday === undefined || typeof t.someday === 'boolean')
   )
 }
 
@@ -301,10 +308,10 @@ export function loadPlanner(): PlannerData {
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
-    // day), v6 (priority), v7 (subtasks) and v8 (specific-day routines) only
-    // add optional fields, so every version's tasks load cleanly into the
-    // current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // day), v6 (priority), v7 (subtasks), v8 (specific-day routines) and v9
+    // (the Someday list) only add optional fields, so every version's tasks
+    // load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
