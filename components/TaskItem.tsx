@@ -171,6 +171,9 @@ type Props = {
   // Marks this row as the keyboard selection — draws a focus ring and scrolls
   // the row into view. Driven from the parent's list navigation.
   selected?: boolean
+  // Briefly flashes the row after it's been jumped to from search, then lifts.
+  // Independent of `selected` — it's a box-shadow pulse, not a ring.
+  highlight?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -197,6 +200,7 @@ export default function TaskItem({
   overdueLabel,
   carryover = false,
   selected = false,
+  highlight = false,
   onDoToday,
   onDragStart,
   onDragOver,
@@ -349,6 +353,7 @@ export default function TaskItem({
   return (
     <div
       ref={rowRef}
+      id={`task-${task.id}`}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart!(task.id) } : undefined}
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
@@ -364,7 +369,7 @@ export default function TaskItem({
         selected
           ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950'
           : ''
-      }`}
+      } ${highlight ? 'reveal-flash' : ''}`}
     >
       <div className="flex items-center gap-3 min-w-0">
         {draggable && (
