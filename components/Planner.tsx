@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import TaskItem from '@/components/TaskItem'
 import Confetti from '@/components/Confetti'
@@ -10,12 +10,22 @@ import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
 import NoteText from '@/components/NoteText'
-import CommandPalette, { type Command, openCommandPalette } from '@/components/CommandPalette'
+import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 
 const emptySubscribe = () => () => {}
 
 // How long a deleted task can be taken back before the deletion is final.
 const UNDO_WINDOW_MS = 8000
+
+// A short label for a routine's cadence, used as its context in task search.
+// Mirrors the wording the repeat menu and task row already use.
+function repeatContext(task: Task): string {
+  if (task.repeat === 'daily') return 'Every day'
+  if (task.repeat === 'weekdays') return 'Weekdays'
+  if (task.repeat === 'weekly') return 'Weekly'
+  if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
+  return 'Today'
+}
 
 // Heroicons calendar (a due day) and circular-arrows (a recurrence), sized for
 // the quick-add preview line.
@@ -268,6 +278,9 @@ export default function Planner() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // The task most recently jumped to from search, flashed briefly then cleared.
+  const [revealId, setRevealId] = useState<string | null>(null)
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Recently deleted tasks, each with the list position it came from, kept
   // just long enough to be taken back. Newest last; undo restores from the end.
   const [deleted, setDeleted] = useState<{ task: Task; index: number }[]>([])
@@ -315,6 +328,23 @@ export default function Planner() {
   }, [deleted, armUndoTimer])
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
+
+  // Jump to a task found in search: leave focus mode (so the full list is on
+  // screen), scroll the row into view, and flash it so the eye lands on it.
+  // The flash lifts on its own after a moment. A short delay lets the list
+  // paint before we scroll, in case focus mode was just dismissed.
+  const revealTask = useCallback((id: string) => {
+    setFocusMode(false)
+    setSelectedId(null)
+    setRevealId(id)
+    setTimeout(() => {
+      document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 60)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }, [])
+
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -643,6 +673,24 @@ export default function Planner() {
   // ready to schedule one or bring it to today. Starred ones lead; the rest
   // keep the order they were added in. Routines are never someday tasks.
   const somedayTasks = tasks.filter(t => t.someday && !t.repeat).sort(byPriorityTime)
+  // Everything currently on screen, flattened for search: today's tasks (with a
+  // routine's cadence as its context), what's carried over from past days,
+  // what's planned ahead, and the Someday backlog. Every entry maps to a
+  // rendered row, so revealing one always finds its element.
+  const searchTask = (t: Task, context: string): TaskResult => ({
+    id: t.id,
+    text: t.text,
+    context,
+    done: t.done,
+    run: () => revealTask(t.id),
+  })
+  const taskResults: TaskResult[] = [
+    ...todayActive.map(t => searchTask(t, t.repeat ? repeatContext(t) : 'Today')),
+    ...todayDone.map(t => searchTask(t, t.repeat ? repeatContext(t) : 'Today')),
+    ...carryovers.map(t => searchTask(t, formatPastDayLabel(t.createdDate))),
+    ...upcoming.map(t => searchTask(t, formatDayLabel(t.createdDate))),
+    ...somedayTasks.map(t => searchTask(t, 'Someday')),
+  ]
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -770,7 +818,7 @@ export default function Planner() {
   return (
     <>
     <Confetti active={showConfetti} />
-    <CommandPalette commands={commands} />
+    <CommandPalette commands={commands} tasks={taskResults} />
 
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
@@ -946,6 +994,7 @@ export default function Planner() {
               key={task.id}
               task={task}
               carryover
+              highlight={task.id === revealId}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onDoToday={doToday}
@@ -989,6 +1038,7 @@ export default function Planner() {
               key={task.id}
               task={task}
               selected={task.id === selectedId}
+              highlight={task.id === revealId}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
               overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
               onToggle={toggleTask}
@@ -1019,6 +1069,7 @@ export default function Planner() {
           key={task.id}
           task={task}
           selected={task.id === selectedId}
+          highlight={task.id === revealId}
           onToggle={toggleTask}
           onDelete={deleteTask}
           onEdit={editTask}
@@ -1129,6 +1180,7 @@ export default function Planner() {
             <TaskItem
               key={task.id}
               task={task}
+              highlight={task.id === revealId}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onEdit={editTask}
@@ -1161,6 +1213,7 @@ export default function Planner() {
               key={task.id}
               task={task}
               carryover
+              highlight={task.id === revealId}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onDoToday={doToday}

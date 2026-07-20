@@ -302,6 +302,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks can now be kept in a Someday list instead of on a specific day — a place to capture what you want to do eventually without committing to when. Add one with the new Someday option beside Today and Tomorrow on the add box, or park an existing task there from its schedule menu. Someday tasks wait in their own section, out of Today, carryovers, and the tab count; "Do today" or scheduling a day lifts one back into the plan. They ride along in exports and backups. Stored data bumps to version 9 with one added optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 38,
+    date: '2026-07-20',
+    title: 'Search across all your tasks',
+    description:
+      'The command menu (Cmd/Ctrl+K) now searches your tasks, not just its actions. Type a word and matching tasks appear under a Tasks group alongside any matching commands — each with a status dot (done or still to do) and a quiet label for where it lives: Today, the day it carries over from, a scheduled day, Someday, or a routine’s cadence. Both the task text and that label are searchable. Choosing a result closes the menu, scrolls the task into view, and flashes it briefly so your eye lands on it; the whole thing is keyboard-driven, and finished tasks show up too. Tasks only appear once there’s a query, so an empty menu stays a clean list of actions. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
