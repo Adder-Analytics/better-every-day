@@ -310,6 +310,14 @@ export const changelog: ChangelogEntry[] = [
       'The command menu (Cmd/Ctrl+K) now searches your tasks, not just its actions. Type a word and matching tasks appear under a Tasks group alongside any matching commands — each with a status dot (done or still to do) and a quiet label for where it lives: Today, the day it carries over from, a scheduled day, Someday, or a routine’s cadence. Both the task text and that label are searchable. Choosing a result closes the menu, scrolls the task into view, and flashes it briefly so your eye lands on it; the whole thing is keyboard-driven, and finished tasks show up too. Tasks only appear once there’s a query, so an empty menu stays a clean list of actions. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 39,
+    date: '2026-07-21',
+    title: 'Fold away what you’ve finished',
+    description:
+      'Today’s completed tasks can now be collapsed into a "Completed" summary row, so a day with a lot checked off keeps the work that’s left up top. A click on the row folds or unfolds them; finished tasks still sink below what’s active either way, and the choice is remembered across visits under a new bed-completed key. Revealing a finished task from search opens the section automatically, and folded tasks drop out of keyboard navigation. Default is unchanged — completed tasks show until you collapse them. No task data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
