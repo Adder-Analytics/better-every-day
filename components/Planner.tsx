@@ -272,6 +272,15 @@ export default function Planner() {
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  // Whether today's finished tasks are shown or folded into a "Completed"
+  // summary. They still sink below what's left, exactly as before; this only
+  // lets a busy day tuck them away so the remaining work stays front and
+  // center. The choice is remembered, and the default is to show them — so
+  // nothing changes for anyone who never collapses it.
+  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    try { return localStorage.getItem('bed-completed') !== 'hidden' } catch { return true }
+  })
   // The task the keyboard is pointing at in today's list, by id (null = none).
   // Tracked by id, not index, so it survives reordering when a task is checked
   // off or dragged. Cleared when the task leaves today's list (see below).
@@ -336,6 +345,9 @@ export default function Planner() {
   const revealTask = useCallback((id: string) => {
     setFocusMode(false)
     setSelectedId(null)
+    // A revealed task might be a finished one that's currently folded away —
+    // open the completed section so the flash always lands on a visible row.
+    setShowCompleted(true)
     setRevealId(id)
     setTimeout(() => {
       document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
@@ -420,6 +432,10 @@ export default function Planner() {
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
   }, [tasks])
+
+  useEffect(() => {
+    try { localStorage.setItem('bed-completed', showCompleted ? 'shown' : 'hidden') } catch {}
+  }, [showCompleted])
 
   const addTask = () => {
     if (!newText.trim()) return
@@ -635,7 +651,8 @@ export default function Planner() {
   // still-to-do first and finished below. Carryovers and upcoming days are left
   // out — their primary key action ("Do today") differs, so Space wouldn't have
   // one clear meaning there. Kept in a ref for the global key handler above.
-  const navList = [...todayActive, ...todayDone]
+  // Folded-away finished tasks aren't navigable — nothing on screen would move.
+  const navList = [...todayActive, ...(showCompleted ? todayDone : [])]
   // Keep the global key handler's refs current after each commit (assigning
   // refs during render isn't allowed). A stale selection needs no cleanup — a
   // task that leaves the list simply matches no row (no ring), and the next
@@ -1064,19 +1081,50 @@ export default function Planner() {
         if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} />)
         return nodes
       })()}
-      {todayDone.map(task => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          selected={task.id === selectedId}
-          highlight={task.id === revealId}
-          onToggle={toggleTask}
-          onDelete={deleteTask}
-          onEdit={editTask}
-          onEditNote={editNote}
-          onSetRepeat={setRepeat}
-        />
-      ))}
+      {/* Completed today — finished tasks, foldable into a tidy summary so a
+          busy day keeps the remaining work up top. Collapsed or not, they still
+          sit below what's left; the choice is remembered across visits. */}
+      {todayDone.length > 0 && (
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => setShowCompleted(v => !v)}
+            aria-expanded={showCompleted}
+            title={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'}
+            className="flex w-full items-center gap-1.5 px-1 pt-2 text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span>Completed</span>
+            <span className="tabular-nums text-zinc-300 dark:text-zinc-600">{todayDone.length}</span>
+            <svg
+              aria-hidden="true"
+              className={`ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showCompleted ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {showCompleted &&
+            todayDone.map(task => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                selected={task.id === selectedId}
+                highlight={task.id === revealId}
+                onToggle={toggleTask}
+                onDelete={deleteTask}
+                onEdit={editTask}
+                onEditNote={editNote}
+                onSetRepeat={setRepeat}
+              />
+            ))}
+        </div>
+      )}
 
       {/* Add task */}
       <div className="flex gap-2 pt-1">
