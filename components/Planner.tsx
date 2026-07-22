@@ -295,7 +295,7 @@ export default function Planner() {
   const [deleted, setDeleted] = useState<{ task: Task; index: number }[]>([])
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
   // render: the navigable list (today's tasks, in order), the current
   // selection, and the toggle/delete actions. Assigned in the render body once
@@ -437,24 +437,37 @@ export default function Planner() {
     try { localStorage.setItem('bed-completed', showCompleted ? 'shown' : 'hidden') } catch {}
   }, [showCompleted])
 
+  // Grow the add box to fit a multi-line brain dump, then shrink back once it's
+  // sent — so it reads as a single-line input until you actually stack lines.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 176)}px`
+  }, [newText])
+
+  // Build one task from a single line of the add box, honoring both the line's
+  // own trailing schedule phrase and the Today/Tomorrow/Someday toggle. The
+  // text decides the schedule when it says so ("...tomorrow", "...every day");
+  // otherwise the toggle is the default. A recognized recurrence becomes a
+  // routine anchored to today. Shared by single and multi-line adds so every
+  // line is captured exactly as one typed alone would be.
+  const buildTask = (line: string): Task => {
+    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }
+    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }
+    const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
+    return { ...newTask(text, day), estimateMin, timeMin }
+  }
+
   const addTask = () => {
-    if (!newText.trim()) return
-    // The text decides the schedule when it says so ("...tomorrow", "...every
-    // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
-    // recurrence becomes a routine anchored to today.
-    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(newText)
-    if (repeat) {
-      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }])
-    } else if (!date && addFor === 'someday') {
-      // No day named in the text and the toggle says Someday: park it in the
-      // backlog, anchored to today's date but kept out of every dated section.
-      setTasks(prev => [...prev, { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }])
-    } else {
-      // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
-      // toggle decides.
-      const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-      setTasks(prev => [...prev, { ...newTask(text, day), estimateMin, timeMin }])
-    }
+    // A brain dump: each non-empty line becomes its own task, so a pasted or
+    // Shift+Enter'd list is captured in one go. A single line is the common
+    // case and behaves exactly as before.
+    const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const created = lines.map(buildTask)
+    setTasks(prev => [...prev, ...created])
     setNewText('')
   }
 
@@ -745,7 +758,10 @@ export default function Planner() {
   }, [allDone])
 
   // What the add box would create as you type — used to preview a recognized
-  // schedule (and the title with its phrase removed) before you commit.
+  // schedule (and the title with its phrase removed) before you commit. When
+  // the box holds several lines it's a brain dump, so the preview switches to a
+  // plain count of how many tasks will be added instead.
+  const addLineCount = newText.split(/\r?\n/).filter(l => l.trim()).length
   const parsed = parseQuickAdd(newText)
 
   // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
@@ -1126,14 +1142,20 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Add task */}
-      <div className="flex gap-2 pt-1">
-        <input
+      {/* Add task. A textarea, so a pasted list keeps its line breaks and
+          Shift+Enter can stack several — each line becomes its own task. Plain
+          Enter still adds (on every device), so the single-task flow is
+          unchanged; it just grows to fit when there's more than one line. */}
+      <div className="flex items-start gap-2 pt-1">
+        <textarea
           ref={inputRef}
           value={newText}
+          rows={1}
+          aria-label="Add a task"
           onChange={e => setNewText(e.target.value)}
           onKeyDown={e => {
-            if (e.key === 'Enter') addTask()
+            // Plain Enter adds; Shift+Enter drops to a new line for the next task.
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() }
             if (e.key === 'Escape') setNewText('')
           }}
           placeholder={
@@ -1143,21 +1165,32 @@ export default function Planner() {
                 ? 'Add something for someday...'
                 : 'Add a task for today...'
           }
-          className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
+          className="flex-1 resize-none overflow-hidden px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
         />
         <button
           onClick={addTask}
           disabled={!newText.trim()}
-          className="px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
         >
           Add
         </button>
       </div>
 
+      {/* Brain-dump preview: several lines add several tasks, so say how many
+          rather than trying to preview each one's schedule. */}
+      {addLineCount >= 2 && (
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" />
+          </svg>
+          <span>Adds <span className="font-medium text-zinc-500 dark:text-zinc-300 tabular-nums">{addLineCount}</span> tasks</span>
+        </div>
+      )}
+
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {(parsed.schedule || parsed.estimateMin || parsed.timeMin != null) && parsed.text && (
+      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null) && parsed.text && (
         <div
           aria-live="polite"
           className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400"

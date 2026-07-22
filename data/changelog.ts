@@ -318,6 +318,14 @@ export const changelog: ChangelogEntry[] = [
       'Today’s completed tasks can now be collapsed into a "Completed" summary row, so a day with a lot checked off keeps the work that’s left up top. A click on the row folds or unfolds them; finished tasks still sink below what’s active either way, and the choice is remembered across visits under a new bed-completed key. Revealing a finished task from search opens the section automatically, and folded tasks drop out of keyboard navigation. Default is unchanged — completed tasks show until you collapse them. No task data changed.',
     type: 'design',
   },
+  {
+    day: 40,
+    date: '2026-07-22',
+    title: 'Add several tasks at once',
+    description:
+      'The add box is now a text area, so a pasted list keeps its line breaks and Shift+Enter stacks more lines — each non-empty line becomes its own task. Every line still runs through quick-add parsing (so "gym every day" or "call Sam tomorrow" work per line) and honors the Today/Tomorrow/Someday toggle. Plain Enter still adds on every device, so single-task entry is unchanged; the box grows to fit what you type and shows how many tasks will be added once there is more than one line. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
