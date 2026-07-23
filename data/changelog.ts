@@ -326,6 +326,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box is now a text area, so a pasted list keeps its line breaks and Shift+Enter stacks more lines — each non-empty line becomes its own task. Every line still runs through quick-add parsing (so "gym every day" or "call Sam tomorrow" work per line) and honors the Today/Tomorrow/Someday toggle. Plain Enter still adds on every device, so single-task entry is unchanged; the box grows to fit what you type and shows how many tasks will be added once there is more than one line. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 41,
+    date: '2026-07-23',
+    title: 'Carried-over tasks show their real age',
+    description:
+      'Unfinished tasks from past days used to sit under one "From yesterday" heading regardless of how long they had actually been waiting. They are now grouped by the day each was meant for, most-recent first, with an honest label — "Yesterday", a weekday within the past week, or a date like "Wed, Jul 15" — so a task left over from last week no longer hides among yesterday’s. The layout mirrors the upcoming section. A "Bring all to today" action now sits on the section (shown once more than one is waiting), surfacing the bulk move that previously lived only in the command palette; each row keeps its own "Do today". No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
