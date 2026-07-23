@@ -692,6 +692,14 @@ export default function Planner() {
   )
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
+  // Grouped by the day each was meant for, most-recent day first, so a task's
+  // real age is honest — one left over from last week no longer hides under
+  // "yesterday". Mirrors the upcoming section; within a day, byPriorityTime
+  // order carries over from the sort above.
+  const carryoverDays = [...new Set(carryovers.map(t => t.createdDate))]
+    .sort()
+    .reverse()
+    .map(date => ({ date, items: carryovers.filter(t => t.createdDate === date) }))
   // Tasks scheduled past today — they wait in their own per-day sections and
   // slot into Today automatically when their day arrives. Grouped by date and
   // shown soonest-first; YYYY-MM-DD sorts chronologically as plain strings.
@@ -1018,28 +1026,50 @@ export default function Planner() {
         </div>
       )}
 
-      {/* Carryovers from previous days */}
+      {/* Carried over from past days — grouped by the day each was meant for so
+          its age reads honestly at a glance (a task from last week no longer
+          hides under "yesterday"). Newest day first, mirroring the upcoming
+          section. A visible "Bring all to today" surfaces the bulk move that
+          used to live only in the command palette, shown once there's more than
+          one waiting. */}
       {carryovers.length > 0 && (
         <div className="space-y-2.5">
-          <p className="text-xs font-medium text-zinc-400 px-1 pt-2">From yesterday</p>
-          {carryovers.map(task => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              carryover
-              highlight={task.id === revealId}
-              onToggle={toggleTask}
-              onDelete={deleteTask}
-              onDoToday={doToday}
-              onSchedule={scheduleTask}
-              onEdit={editTask}
-              onEditNote={editNote}
-              onSetEstimate={setEstimate}
-              onSetTime={setTime}
-              onSetPriority={setPriority}
-              onSetSubtasks={setSubtasks}
-              onSetSomeday={setSomeday}
-            />
+          {carryoverDays.map((group, i) => (
+            <div key={group.date} className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 px-1 pt-2">
+                <p className="text-xs font-medium text-zinc-400">{formatPastDayLabel(group.date)}</p>
+                {i === 0 && carryovers.length >= 2 && (
+                  <button
+                    type="button"
+                    onClick={bringCarryoversToToday}
+                    title="Move every carried-over task into today"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                  >
+                    <DownToTodayIcon className="h-3.5 w-3.5" />
+                    Bring all to today
+                  </button>
+                )}
+              </div>
+              {group.items.map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  carryover
+                  highlight={task.id === revealId}
+                  onToggle={toggleTask}
+                  onDelete={deleteTask}
+                  onDoToday={doToday}
+                  onSchedule={scheduleTask}
+                  onEdit={editTask}
+                  onEditNote={editNote}
+                  onSetEstimate={setEstimate}
+                  onSetTime={setTime}
+                  onSetPriority={setPriority}
+                  onSetSubtasks={setSubtasks}
+                  onSetSomeday={setSomeday}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
