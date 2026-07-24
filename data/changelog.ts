@@ -334,6 +334,14 @@ export const changelog: ChangelogEntry[] = [
       'Unfinished tasks from past days used to sit under one "From yesterday" heading regardless of how long they had actually been waiting. They are now grouped by the day each was meant for, most-recent first, with an honest label — "Yesterday", a weekday within the past week, or a date like "Wed, Jul 15" — so a task left over from last week no longer hides among yesterday’s. The layout mirrors the upcoming section. A "Bring all to today" action now sits on the section (shown once more than one is waiting), surfacing the bulk move that previously lived only in the command palette; each row keeps its own "Do today". No stored data changed.',
     type: 'design',
   },
+  {
+    day: 42,
+    date: '2026-07-24',
+    title: 'Group your tasks with #tags',
+    description:
+      'Add a #tag inside any task — "Email Sam #work", "Gym #health" — and it shows as a colored chip on the task. Tapping a chip filters the whole list to that tag; a bar names the filter and clears it (Esc does too), and Focus mode follows the filter. Tags are read from the task text itself, so they are added or removed just by editing the task, and nothing changes in how data is stored. The tab count, reminders, and the all-done celebration keep reading the full day, not the filtered slice.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
