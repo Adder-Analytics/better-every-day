@@ -3,8 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
+import TagChip from '@/components/TagChip'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
   { value: 'daily', label: 'Every day' },
@@ -167,6 +169,10 @@ type Props = {
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
+  // Tap a tag chip to filter the list to that tag; `activeTag` marks the one
+  // currently in effect so its chip reads as pressed.
+  onFilterTag?: (tag: string) => void
+  activeTag?: string | null
   carryover?: boolean
   // Marks this row as the keyboard selection — draws a focus ring and scrolls
   // the row into view. Driven from the parent's list navigation.
@@ -198,6 +204,8 @@ export default function TaskItem({
   onSetSomeday,
   upNextLabel,
   overdueLabel,
+  onFilterTag,
+  activeTag,
   carryover = false,
   selected = false,
   highlight = false,
@@ -233,6 +241,11 @@ export default function TaskItem({
   const canSomeday = !!onSetSomeday
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
+  // Tags are read from the task's own text: chips to show, and a clean title
+  // (hashtags stripped) to display. Editing still works on the raw text, so a
+  // "#tag" is added or removed just by editing the task.
+  const tags = extractTags(task.text)
+  const displayText = stripTags(task.text)
   // The checklist shows whenever there are steps, or when one is being added.
   const showSubtasks = hasSubtasks || addingStep
   // Steps are editable in the same places a task is (not once it's finished).
@@ -461,7 +474,7 @@ export default function TaskItem({
                   task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
                 } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
               >
-                {task.text}
+                {displayText}
               </span>
             )}
 
@@ -488,7 +501,7 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks) && (
+          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
@@ -562,6 +575,18 @@ export default function TaskItem({
                   {subDone}/{subTotal}
                 </span>
               )}
+
+              {/* Tags — the task's contexts. Each chip filters the list to its
+                  tag; the one being filtered by reads as pressed. */}
+              {tags.map(tag => (
+                <TagChip
+                  key={tag}
+                  tag={tag}
+                  onClick={onFilterTag}
+                  active={tag === activeTag}
+                  dimmed={task.done}
+                />
+              ))}
             </div>
           )}
         </div>
