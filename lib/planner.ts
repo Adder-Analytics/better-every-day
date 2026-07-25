@@ -463,6 +463,22 @@ export function subtaskProgress(task: Task): { done: number; total: number } {
   return { done: subs.filter(s => s.done).length, total: subs.length }
 }
 
+// Render a day's tasks as a plain-text checklist, ready to paste into a
+// standup note, a message, or a journal. One line per task in the order given,
+// with any time of day leading it, an estimate trailing in parentheses, and a
+// checked box for finished ones. Tags stay in the text as written. A heading
+// (the date) leads, so a pasted plan says which day it was. Callers pass tasks
+// already in display order; an empty list yields just the heading.
+export function formatPlanText(tasks: Task[], heading: string): string {
+  const lines = tasks.map(t => {
+    const box = t.done ? '- [x]' : '- [ ]'
+    const time = t.timeMin != null ? `${formatTime(t.timeMin)} · ` : ''
+    const estimate = t.estimateMin ? ` (${formatDuration(t.estimateMin)})` : ''
+    return `${box} ${time}${t.text}${estimate}`
+  })
+  return lines.length ? `${heading}\n\n${lines.join('\n')}` : heading
+}
+
 // --- Quick add parsing --------------------------------------------------------
 // People say *when* at the end of a task without thinking: "Pay rent tomorrow",
 // "Stretch every day". Quick-add reads that trailing phrase, schedules the task

@@ -342,6 +342,14 @@ export const changelog: ChangelogEntry[] = [
       'Add a #tag inside any task — "Email Sam #work", "Gym #health" — and it shows as a colored chip on the task. Tapping a chip filters the whole list to that tag; a bar names the filter and clears it (Esc does too), and Focus mode follows the filter. Tags are read from the task text itself, so they are added or removed just by editing the task, and nothing changes in how data is stored. The tab count, reminders, and the all-done celebration keep reading the full day, not the filtered slice.',
     type: 'feature',
   },
+  {
+    day: 43,
+    date: '2026-07-25',
+    title: 'Copy today’s plan as text',
+    description:
+      'A new action copies the day to the clipboard as a plain-text checklist — the date, then one line per task in the order shown, with times leading, estimates in parentheses, and a checked box for finished ones. It is meant for pasting into a standup note, a message, or a journal. Reach it from a clipboard button in the day header or from the command menu (Cmd/Ctrl+K); a brief toast confirms the copy. It reads the whole day, not a tag-filtered slice, and nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

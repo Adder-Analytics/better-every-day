@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatStartsIn, formatOverdue, formatPlanText, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -160,6 +160,14 @@ function CommandIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+// Heroicons "clipboard-document" — copy today's plan as text.
+function ClipboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+    </svg>
+  )
+}
 
 // Reminders turn today's agenda from something you read into something that
 // nudges you: when a timed task's moment arrives, a browser notification fires
@@ -302,6 +310,11 @@ export default function Planner() {
   // just long enough to be taken back. Newest last; undo restores from the end.
   const [deleted, setDeleted] = useState<{ task: Task; index: number }[]>([])
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Transient feedback after copying today's plan to the clipboard — a brief
+  // toast so the action (from the header or the command palette, which closes
+  // on run) is confirmed. Null when idle.
+  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
@@ -366,6 +379,7 @@ export default function Planner() {
   }, [])
 
   useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -680,6 +694,24 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
+
+  // Copy today's plan to the clipboard as a plain-text checklist — the whole
+  // day in the order it's shown (still-to-do first, then finished), so it can
+  // be pasted into a standup note, a message, or a journal. Reads the full day,
+  // not a tag-filtered slice, to match the counts and the tab. A short toast
+  // confirms it, since the palette closes on run and leaves no other signal.
+  const copyTodayPlan = useCallback(async (ordered: Task[]) => {
+    if (ordered.length === 0) return
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    const text = formatPlanText(ordered, formatDate())
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied('ok')
+    } catch {
+      setCopied('fail')
+    }
+    copiedTimer.current = setTimeout(() => setCopied(null), 2200)
+  }, [])
   // The visible slices — what a tag filter actually narrows down. Everything
   // else (counts, reminders, the celebration) keeps reading the full lists, so
   // the filter stays a lens over the day rather than a change to it.
@@ -881,6 +913,9 @@ export default function Planner() {
       icon: <MoonIcon className="h-4 w-4" />,
       run: () => themeStore.set('dark'),
     },
+    ...(todayTasks.length > 0
+      ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
+      : []),
     ...(tasks.length > 0
       ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
       : []),
@@ -927,6 +962,31 @@ export default function Planner() {
       </div>
     )}
 
+    {/* Copy confirmation — a brief note that today's plan reached the clipboard
+        (or that the browser wouldn't allow it). Same bottom-center home as the
+        undo toast; deleting and copying rarely coincide. */}
+    {copied && deleted.length === 0 && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-2 pl-3.5 pr-4 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          {copied === 'ok' ? (
+            <svg className="w-4 h-4 flex-shrink-0 text-emerald-400 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 flex-shrink-0 text-amber-400 dark:text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          )}
+          <span className="text-xs font-medium text-white dark:text-zinc-900">
+            {copied === 'ok' ? 'Copied today’s plan' : 'Couldn’t copy — try again'}
+          </span>
+        </div>
+      </div>
+    )}
+
     <div className="space-y-2.5">
       {/* Tag filter bar — the list is sliced to one context. Shows the tag, how
           many tasks match, and a way out (the button, or Esc). Only here while a
@@ -963,6 +1023,26 @@ export default function Planner() {
           <p className="text-xs text-zinc-400">{formatDate()}</p>
         </div>
         <div className="flex items-center gap-3">
+          {!inFocus && todayTasks.length > 0 && (
+            <button
+              onClick={() => copyTodayPlan([...todayActive, ...todayDone])}
+              title="Copy today’s plan as text — for a standup, a message, or a journal"
+              className={`flex items-center transition-colors ${
+                copied === 'ok'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {copied === 'ok' ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              ) : (
+                <ClipboardIcon className="w-4 h-4" />
+              )}
+              <span className="sr-only">Copy today’s plan</span>
+            </button>
+          )}
           {!inFocus && reminders.supported && timedActive.length > 0 && (
             <button
               onClick={reminders.toggle}
