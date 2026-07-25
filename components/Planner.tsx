@@ -2,20 +2,32 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDuration, formatTime, formatStartsIn, formatOverdue, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatStartsIn, formatOverdue, formatPlanText, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
+import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
+import TagChip from '@/components/TagChip'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
 import NoteText from '@/components/NoteText'
-import CommandPalette, { type Command, openCommandPalette } from '@/components/CommandPalette'
+import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 
 const emptySubscribe = () => () => {}
 
 // How long a deleted task can be taken back before the deletion is final.
 const UNDO_WINDOW_MS = 8000
+
+// A short label for a routine's cadence, used as its context in task search.
+// Mirrors the wording the repeat menu and task row already use.
+function repeatContext(task: Task): string {
+  if (task.repeat === 'daily') return 'Every day'
+  if (task.repeat === 'weekdays') return 'Weekdays'
+  if (task.repeat === 'weekly') return 'Weekly'
+  if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
+  return 'Today'
+}
 
 // Heroicons calendar (a due day) and circular-arrows (a recurrence), sized for
 // the quick-add preview line.
@@ -148,6 +160,14 @@ function CommandIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+// Heroicons "clipboard-document" — copy today's plan as text.
+function ClipboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+    </svg>
+  )
+}
 
 // Reminders turn today's agenda from something you read into something that
 // nudges you: when a timed task's moment arrives, a browser notification fires
@@ -259,21 +279,44 @@ export default function Planner() {
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
   const [newText, setNewText] = useState('')
-  const [addFor, setAddFor] = useState<'today' | 'tomorrow'>('today')
+  const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  // Whether today's finished tasks are shown or folded into a "Completed"
+  // summary. They still sink below what's left, exactly as before; this only
+  // lets a busy day tuck them away so the remaining work stays front and
+  // center. The choice is remembered, and the default is to show them — so
+  // nothing changes for anyone who never collapses it.
+  const [showCompleted, setShowCompleted] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    try { return localStorage.getItem('bed-completed') !== 'hidden' } catch { return true }
+  })
   // The task the keyboard is pointing at in today's list, by id (null = none).
   // Tracked by id, not index, so it survives reordering when a task is checked
   // off or dragged. Cleared when the task leaves today's list (see below).
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  // The tag the list is currently sliced to (null = no filter). A view lens
+  // only: it changes what's shown, never the day itself — the tab count,
+  // reminders, and the all-done celebration all keep reading the whole day.
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  // Read by the global key handler (Esc clears the filter) without re-binding it.
+  const activeTagRef = useRef<string | null>(activeTag)
+  // The task most recently jumped to from search, flashed briefly then cleared.
+  const [revealId, setRevealId] = useState<string | null>(null)
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Recently deleted tasks, each with the list position it came from, kept
   // just long enough to be taken back. Newest last; undo restores from the end.
   const [deleted, setDeleted] = useState<{ task: Task; index: number }[]>([])
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Transient feedback after copying today's plan to the clipboard — a brief
+  // toast so the action (from the header or the command palette, which closes
+  // on run) is confirmed. Null when idle.
+  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
   // render: the navigable list (today's tasks, in order), the current
   // selection, and the toggle/delete actions. Assigned in the render body once
@@ -315,6 +358,28 @@ export default function Planner() {
   }, [deleted, armUndoTimer])
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
+
+  // Jump to a task found in search: leave focus mode (so the full list is on
+  // screen), scroll the row into view, and flash it so the eye lands on it.
+  // The flash lifts on its own after a moment. A short delay lets the list
+  // paint before we scroll, in case focus mode was just dismissed.
+  const revealTask = useCallback((id: string) => {
+    setFocusMode(false)
+    setSelectedId(null)
+    // A revealed task might be hidden by the current view — folded away, or
+    // filtered out by a tag. Clear both so the flash always lands on a real row.
+    setShowCompleted(true)
+    setActiveTag(null)
+    setRevealId(id)
+    setTimeout(() => {
+      document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 60)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }, [])
+
+  useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -378,6 +443,14 @@ export default function Planner() {
         }
       }
 
+      // Esc clears a tag filter once nothing else has claimed it (focus mode and
+      // a live selection are handled above, and inputs bail out at the top).
+      if (e.key === 'Escape' && activeTagRef.current) {
+        e.preventDefault()
+        setActiveTag(null)
+        return
+      }
+
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         inputRef.current?.focus()
@@ -391,20 +464,41 @@ export default function Planner() {
     savePlanner({ version: PLANNER_VERSION, tasks })
   }, [tasks])
 
+  useEffect(() => {
+    try { localStorage.setItem('bed-completed', showCompleted ? 'shown' : 'hidden') } catch {}
+  }, [showCompleted])
+
+  // Grow the add box to fit a multi-line brain dump, then shrink back once it's
+  // sent — so it reads as a single-line input until you actually stack lines.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 176)}px`
+  }, [newText])
+
+  // Build one task from a single line of the add box, honoring both the line's
+  // own trailing schedule phrase and the Today/Tomorrow/Someday toggle. The
+  // text decides the schedule when it says so ("...tomorrow", "...every day");
+  // otherwise the toggle is the default. A recognized recurrence becomes a
+  // routine anchored to today. Shared by single and multi-line adds so every
+  // line is captured exactly as one typed alone would be.
+  const buildTask = (line: string): Task => {
+    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }
+    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }
+    const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
+    return { ...newTask(text, day), estimateMin, timeMin }
+  }
+
   const addTask = () => {
-    if (!newText.trim()) return
-    // The text decides the schedule when it says so ("...tomorrow", "...every
-    // day"); otherwise the Today/Tomorrow toggle is the default. A recognized
-    // recurrence becomes a routine anchored to today.
-    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(newText)
-    if (repeat) {
-      setTasks(prev => [...prev, { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }])
-    } else {
-      // The text's own day ("...friday") wins; otherwise the Today/Tomorrow
-      // toggle decides.
-      const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-      setTasks(prev => [...prev, { ...newTask(text, day), estimateMin, timeMin }])
-    }
+    // A brain dump: each non-empty line becomes its own task, so a pasted or
+    // Shift+Enter'd list is captured in one go. A single line is the common
+    // case and behaves exactly as before.
+    const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const created = lines.map(buildTask)
+    setTasks(prev => [...prev, ...created])
     setNewText('')
   }
 
@@ -481,11 +575,26 @@ export default function Planner() {
   // Move a task to any day. The whole today / tomorrow / upcoming / carryover
   // split is driven by createdDate, so changing it is all rescheduling needs:
   // a task slides into the right section and resurfaces in Today on its day.
+  // Giving a task a day also lifts it out of the Someday list.
   const scheduleTask = (id: string, date: string) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date } : t)))
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date, someday: undefined } : t)))
   }
 
   const doToday = (id: string) => scheduleTask(id, todayStr())
+
+  // Park a task in the Someday list, or take it back out onto today. Someday
+  // tasks are anchored to today's date so they never linger in a past or future
+  // section if the flag is ever cleared some other way. Stored as undefined when
+  // off, so a dated task carries no someday field.
+  const setSomeday = (id: string, someday: boolean) => {
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === id
+          ? { ...t, someday: someday || undefined, createdDate: someday ? todayStr() : t.createdDate }
+          : t
+      )
+    )
+  }
 
   const editTask = (id: string, text: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
@@ -548,15 +657,19 @@ export default function Planner() {
   const handleDragEnd = () => { setDragId(null); setDragOverId(null) }
 
   const today = todayStr()
+  // The active tag filter as a predicate. With no filter it passes everything,
+  // so the unfiltered path is a no-op. Tags are read from each task's own text.
+  const matchesTag = (t: Task) => !activeTag || extractTags(t.text).includes(activeTag)
   // A routine renders as a fresh instance each day it's due, with its done-state
   // read from the per-day completion log. One-off tasks pass through unchanged,
   // so all the logic below treats both kinds the same via `t.done`.
   const view = (t: Task): Task =>
     t.repeat ? { ...t, done: isCompletedOn(t, today) } : t
-  // Today = one-off tasks created today, plus any routines due today. Filtering
+  // Today = one-off tasks created today, plus any routines due today. Someday
+  // tasks are held out — they wait in their own list until scheduled. Filtering
   // the full array preserves order, so drag-reordering still works by id.
   const todayTasks = tasks
-    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today))
+    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today && !t.someday))
     .map(view)
   // Tasks with a time of day lead the list in chronological order, turning the
   // day into a quiet agenda; untimed tasks keep their manual order below (sort
@@ -581,11 +694,35 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
+
+  // Copy today's plan to the clipboard as a plain-text checklist — the whole
+  // day in the order it's shown (still-to-do first, then finished), so it can
+  // be pasted into a standup note, a message, or a journal. Reads the full day,
+  // not a tag-filtered slice, to match the counts and the tab. A short toast
+  // confirms it, since the palette closes on run and leaves no other signal.
+  const copyTodayPlan = useCallback(async (ordered: Task[]) => {
+    if (ordered.length === 0) return
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    const text = formatPlanText(ordered, formatDate())
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied('ok')
+    } catch {
+      setCopied('fail')
+    }
+    copiedTimer.current = setTimeout(() => setCopied(null), 2200)
+  }, [])
+  // The visible slices — what a tag filter actually narrows down. Everything
+  // else (counts, reminders, the celebration) keeps reading the full lists, so
+  // the filter stays a lens over the day rather than a change to it.
+  const vTodayActive = todayActive.filter(matchesTag)
+  const vTodayDone = todayDone.filter(matchesTag)
   // The keyboard-navigable list: today's tasks in the order they're rendered,
   // still-to-do first and finished below. Carryovers and upcoming days are left
   // out — their primary key action ("Do today") differs, so Space wouldn't have
   // one clear meaning there. Kept in a ref for the global key handler above.
-  const navList = [...todayActive, ...todayDone]
+  // Folded-away finished tasks aren't navigable — nor are ones a filter hides.
+  const navList = [...vTodayActive, ...(showCompleted ? vTodayDone : [])]
   // Keep the global key handler's refs current after each commit (assigning
   // refs during render isn't allowed). A stale selection needs no cleanup — a
   // task that leaves the list simply matches no row (no ring), and the next
@@ -594,31 +731,72 @@ export default function Planner() {
     navRef.current = navList
     selectedRef.current = selectedId
     actionsRef.current = { toggle: toggleTask, del: deleteTask }
+    activeTagRef.current = activeTag
   })
   // The live agenda. Timed tasks lead the list in time order, so a single "now"
   // line dropped after the ones that have already started turns today into a
   // real timeline — everything above the line is behind you, everything below
   // is still ahead. The line only appears once there's a timed task to anchor it.
   const timedActive = todayActive.filter(t => t.timeMin != null)
-  const showNowLine = mounted && timedActive.length > 0
-  const startedCount = todayActive.filter(t => t.timeMin != null && t.timeMin <= nowMin).length
+  // The now-line and "up next" hint sit among the *visible* timed tasks, so they
+  // stay correct when a filter hides some; reminders below still watch them all.
+  const showNowLine = mounted && vTodayActive.some(t => t.timeMin != null)
+  const startedCount = vTodayActive.filter(t => t.timeMin != null && t.timeMin <= nowMin).length
   // The next timed task still ahead gets a quiet "in 25m" hint, so what's coming
   // up — and how soon — reads at a glance without crowding the rest of the list.
-  const nextUp = todayActive.find(t => t.timeMin != null && t.timeMin > nowMin)
+  const nextUp = vTodayActive.find(t => t.timeMin != null && t.timeMin > nowMin)
   // Reminders watch today's still-to-do timed tasks: finishing, deleting, or
   // rescheduling one cancels its pending notification automatically.
   const reminders = useReminders(
     timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
   )
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
-  const carryovers = tasks.filter(t => !t.repeat && t.createdDate < today && !t.done).sort(byPriorityTime)
+  const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
+  const vCarryovers = carryovers.filter(matchesTag)
+  // Grouped by the day each was meant for, most-recent day first, so a task's
+  // real age is honest — one left over from last week no longer hides under
+  // "yesterday". Mirrors the upcoming section; within a day, byPriorityTime
+  // order carries over from the sort above.
+  const carryoverDays = [...new Set(vCarryovers.map(t => t.createdDate))]
+    .sort()
+    .reverse()
+    .map(date => ({ date, items: vCarryovers.filter(t => t.createdDate === date) }))
   // Tasks scheduled past today — they wait in their own per-day sections and
   // slot into Today automatically when their day arrives. Grouped by date and
   // shown soonest-first; YYYY-MM-DD sorts chronologically as plain strings.
-  const upcoming = tasks.filter(t => !t.repeat && t.createdDate > today)
-  const upcomingDays = [...new Set(upcoming.map(t => t.createdDate))]
+  const upcoming = tasks.filter(t => !t.repeat && !t.someday && t.createdDate > today)
+  const vUpcoming = upcoming.filter(matchesTag)
+  const upcomingDays = [...new Set(vUpcoming.map(t => t.createdDate))]
     .sort()
-    .map(date => ({ date, items: upcoming.filter(t => t.createdDate === date).sort(byPriorityTime) }))
+    .map(date => ({ date, items: vUpcoming.filter(t => t.createdDate === date).sort(byPriorityTime) }))
+  // The Someday list — captured tasks with no day yet, waiting until you're
+  // ready to schedule one or bring it to today. Starred ones lead; the rest
+  // keep the order they were added in. Routines are never someday tasks.
+  const somedayTasks = tasks.filter(t => t.someday && !t.repeat).sort(byPriorityTime)
+  const vSomeday = somedayTasks.filter(matchesTag)
+  // How many tasks the current filter is showing across every section — the
+  // count on the filter bar, and what tells the filtered empty state to appear.
+  const filterCount = vTodayActive.length + vTodayDone.length + vCarryovers.length + vUpcoming.length + vSomeday.length
+  // Everything currently on screen, flattened for search: today's tasks (with a
+  // routine's cadence as its context), what's carried over from past days,
+  // what's planned ahead, and the Someday backlog. Every entry maps to a
+  // rendered row, so revealing one always finds its element.
+  const searchTask = (t: Task, context: string): TaskResult => ({
+    id: t.id,
+    // Raw text, so a query still matches a task by its tag ("#work" or "work");
+    // the hashtag also reads fine in the result row.
+    text: t.text,
+    context,
+    done: t.done,
+    run: () => revealTask(t.id),
+  })
+  const taskResults: TaskResult[] = [
+    ...todayActive.map(t => searchTask(t, t.repeat ? repeatContext(t) : 'Today')),
+    ...todayDone.map(t => searchTask(t, t.repeat ? repeatContext(t) : 'Today')),
+    ...carryovers.map(t => searchTask(t, formatPastDayLabel(t.createdDate))),
+    ...upcoming.map(t => searchTask(t, formatDayLabel(t.createdDate))),
+    ...somedayTasks.map(t => searchTask(t, 'Someday')),
+  ]
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -626,8 +804,9 @@ export default function Planner() {
   const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
   const doneMin = todayTasks.filter(t => t.done).reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
   // Focus mode shows only the single next thing to do — your active today
-  // tasks come first, then anything carried over — so the rest can wait.
-  const focusQueue = [...todayActive, ...carryovers]
+  // tasks come first, then anything carried over — so the rest can wait. It
+  // follows the filter, so focusing while sliced to a tag steps through that tag.
+  const focusQueue = [...vTodayActive, ...vCarryovers]
   const focusTask = focusQueue[0]
   const focusRemaining = Math.max(0, focusQueue.length - 1)
   // Only truly "in focus" when there's something to focus on; this guarantees
@@ -656,8 +835,14 @@ export default function Planner() {
   }, [allDone])
 
   // What the add box would create as you type — used to preview a recognized
-  // schedule (and the title with its phrase removed) before you commit.
+  // schedule (and the title with its phrase removed) before you commit. When
+  // the box holds several lines it's a brain dump, so the preview switches to a
+  // plain count of how many tasks will be added instead.
+  const addLineCount = newText.split(/\r?\n/).filter(l => l.trim()).length
   const parsed = parseQuickAdd(newText)
+  // Tags recognized in a single-line entry, previewed as chips so a "#work"
+  // typed inline is seen before it's added.
+  const previewTags = extractTags(newText)
 
   // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
   // on the client; the opener only renders after mount, so it's never on the
@@ -728,6 +913,9 @@ export default function Planner() {
       icon: <MoonIcon className="h-4 w-4" />,
       run: () => themeStore.set('dark'),
     },
+    ...(todayTasks.length > 0
+      ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
+      : []),
     ...(tasks.length > 0
       ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
       : []),
@@ -746,7 +934,7 @@ export default function Planner() {
   return (
     <>
     <Confetti active={showConfetti} />
-    <CommandPalette commands={commands} />
+    <CommandPalette commands={commands} tasks={taskResults} />
 
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
@@ -774,7 +962,60 @@ export default function Planner() {
       </div>
     )}
 
+    {/* Copy confirmation — a brief note that today's plan reached the clipboard
+        (or that the browser wouldn't allow it). Same bottom-center home as the
+        undo toast; deleting and copying rarely coincide. */}
+    {copied && deleted.length === 0 && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-2 pl-3.5 pr-4 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          {copied === 'ok' ? (
+            <svg className="w-4 h-4 flex-shrink-0 text-emerald-400 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 flex-shrink-0 text-amber-400 dark:text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          )}
+          <span className="text-xs font-medium text-white dark:text-zinc-900">
+            {copied === 'ok' ? 'Copied today’s plan' : 'Couldn’t copy — try again'}
+          </span>
+        </div>
+      </div>
+    )}
+
     <div className="space-y-2.5">
+      {/* Tag filter bar — the list is sliced to one context. Shows the tag, how
+          many tasks match, and a way out (the button, or Esc). Only here while a
+          filter is on, so it never adds noise to the default view. */}
+      {activeTag && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex-shrink-0 text-xs text-zinc-400">Filtered by</span>
+            <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tagColor(activeTag)}`}>
+              #{activeTag}
+            </span>
+            <span className="flex-shrink-0 text-xs tabular-nums text-zinc-400">
+              {filterCount} {filterCount === 1 ? 'task' : 'tasks'}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTag(null)}
+            title="Clear filter (Esc)"
+            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
         <div>
@@ -782,6 +1023,26 @@ export default function Planner() {
           <p className="text-xs text-zinc-400">{formatDate()}</p>
         </div>
         <div className="flex items-center gap-3">
+          {!inFocus && todayTasks.length > 0 && (
+            <button
+              onClick={() => copyTodayPlan([...todayActive, ...todayDone])}
+              title="Copy today’s plan as text — for a standup, a message, or a journal"
+              className={`flex items-center transition-colors ${
+                copied === 'ok'
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {copied === 'ok' ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              ) : (
+                <ClipboardIcon className="w-4 h-4" />
+              )}
+              <span className="sr-only">Copy today’s plan</span>
+            </button>
+          )}
           {!inFocus && reminders.supported && timedActive.length > 0 && (
             <button
               onClick={reminders.toggle}
@@ -883,7 +1144,7 @@ export default function Planner() {
             {focusTask.timeMin != null && (
               <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">{formatTime(focusTask.timeMin)}</p>
             )}
-            <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{focusTask.text}</p>
+            <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{stripTags(focusTask.text)}</p>
             {focusTask.note && (
               <NoteText text={focusTask.note} className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words" />
             )}
@@ -905,40 +1166,85 @@ export default function Planner() {
       )}
 
       {!inFocus && (<>
-      {/* All done message */}
-      {allDone && (
+      {/* All done message — the full day's state, so it's held back while a tag
+          filter is showing only a slice. */}
+      {allDone && !activeTag && (
         <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-5 py-4 text-center">
           <p className="text-emerald-700 dark:text-emerald-400 font-medium text-sm">All done for today</p>
           <p className="text-emerald-600/70 dark:text-emerald-500/70 text-xs mt-0.5">Everything’s checked off. Enjoy the rest of your day.</p>
         </div>
       )}
 
-      {/* Carryovers from previous days */}
-      {carryovers.length > 0 && (
+      {/* Carried over from past days — grouped by the day each was meant for so
+          its age reads honestly at a glance (a task from last week no longer
+          hides under "yesterday"). Newest day first, mirroring the upcoming
+          section. A visible "Bring all to today" surfaces the bulk move that
+          used to live only in the command palette, shown once there's more than
+          one waiting. */}
+      {vCarryovers.length > 0 && (
         <div className="space-y-2.5">
-          <p className="text-xs font-medium text-zinc-400 px-1 pt-2">From yesterday</p>
-          {carryovers.map(task => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              carryover
-              onToggle={toggleTask}
-              onDelete={deleteTask}
-              onDoToday={doToday}
-              onSchedule={scheduleTask}
-              onEdit={editTask}
-              onEditNote={editNote}
-              onSetEstimate={setEstimate}
-              onSetTime={setTime}
-              onSetPriority={setPriority}
-              onSetSubtasks={setSubtasks}
-            />
+          {carryoverDays.map((group, i) => (
+            <div key={group.date} className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2 px-1 pt-2">
+                <p className="text-xs font-medium text-zinc-400">{formatPastDayLabel(group.date)}</p>
+                {i === 0 && !activeTag && carryovers.length >= 2 && (
+                  <button
+                    type="button"
+                    onClick={bringCarryoversToToday}
+                    title="Move every carried-over task into today"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                  >
+                    <DownToTodayIcon className="h-3.5 w-3.5" />
+                    Bring all to today
+                  </button>
+                )}
+              </div>
+              {group.items.map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  carryover
+                  highlight={task.id === revealId}
+                  onFilterTag={setActiveTag}
+                  activeTag={activeTag}
+                  onToggle={toggleTask}
+                  onDelete={deleteTask}
+                  onDoToday={doToday}
+                  onSchedule={scheduleTask}
+                  onEdit={editTask}
+                  onEditNote={editNote}
+                  onSetEstimate={setEstimate}
+                  onSetTime={setTime}
+                  onSetPriority={setPriority}
+                  onSetSubtasks={setSubtasks}
+                  onSetSomeday={setSomeday}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Empty state */}
-      {todayTasks.length === 0 && carryovers.length === 0 && (
+      {/* Filtered to nothing — a task-less tag (everything under it is hidden,
+          or it no longer exists). Say so plainly, with the way out. */}
+      {activeTag && filterCount === 0 && (
+        <div className="text-center py-14">
+          <p className="text-zinc-600 dark:text-zinc-300 font-medium">
+            No tasks tagged <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-sm ${tagColor(activeTag)}`}>#{activeTag}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTag(null)}
+            className="mt-3 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
+
+      {/* Empty state — the real, unfiltered "nothing here yet" (the filtered
+          empty state above covers the tag case). */}
+      {!activeTag && todayTasks.length === 0 && carryovers.length === 0 && (
         <div className="text-center py-14">
           <svg className="w-10 h-10 mx-auto mb-3 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -947,7 +1253,8 @@ export default function Planner() {
           <p className="text-zinc-400 text-sm mt-1">
             Add your first task below — end with{' '}
             <span className="text-zinc-500 dark:text-zinc-300">“tomorrow”</span> or{' '}
-            <span className="text-zinc-500 dark:text-zinc-300">“every day”</span> to schedule it.
+            <span className="text-zinc-500 dark:text-zinc-300">“every day”</span> to schedule it,
+            or add a <span className="text-zinc-500 dark:text-zinc-300">#tag</span> to group it.
           </p>
         </div>
       )}
@@ -955,7 +1262,7 @@ export default function Planner() {
       {/* Today's tasks — still-to-do first, finished ones sink below. The live
           "now" line is dropped in among the timed tasks at the current time. */}
       {(() => {
-        const nodes = todayActive.map(task => {
+        const nodes = vTodayActive.map(task => {
           // Timed tasks are ordered by their time, so they aren't drag-reorderable;
           // untimed tasks keep the manual drag handle.
           const draggable = task.timeMin == null
@@ -964,6 +1271,9 @@ export default function Planner() {
               key={task.id}
               task={task}
               selected={task.id === selectedId}
+              highlight={task.id === revealId}
+              onFilterTag={setActiveTag}
+              activeTag={activeTag}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
               overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
               onToggle={toggleTask}
@@ -976,6 +1286,7 @@ export default function Planner() {
               onSetTime={setTime}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}
@@ -988,57 +1299,118 @@ export default function Planner() {
         if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} />)
         return nodes
       })()}
-      {todayDone.map(task => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          selected={task.id === selectedId}
-          onToggle={toggleTask}
-          onDelete={deleteTask}
-          onEdit={editTask}
-          onEditNote={editNote}
-          onSetRepeat={setRepeat}
-        />
-      ))}
+      {/* Completed today — finished tasks, foldable into a tidy summary so a
+          busy day keeps the remaining work up top. Collapsed or not, they still
+          sit below what's left; the choice is remembered across visits. */}
+      {vTodayDone.length > 0 && (
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={() => setShowCompleted(v => !v)}
+            aria-expanded={showCompleted}
+            title={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'}
+            className="flex w-full items-center gap-1.5 px-1 pt-2 text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span>Completed</span>
+            <span className="tabular-nums text-zinc-300 dark:text-zinc-600">{vTodayDone.length}</span>
+            <svg
+              aria-hidden="true"
+              className={`ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-200 ${showCompleted ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.8}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {showCompleted &&
+            vTodayDone.map(task => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                selected={task.id === selectedId}
+                highlight={task.id === revealId}
+                onFilterTag={setActiveTag}
+                activeTag={activeTag}
+                onToggle={toggleTask}
+                onDelete={deleteTask}
+                onEdit={editTask}
+                onEditNote={editNote}
+                onSetRepeat={setRepeat}
+              />
+            ))}
+        </div>
+      )}
 
-      {/* Add task */}
-      <div className="flex gap-2 pt-1">
-        <input
+      {/* Add task. A textarea, so a pasted list keeps its line breaks and
+          Shift+Enter can stack several — each line becomes its own task. Plain
+          Enter still adds (on every device), so the single-task flow is
+          unchanged; it just grows to fit when there's more than one line. */}
+      <div className="flex items-start gap-2 pt-1">
+        <textarea
           ref={inputRef}
           value={newText}
+          rows={1}
+          aria-label="Add a task"
           onChange={e => setNewText(e.target.value)}
           onKeyDown={e => {
-            if (e.key === 'Enter') addTask()
+            // Plain Enter adds; Shift+Enter drops to a new line for the next task.
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() }
             if (e.key === 'Escape') setNewText('')
           }}
-          placeholder={addFor === 'tomorrow' ? 'Add a task for tomorrow...' : 'Add a task for today...'}
-          className="flex-1 px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
+          placeholder={
+            addFor === 'tomorrow'
+              ? 'Add a task for tomorrow...'
+              : addFor === 'someday'
+                ? 'Add something for someday...'
+                : 'Add a task for today...'
+          }
+          className="flex-1 resize-none overflow-hidden px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-100 placeholder-zinc-400 text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600"
         />
         <button
           onClick={addTask}
           disabled={!newText.trim()}
-          className="px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="px-4 py-3 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl text-sm font-medium hover:bg-zinc-700 dark:hover:bg-zinc-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
         >
           Add
         </button>
       </div>
 
+      {/* Brain-dump preview: several lines add several tasks, so say how many
+          rather than trying to preview each one's schedule. */}
+      {addLineCount >= 2 && (
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400">
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" />
+          </svg>
+          <span>Adds <span className="font-medium text-zinc-500 dark:text-zinc-300 tabular-nums">{addLineCount}</span> tasks</span>
+        </div>
+      )}
+
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {(parsed.schedule || parsed.estimateMin || parsed.timeMin != null) && parsed.text && (
+      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || previewTags.length > 0) && parsed.text && (
         <div
           aria-live="polite"
-          className="flex items-center gap-1.5 px-1 text-[11px] text-zinc-400"
+          className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-zinc-400"
         >
           {parsed.schedule ? (
             <ScheduleIcon kind={parsed.schedule.kind} className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : previewTags.length > 0 && !parsed.estimateMin && parsed.timeMin == null ? (
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5" />
+            </svg>
           ) : (
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           )}
-          <span className="min-w-0 truncate text-zinc-500 dark:text-zinc-300">{parsed.text}</span>
+          <span className="min-w-0 truncate text-zinc-500 dark:text-zinc-300">{stripTags(parsed.text)}</span>
           {parsed.schedule && (
             <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
               {parsed.schedule.label}
@@ -1054,12 +1426,15 @@ export default function Planner() {
               {formatDuration(parsed.estimateMin)}
             </span>
           )}
+          {previewTags.map(tag => (
+            <TagChip key={tag} tag={tag} />
+          ))}
         </div>
       )}
 
       <div className="flex items-center justify-between px-1">
         <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 text-xs font-medium">
-          {(['today', 'tomorrow'] as const).map(when => (
+          {(['today', 'tomorrow', 'someday'] as const).map(when => (
             <button
               key={when}
               onClick={() => setAddFor(when)}
@@ -1097,6 +1472,9 @@ export default function Planner() {
             <TaskItem
               key={task.id}
               task={task}
+              highlight={task.id === revealId}
+              onFilterTag={setActiveTag}
+              activeTag={activeTag}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onEdit={editTask}
@@ -1106,10 +1484,45 @@ export default function Planner() {
               onSetTime={setTime}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
             />
           ))}
         </div>
       ))}
+
+      {/* Someday — a home for tasks you want to keep but not commit to a day.
+          They wait quietly here, out of today and the tab count, until "Do
+          today" or a scheduled day lifts one back into the plan. */}
+      {vSomeday.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5 px-1 pt-2">
+            <svg className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5M12 12.75h.008v.008H12v-.008z" />
+            </svg>
+            <p className="text-xs font-medium text-zinc-400">Someday</p>
+            <span className="text-xs tabular-nums text-zinc-300 dark:text-zinc-600">{vSomeday.length}</span>
+          </div>
+          {vSomeday.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              carryover
+              highlight={task.id === revealId}
+              onFilterTag={setActiveTag}
+              activeTag={activeTag}
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onDoToday={doToday}
+              onSchedule={scheduleTask}
+              onEdit={editTask}
+              onEditNote={editNote}
+              onSetEstimate={setEstimate}
+              onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="pt-2 space-y-2.5">
         <DayNote />

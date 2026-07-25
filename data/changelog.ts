@@ -294,6 +294,62 @@ export const changelog: ChangelogEntry[] = [
       'Reworked the task row into two tiers so the name always stays readable. Before, a task with a time, an estimate, and a "starts in" hint could crowd its own name down to a letter or nothing on a narrow phone. Now the name gets the full width of its line (with the time leading and a star trailing), and the quieter details — the countdown, an overdue "late" note, a streak, a repeat cadence, an estimate, step progress — sit on a second line beneath it and wrap instead of pushing on the name. Rows with no such details stay a single line. All actions and the layout are otherwise unchanged.',
     type: 'design',
   },
+  {
+    day: 37,
+    date: '2026-07-19',
+    title: 'A Someday list for tasks without a day',
+    description:
+      'Tasks can now be kept in a Someday list instead of on a specific day — a place to capture what you want to do eventually without committing to when. Add one with the new Someday option beside Today and Tomorrow on the add box, or park an existing task there from its schedule menu. Someday tasks wait in their own section, out of Today, carryovers, and the tab count; "Do today" or scheduling a day lifts one back into the plan. They ride along in exports and backups. Stored data bumps to version 9 with one added optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
+  {
+    day: 38,
+    date: '2026-07-20',
+    title: 'Search across all your tasks',
+    description:
+      'The command menu (Cmd/Ctrl+K) now searches your tasks, not just its actions. Type a word and matching tasks appear under a Tasks group alongside any matching commands — each with a status dot (done or still to do) and a quiet label for where it lives: Today, the day it carries over from, a scheduled day, Someday, or a routine’s cadence. Both the task text and that label are searchable. Choosing a result closes the menu, scrolls the task into view, and flashes it briefly so your eye lands on it; the whole thing is keyboard-driven, and finished tasks show up too. Tasks only appear once there’s a query, so an empty menu stays a clean list of actions. No stored data changed.',
+    type: 'feature',
+  },
+  {
+    day: 39,
+    date: '2026-07-21',
+    title: 'Fold away what you’ve finished',
+    description:
+      'Today’s completed tasks can now be collapsed into a "Completed" summary row, so a day with a lot checked off keeps the work that’s left up top. A click on the row folds or unfolds them; finished tasks still sink below what’s active either way, and the choice is remembered across visits under a new bed-completed key. Revealing a finished task from search opens the section automatically, and folded tasks drop out of keyboard navigation. Default is unchanged — completed tasks show until you collapse them. No task data changed.',
+    type: 'design',
+  },
+  {
+    day: 40,
+    date: '2026-07-22',
+    title: 'Add several tasks at once',
+    description:
+      'The add box is now a text area, so a pasted list keeps its line breaks and Shift+Enter stacks more lines — each non-empty line becomes its own task. Every line still runs through quick-add parsing (so "gym every day" or "call Sam tomorrow" work per line) and honors the Today/Tomorrow/Someday toggle. Plain Enter still adds on every device, so single-task entry is unchanged; the box grows to fit what you type and shows how many tasks will be added once there is more than one line. No stored data changed.',
+    type: 'feature',
+  },
+  {
+    day: 41,
+    date: '2026-07-23',
+    title: 'Carried-over tasks show their real age',
+    description:
+      'Unfinished tasks from past days used to sit under one "From yesterday" heading regardless of how long they had actually been waiting. They are now grouped by the day each was meant for, most-recent first, with an honest label — "Yesterday", a weekday within the past week, or a date like "Wed, Jul 15" — so a task left over from last week no longer hides among yesterday’s. The layout mirrors the upcoming section. A "Bring all to today" action now sits on the section (shown once more than one is waiting), surfacing the bulk move that previously lived only in the command palette; each row keeps its own "Do today". No stored data changed.',
+    type: 'design',
+  },
+  {
+    day: 42,
+    date: '2026-07-24',
+    title: 'Group your tasks with #tags',
+    description:
+      'Add a #tag inside any task — "Email Sam #work", "Gym #health" — and it shows as a colored chip on the task. Tapping a chip filters the whole list to that tag; a bar names the filter and clears it (Esc does too), and Focus mode follows the filter. Tags are read from the task text itself, so they are added or removed just by editing the task, and nothing changes in how data is stored. The tab count, reminders, and the all-done celebration keep reading the full day, not the filtered slice.',
+    type: 'feature',
+  },
+  {
+    day: 43,
+    date: '2026-07-25',
+    title: 'Copy today’s plan as text',
+    description:
+      'A new action copies the day to the clipboard as a plain-text checklist — the date, then one line per task in the order shown, with times leading, estimates in parentheses, and a checked box for finished ones. It is meant for pasting into a standup note, a message, or a journal. Reach it from a clipboard button in the day header or from the command menu (Cmd/Ctrl+K); a brief toast confirms the copy. It reads the whole day, not a tag-filtered slice, and nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

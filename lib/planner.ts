@@ -30,16 +30,22 @@ export type Task = {
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
   priority?: boolean // starred as important — floats to the top of the day
   subtasks?: Subtask[] // optional checklist of steps that make up the task
+  // Held in the Someday list instead of on a day: a task captured without
+  // committing it to a date. Someday tasks stay out of Today, carryovers,
+  // upcoming days, and the tab count until they're scheduled or brought to
+  // today (which clears this flag). A routine is never a someday task.
+  someday?: boolean
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
 // v4: added optional time estimates. v5: added optional time of day. v6: added
 // an optional priority (star) flag. v7: added an optional subtask checklist.
 // v8: added the 'days' repeat rule and an optional `repeatDays` weekday set.
+// v9: added an optional `someday` flag (the Someday backlog list).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v8 alike.
-export const PLANNER_VERSION = 8
+// loadPlanner reads v1–v9 alike.
+export const PLANNER_VERSION = 9
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -143,7 +149,8 @@ function isTask(value: unknown): value is Task {
     (t.timeMin === undefined ||
       (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439)) &&
     (t.priority === undefined || typeof t.priority === 'boolean') &&
-    (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask)))
+    (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask))) &&
+    (t.someday === undefined || typeof t.someday === 'boolean')
   )
 }
 
@@ -301,10 +308,10 @@ export function loadPlanner(): PlannerData {
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
-    // day), v6 (priority), v7 (subtasks) and v8 (specific-day routines) only
-    // add optional fields, so every version's tasks load cleanly into the
-    // current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // day), v6 (priority), v7 (subtasks), v8 (specific-day routines) and v9
+    // (the Someday list) only add optional fields, so every version's tasks
+    // load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -454,6 +461,22 @@ export function newSubtask(text: string): Subtask {
 export function subtaskProgress(task: Task): { done: number; total: number } {
   const subs = task.subtasks ?? []
   return { done: subs.filter(s => s.done).length, total: subs.length }
+}
+
+// Render a day's tasks as a plain-text checklist, ready to paste into a
+// standup note, a message, or a journal. One line per task in the order given,
+// with any time of day leading it, an estimate trailing in parentheses, and a
+// checked box for finished ones. Tags stay in the text as written. A heading
+// (the date) leads, so a pasted plan says which day it was. Callers pass tasks
+// already in display order; an empty list yields just the heading.
+export function formatPlanText(tasks: Task[], heading: string): string {
+  const lines = tasks.map(t => {
+    const box = t.done ? '- [x]' : '- [ ]'
+    const time = t.timeMin != null ? `${formatTime(t.timeMin)} · ` : ''
+    const estimate = t.estimateMin ? ` (${formatDuration(t.estimateMin)})` : ''
+    return `${box} ${time}${t.text}${estimate}`
+  })
+  return lines.length ? `${heading}\n\n${lines.join('\n')}` : heading
 }
 
 // --- Quick add parsing --------------------------------------------------------

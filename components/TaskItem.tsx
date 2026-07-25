@@ -3,8 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
+import TagChip from '@/components/TagChip'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
   { value: 'daily', label: 'Every day' },
@@ -160,14 +162,24 @@ type Props = {
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
   onSetSubtasks?: (id: string, subtasks: Subtask[]) => void
+  // Park this task in the Someday list (given, a dated task can be moved there
+  // from its schedule menu). Someday tasks themselves don't receive this.
+  onSetSomeday?: (id: string, someday: boolean) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
+  // Tap a tag chip to filter the list to that tag; `activeTag` marks the one
+  // currently in effect so its chip reads as pressed.
+  onFilterTag?: (tag: string) => void
+  activeTag?: string | null
   carryover?: boolean
   // Marks this row as the keyboard selection — draws a focus ring and scrolls
   // the row into view. Driven from the parent's list navigation.
   selected?: boolean
+  // Briefly flashes the row after it's been jumped to from search, then lifts.
+  // Independent of `selected` — it's a box-shadow pulse, not a ring.
+  highlight?: boolean
   onDoToday?: (id: string) => void
   onDragStart?: (id: string) => void
   onDragOver?: (id: string) => void
@@ -189,10 +201,14 @@ export default function TaskItem({
   onSetTime,
   onSetPriority,
   onSetSubtasks,
+  onSetSomeday,
   upNextLabel,
   overdueLabel,
+  onFilterTag,
+  activeTag,
   carryover = false,
   selected = false,
+  highlight = false,
   onDoToday,
   onDragStart,
   onDragOver,
@@ -222,8 +238,14 @@ export default function TaskItem({
   const canSetTime = !!onSetTime
   const canPrioritize = !!onSetPriority
   const canSubtask = !!onSetSubtasks
+  const canSomeday = !!onSetSomeday
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
+  // Tags are read from the task's own text: chips to show, and a clean title
+  // (hashtags stripped) to display. Editing still works on the raw text, so a
+  // "#tag" is added or removed just by editing the task.
+  const tags = extractTags(task.text)
+  const displayText = stripTags(task.text)
   // The checklist shows whenever there are steps, or when one is being added.
   const showSubtasks = hasSubtasks || addingStep
   // Steps are editable in the same places a task is (not once it's finished).
@@ -344,6 +366,7 @@ export default function TaskItem({
   return (
     <div
       ref={rowRef}
+      id={`task-${task.id}`}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart!(task.id) } : undefined}
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
@@ -359,7 +382,7 @@ export default function TaskItem({
         selected
           ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-2 ring-offset-zinc-50 dark:ring-offset-zinc-950'
           : ''
-      }`}
+      } ${highlight ? 'reveal-flash' : ''}`}
     >
       <div className="flex items-center gap-3 min-w-0">
         {draggable && (
@@ -451,7 +474,7 @@ export default function TaskItem({
                   task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
                 } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
               >
-                {task.text}
+                {displayText}
               </span>
             )}
 
@@ -478,7 +501,7 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks) && (
+          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
@@ -552,6 +575,18 @@ export default function TaskItem({
                   {subDone}/{subTotal}
                 </span>
               )}
+
+              {/* Tags — the task's contexts. Each chip filters the list to its
+                  tag; the one being filtered by reads as pressed. */}
+              {tags.map(tag => (
+                <TagChip
+                  key={tag}
+                  tag={tag}
+                  onClick={onFilterTag}
+                  active={tag === activeTag}
+                  dimmed={task.done}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -823,6 +858,17 @@ export default function TaskItem({
               </button>
             )
           })}
+          {/* Take the task off the calendar entirely and into the Someday list,
+              to keep without committing it to a day. */}
+          {canSomeday && (
+            <button
+              role="menuitem"
+              onClick={() => { onSetSomeday!(task.id, true); setMenu(null) }}
+              className="flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+            >
+              Someday
+            </button>
+          )}
           {/* Anything further out than a week: a native date field, floored at
               today so a task can't be scheduled into the past. */}
           <label className="mt-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-xs text-zinc-500 dark:text-zinc-400">

@@ -47,11 +47,32 @@
   }
 }
 
+/* A task jumped to from search flashes an emerald outline once, then settles.
+   box-shadow (not a ring) is used so it never fights a row's selection ring. */
+@keyframes reveal-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  20% {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5);
+  }
+}
+.reveal-flash {
+  animation: reveal-flash 1.6s ease-out;
+}
+
 /* Honor a user's reduced-motion preference for the app's entrances. */
 @media (prefers-reduced-motion: reduce) {
   .animate-\[toast-in_150ms_ease-out\],
   .animate-\[palette-in_120ms_ease-out\] {
     animation: none;
+  }
+  /* Keep a revealed task legible without the pulse: a steady outline for its
+     brief window, cleared the same way once the highlight lifts. */
+  .reveal-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.45);
   }
 }
 

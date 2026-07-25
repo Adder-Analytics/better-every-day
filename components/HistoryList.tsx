@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from 'react'
 import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
 import ActivityCalendar from '@/components/ActivityCalendar'
 import NoteText from '@/components/NoteText'
@@ -79,7 +80,7 @@ export default function HistoryList() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.601a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 00.495-7.468 5.99 5.99 0 00-1.925 3.547 5.975 5.975 0 01-2.133-1.001A3.75 3.75 0 0012 18z" />
                   </svg>
-                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{task.text}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-zinc-700 dark:text-zinc-300">{stripTags(task.text)}</span>
                   <span className="flex-shrink-0 text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
                     <span className="font-semibold text-zinc-700 dark:text-zinc-200">{current}</span>
                     {' '}{unit}{current === 1 ? '' : 's'}
@@ -129,7 +130,7 @@ export default function HistoryList() {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-300">{task.text}</span>
+                  <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-300">{stripTags(task.text)}</span>
                   {task.timeMin != null && (
                     <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
                       {formatTime(task.timeMin)}
