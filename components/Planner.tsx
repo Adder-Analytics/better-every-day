@@ -13,6 +13,7 @@ import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
+import FocusTimer from '@/components/FocusTimer'
 
 const emptySubscribe = () => () => {}
 
@@ -1148,6 +1149,9 @@ export default function Planner() {
             {focusTask.note && (
               <NoteText text={focusTask.note} className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words" />
             )}
+            {/* A focus session timer — work this task in a block of time. Keyed to
+                the task so switching focus starts a fresh session. */}
+            <FocusTimer key={focusTask.id} estimateMin={focusTask.estimateMin} />
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
             <span className="tabular-nums">

@@ -350,6 +350,14 @@ export const changelog: ChangelogEntry[] = [
       'A new action copies the day to the clipboard as a plain-text checklist — the date, then one line per task in the order shown, with times leading, estimates in parentheses, and a checked box for finished ones. It is meant for pasting into a standup note, a message, or a journal. Reach it from a clipboard button in the day header or from the command menu (Cmd/Ctrl+K); a brief toast confirms the copy. It reads the whole day, not a tag-filtered slice, and nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 44,
+    date: '2026-07-26',
+    title: 'A timer for Focus mode',
+    description:
+      'Focus mode now carries a session timer, so a task can be worked in a set block of time. A ring counts the block down with the time left in the middle; start, pause, resume, and reset from the controls beneath it, and pick a length (15, 25, or 50 minutes) — or the task’s own time estimate, when it has one, which is the default. When a block ends the ring settles into "Time’s up," and if the tab is in the background and notifications are already allowed, a quiet nudge fires. The timer is a working aid, not stored data: it resets when you switch to another task and starts fresh on reload, so nothing about how tasks are saved changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
