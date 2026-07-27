@@ -13,6 +13,7 @@ import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
+import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
 
 const emptySubscribe = () => () => {}
@@ -150,6 +151,14 @@ function DownToTodayIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v11m0 0 4-4m-4 4-4-4M5 20h14" />
+    </svg>
+  )
+}
+// Heroicons "question-mark-circle" — opens the keyboard shortcuts reference.
+function ShortcutsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
     </svg>
   )
 }
@@ -386,6 +395,9 @@ export default function Planner() {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      // An open modal (the command menu, the shortcuts panel) owns the keyboard
+      // — it handles its own Esc and shouldn't have list keys firing behind it.
+      if (document.querySelector('[aria-modal="true"]')) return
       if (e.key === 'Escape' && focusMode) {
         e.preventDefault()
         setFocusMode(false)
@@ -920,6 +932,7 @@ export default function Planner() {
     ...(tasks.length > 0
       ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
       : []),
+    { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', keywords: 'keys help hotkeys cheatsheet', icon: <ShortcutsIcon className="h-4 w-4" />, run: openShortcutsHelp },
     { id: 'history', label: 'Open History', keywords: 'past done completed calendar activity', icon: <HistoryIcon className="h-4 w-4" />, run: () => router.push('/history') },
     { id: 'changelog', label: 'What’s new', keywords: 'changelog updates releases day', icon: <SparkIcon className="h-4 w-4" />, run: () => router.push('/changelog') },
   ]
@@ -936,6 +949,7 @@ export default function Planner() {
     <>
     <Confetti active={showConfetti} />
     <CommandPalette commands={commands} tasks={taskResults} />
+    <ShortcutsHelp />
 
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
