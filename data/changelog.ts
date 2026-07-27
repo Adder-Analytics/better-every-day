@@ -358,6 +358,14 @@ export const changelog: ChangelogEntry[] = [
       'Focus mode now carries a session timer, so a task can be worked in a set block of time. A ring counts the block down with the time left in the middle; start, pause, resume, and reset from the controls beneath it, and pick a length (15, 25, or 50 minutes) — or the task’s own time estimate, when it has one, which is the default. When a block ends the ring settles into "Time’s up," and if the tab is in the background and notifications are already allowed, a quiet nudge fires. The timer is a working aid, not stored data: it resets when you switch to another task and starts fresh on reload, so nothing about how tasks are saved changed.',
     type: 'feature',
   },
+  {
+    day: 45,
+    date: '2026-07-27',
+    title: 'A key for the keyboard shortcuts',
+    description:
+      'Press ? anywhere to open a reference of the app’s keyboard shortcuts, grouped by what they do — getting around (the command menu, adding a task, this help, Escape), driving today’s list (j/k to move the selection, Space to complete, Backspace to delete), and editing (double-click a task, undo a delete). It’s also in the command menu as "Keyboard shortcuts" so it’s reachable without a keyboard, and Escape or a click outside closes it. An open menu or panel now fully owns the keyboard, so list shortcuts no longer fire behind it. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
