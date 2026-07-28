@@ -816,6 +816,12 @@ export default function Planner() {
   // the number stays honest and never nags when nothing's been estimated.
   const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
   const doneMin = todayTasks.filter(t => t.done).reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
+  // What's still estimated but unfinished, and — working straight through from
+  // now — roughly when it would wrap up. A quiet read on whether today's plan
+  // actually fits before the day is out; it ticks with the clock. Past 1440
+  // (midnight) it stops guessing a time and says so plainly.
+  const remainingMin = plannedMin - doneMin
+  const projectedFinish = nowMin + remainingMin
   // Focus mode shows only the single next thing to do — your active today
   // tasks come first, then anything carried over — so the rest can wait. It
   // follows the filter, so focusing while sliced to a tag steps through that tag.
@@ -1126,6 +1132,15 @@ export default function Planner() {
           <span className="tabular-nums">
             About <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatDuration(plannedMin)}</span> planned today
             {doneMin > 0 && <> · {formatDuration(doneMin)} done</>}
+            {remainingMin > 0 && (
+              <span title="Roughly when you’d wrap up the remaining estimated tasks, working straight through from now">
+                {projectedFinish < 1440 ? (
+                  <> · finish around <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatTime(projectedFinish)}</span></>
+                ) : (
+                  <> · runs past midnight</>
+                )}
+              </span>
+            )}
           </span>
         </p>
       )}
