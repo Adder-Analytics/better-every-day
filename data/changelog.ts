@@ -366,6 +366,14 @@ export const changelog: ChangelogEntry[] = [
       'Press ? anywhere to open a reference of the app’s keyboard shortcuts, grouped by what they do — getting around (the command menu, adding a task, this help, Escape), driving today’s list (j/k to move the selection, Space to complete, Backspace to delete), and editing (double-click a task, undo a delete). It’s also in the command menu as "Keyboard shortcuts" so it’s reachable without a keyboard, and Escape or a click outside closes it. An open menu or panel now fully owns the keyboard, so list shortcuts no longer fire behind it. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 46,
+    date: '2026-07-28',
+    title: 'See when today’s plan will wrap up',
+    description:
+      'The day’s time summary now projects a finish time. It adds up the estimated tasks you haven’t done yet, counts from the current time, and shows a "finish around 4:30 PM" — a quiet read on whether the day’s plan fits before the day is out. It appears once there’s unfinished estimated work, ticks with the clock, and reads "runs past midnight" when the plan won’t fit. It reads only today’s estimates, and nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
