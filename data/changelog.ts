@@ -374,6 +374,14 @@ export const changelog: ChangelogEntry[] = [
       'The day’s time summary now projects a finish time. It adds up the estimated tasks you haven’t done yet, counts from the current time, and shows a "finish around 4:30 PM" — a quiet read on whether the day’s plan fits before the day is out. It appears once there’s unfinished estimated work, ticks with the clock, and reads "runs past midnight" when the plan won’t fit. It reads only today’s estimates, and nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 47,
+    date: '2026-07-30',
+    title: 'Block out a task with a time range',
+    description:
+      'Quick-add now reads a time range and turns it into a block: "Deep work 9-11am" becomes a 9 AM task with a 2h estimate, in one phrase. It accepts a shared meridiem ("9-11am"), one per end ("9am-1pm"), minutes ("9:30-10:30am"), and 24-hour times ("14:00-15:30"); a bare "read pages 9-11" is left alone, as single times already were. A timed task that carries an estimate now shows its window — "9 – 11 AM" — on its row, in the add preview, in Focus mode, and in History, instead of just the start. It reuses the existing time and estimate fields, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

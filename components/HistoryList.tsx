@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
 import ActivityCalendar from '@/components/ActivityCalendar'
@@ -131,15 +131,16 @@ export default function HistoryList() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-300">{stripTags(task.text)}</span>
-                  {task.timeMin != null && (
+                  {task.timeMin != null ? (
                     <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
-                      {formatTime(task.timeMin)}
+                      {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)}
                     </span>
-                  )}
-                  {task.estimateMin && (
-                    <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
-                      {formatDuration(task.estimateMin)}
-                    </span>
+                  ) : (
+                    task.estimateMin && (
+                      <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
+                        {formatDuration(task.estimateMin)}
+                      </span>
+                    )
                   )}
                   {task.repeat && (
                     <svg

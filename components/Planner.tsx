@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatStartsIn, formatOverdue, formatPlanText, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -1172,7 +1172,9 @@ export default function Planner() {
               </p>
             )}
             {focusTask.timeMin != null && (
-              <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">{formatTime(focusTask.timeMin)}</p>
+              <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">
+                {focusTask.estimateMin ? formatTimeRange(focusTask.timeMin, focusTask.estimateMin) : formatTime(focusTask.timeMin)}
+              </p>
             )}
             <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{stripTags(focusTask.text)}</p>
             {focusTask.note && (
@@ -1449,15 +1451,25 @@ export default function Planner() {
               {parsed.schedule.label}
             </span>
           )}
-          {parsed.timeMin != null && (
+          {/* A parsed time range fills both slots, so it previews as one window
+              pill; a lone time or estimate keeps its own pill. */}
+          {parsed.timeMin != null && parsed.estimateMin && parsed.timeMin + parsed.estimateMin < 1440 ? (
             <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
-              {formatTime(parsed.timeMin)}
+              {formatTimeRange(parsed.timeMin, parsed.estimateMin)}
             </span>
-          )}
-          {parsed.estimateMin && (
-            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
-              {formatDuration(parsed.estimateMin)}
-            </span>
+          ) : (
+            <>
+              {parsed.timeMin != null && (
+                <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
+                  {formatTime(parsed.timeMin)}
+                </span>
+              )}
+              {parsed.estimateMin && (
+                <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+                  {formatDuration(parsed.estimateMin)}
+                </span>
+              )}
+            </>
           )}
           {previewTags.map(tag => (
             <TagChip key={tag} tag={tag} />
