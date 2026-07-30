@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, formatTimeRange, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
@@ -246,6 +246,10 @@ export default function TaskItem({
   // "#tag" is added or removed just by editing the task.
   const tags = extractTags(task.text)
   const displayText = stripTags(task.text)
+  // A timed task that also carries an estimate reads as a window ("9 – 11 AM")
+  // rather than just its start; without one, it's simply the start time.
+  const timeLabel =
+    task.timeMin == null ? '' : task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)
   // The checklist shows whenever there are steps, or when one is being added.
   const showSubtasks = hasSubtasks || addingStep
   // Steps are editable in the same places a task is (not once it's finished).
@@ -440,17 +444,17 @@ export default function TaskItem({
                   onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
                   aria-haspopup="menu"
                   aria-expanded={menu === 'schedule'}
-                  title="Change time"
+                  title={task.estimateMin ? 'Change time block' : 'Change time'}
                   className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
                 >
-                  {formatTime(task.timeMin)}
+                  {timeLabel}
                 </button>
               ) : (
                 <span
-                  title="Scheduled time"
+                  title={task.estimateMin ? 'Scheduled block' : 'Scheduled time'}
                   className={`flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
                 >
-                  {formatTime(task.timeMin)}
+                  {timeLabel}
                 </span>
               )
             )}

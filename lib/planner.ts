@@ -200,6 +200,21 @@ export function formatTime(min: number): string {
   return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
+// A time-of-day block from a start and a duration: "9 – 11 AM", "9:30 – 10:30 AM",
+// "11 AM – 1 PM". The meridiem is shared when both ends fall in the same half of
+// the day, so the window reads as one span. Used on a timed task that also
+// carries an estimate, so its row reads as a block rather than just a start. A
+// block that would run to or past midnight falls back to just the start time.
+export function formatTimeRange(startMin: number, durationMin: number): string {
+  const endMin = startMin + durationMin
+  if (endMin >= 1440) return formatTime(startMin)
+  const startStr = formatTime(startMin)
+  const endStr = formatTime(endMin)
+  const samePeriod = startMin < 720 === endMin < 720
+  const start = samePeriod ? startStr.replace(/\s[AP]M$/, '') : startStr
+  return `${start} – ${endStr}`
+}
+
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
 // parts so it's correct in every timezone (new Date('2026-06-14') is UTC).
 function weekdayOf(dateStr: string): number {
@@ -571,6 +586,62 @@ function parseTrailingEstimate(text: string): { text: string; estimateMin: numbe
   return null
 }
 
+// Trailing time-of-day *ranges*: "9-11am", "9am-1pm", "9:30-10:30am",
+// "2-3:30pm", "14:00-15:30". A range names a block — a start time and, from the
+// gap between the two ends, a duration — so "Deep work 9-11am" becomes a 9 AM
+// task with a 2h estimate in one phrase. As with a single time, a meridiem
+// (am/pm) on either end or a 24-hour "HH:MM" on both is required, so a bare
+// "Read pages 9-11" is never mistaken for a block.
+const MERIDIEM = '(?:([ap])\\.?m\\.?)?'
+const TIME_RANGE_RE = new RegExp(
+  `\\s+(?:from\\s+)?(\\d{1,2})(?::([0-5]\\d))?\\s*${MERIDIEM}\\s*(?:-|–|—|to|until)\\s*(\\d{1,2})(?::([0-5]\\d))?\\s*${MERIDIEM}\\.?\\s*$`,
+  'i'
+)
+
+// Strip a trailing time range and resolve it to a start time (minutes since
+// midnight) and a duration (minutes). Returns null when nothing is recognized,
+// when stripping would empty the title, or when the ends don't form a real
+// forward block.
+function parseTrailingTimeRange(
+  text: string
+): { text: string; timeMin: number; estimateMin: number } | null {
+  const m = text.match(TIME_RANGE_RE)
+  if (!m) return null
+  const stripped = text.replace(TIME_RANGE_RE, '').trim()
+  if (!stripped) return null
+  const h1 = Number(m[1]), min1 = m[2] ? Number(m[2]) : 0, ap1 = m[3]?.toLowerCase()
+  const h2 = Number(m[4]), min2 = m[5] ? Number(m[5]) : 0, ap2 = m[6]?.toLowerCase()
+
+  let startMin: number
+  let endMin: number
+  if (ap1 || ap2) {
+    // 12-hour clock. Hours must be 1–12; a missing meridiem on one end borrows
+    // the other's, so "9-11am" is all morning and "9am-11" likewise.
+    if (h1 < 1 || h1 > 12 || h2 < 1 || h2 > 12) return null
+    const to12 = (h: number, min: number, ap: string): number => (h % 12 + (ap === 'p' ? 12 : 0)) * 60 + min
+    const startAp = ap1 ?? ap2!
+    const endAp = ap2 ?? ap1!
+    startMin = to12(h1, min1, startAp)
+    endMin = to12(h2, min2, endAp)
+    // A shared meridiem that lands the end at or before the start usually means
+    // the block crosses noon ("11-1pm" is 11 AM–1 PM): flip the borrowed end.
+    if (endMin <= startMin) {
+      if (!ap2 && endAp === 'a') endMin = to12(h2, min2, 'p')
+      else if (!ap1 && startAp === 'p') startMin = to12(h1, min1, 'a')
+    }
+  } else {
+    // 24-hour clock, required on *both* ends ("14:00-15:30"), so a bare "9-11"
+    // is never read as a block.
+    if (m[2] === undefined || m[5] === undefined || h1 > 23 || h2 > 23) return null
+    startMin = h1 * 60 + min1
+    endMin = h2 * 60 + min2
+  }
+
+  const estimateMin = endMin - startMin
+  if (startMin < 0 || startMin > 1439 || estimateMin < 1 || estimateMin > 1440) return null
+  return { text: stripped, timeMin: startMin, estimateMin }
+}
+
 // Trailing time-of-day phrases: "9am", "9:30 am", "at 2pm", "at 14:00". A
 // meridiem (am/pm) or a 24-hour "HH:MM" makes the intent unambiguous, so a bare
 // trailing number ("Read chapter 5", "Call 911") is never read as a time.
@@ -636,6 +707,18 @@ export function parseQuickAdd(input: string): QuickAdd {
       if (trailing) {
         text = trailing.text
         date = trailing.date
+        continue
+      }
+    }
+    // A time range fills both slots at once ("9-11am" → 9 AM start, 2h long),
+    // so it's tried before the single-time and estimate checks and only while
+    // neither has been set.
+    if (timeMin === undefined && estimateMin === undefined) {
+      const range = parseTrailingTimeRange(text)
+      if (range) {
+        text = range.text
+        timeMin = range.timeMin
+        estimateMin = range.estimateMin
         continue
       }
     }
