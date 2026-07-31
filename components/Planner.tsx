@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -758,6 +758,25 @@ export default function Planner() {
   // The next timed task still ahead gets a quiet "in 25m" hint, so what's coming
   // up — and how soon — reads at a glance without crowding the rest of the list.
   const nextUp = vTodayActive.find(t => t.timeMin != null && t.timeMin > nowMin)
+  // Which of today's still-to-do timed tasks collide — a quiet heads-up against
+  // double-booking, so a 10 AM call landing inside a 9–11 AM block doesn't slip
+  // by. Read from the whole day's active agenda (not a tag-filtered slice), so a
+  // clash is flagged even when the task it hits is hidden by a filter; the pill
+  // then shows on whichever conflicting rows are on screen.
+  const conflictAdj = timeBlockConflicts(
+    todayActive.filter(t => t.timeMin != null).map(t => ({ id: t.id, timeMin: t.timeMin!, estimateMin: t.estimateMin }))
+  )
+  // Turn the raw overlaps into the row's tooltip: one clash names the other task
+  // and its time; several are summed. The pill itself just reads "overlaps".
+  const conflictLabel = (id: string): string | undefined => {
+    const others = conflictAdj.get(id)
+    if (!others || others.length === 0) return undefined
+    if (others.length > 1) return `Overlaps ${others.length} other timed tasks`
+    const other = todayActive.find(t => t.id === others[0])
+    if (!other) return 'Overlaps another timed task'
+    const when = other.estimateMin ? formatTimeRange(other.timeMin!, other.estimateMin) : formatTime(other.timeMin!)
+    return `Overlaps “${stripTags(other.text)}” (${when})`
+  }
   // Reminders watch today's still-to-do timed tasks: finishing, deleting, or
   // rescheduling one cancels its pending notification automatically.
   const reminders = useReminders(
@@ -1311,6 +1330,7 @@ export default function Planner() {
               activeTag={activeTag}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
               overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
+              conflictLabel={conflictLabel(task.id)}
               onToggle={toggleTask}
               onDelete={deleteTask}
               onEdit={editTask}
