@@ -215,6 +215,36 @@ export function formatTimeRange(startMin: number, durationMin: number): string {
   return `${start} – ${endStr}`
 }
 
+// Which of a day's timed tasks collide with one another — a quiet check against
+// double-booking. Each task holds a span: a block runs its estimate's length; a
+// bare time is a moment, widened to a single minute so two things at the same
+// time still register as a clash while back-to-back blocks (9–11, then 11–12)
+// don't. Two spans conflict when they actually overlap (touching ends don't).
+// Returns, for each conflicting task id, the ids of everything it overlaps —
+// callers turn that into the heads-up shown on the row. Order-independent, and
+// callers pass only the tasks they want compared (today's still-to-do agenda).
+export function timeBlockConflicts(
+  items: { id: string; timeMin: number; estimateMin?: number }[]
+): Map<string, string[]> {
+  const spans = items.map(t => ({ id: t.id, start: t.timeMin, end: t.timeMin + Math.max(t.estimateMin ?? 0, 1) }))
+  const out = new Map<string, string[]>()
+  const link = (a: string, b: string) => {
+    const list = out.get(a)
+    if (list) list.push(b)
+    else out.set(a, [b])
+  }
+  for (let i = 0; i < spans.length; i++) {
+    for (let j = i + 1; j < spans.length; j++) {
+      const a = spans[i], b = spans[j]
+      if (a.start < b.end && b.start < a.end) {
+        link(a.id, b.id)
+        link(b.id, a.id)
+      }
+    }
+  }
+  return out
+}
+
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
 // parts so it's correct in every timezone (new Date('2026-06-14') is UTC).
 function weekdayOf(dateStr: string): number {

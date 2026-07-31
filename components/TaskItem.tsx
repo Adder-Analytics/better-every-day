@@ -56,6 +56,15 @@ function FlameIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "exclamation-triangle" — a timed task that overlaps another today.
+function ConflictIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+  )
+}
+
 // Heroicons "calendar" — the schedule action.
 function CalendarIcon({ className }: { className?: string }) {
   return (
@@ -169,6 +178,9 @@ type Props = {
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
+  // A heads-up that this task's time or block overlaps another today; the string
+  // is the tooltip naming the clash, the pill itself just reads "overlaps".
+  conflictLabel?: string
   // Tap a tag chip to filter the list to that tag; `activeTag` marks the one
   // currently in effect so its chip reads as pressed.
   onFilterTag?: (tag: string) => void
@@ -204,6 +216,7 @@ export default function TaskItem({
   onSetSomeday,
   upNextLabel,
   overdueLabel,
+  conflictLabel,
   onFilterTag,
   activeTag,
   carryover = false,
@@ -505,7 +518,7 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || overdueLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
+          {!editing && (upNextLabel || overdueLabel || conflictLabel || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
@@ -519,6 +532,19 @@ export default function TaskItem({
               {overdueLabel && (
                 <span className="rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
                   {overdueLabel}
+                </span>
+              )}
+
+              {/* A quiet heads-up that this task's time or block runs into
+                  another today — the moment of a double-booking, caught before
+                  it bites. The tooltip names the clash. */}
+              {conflictLabel && (
+                <span
+                  title={conflictLabel}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                >
+                  <ConflictIcon className="w-3 h-3" />
+                  overlaps
                 </span>
               )}
 
