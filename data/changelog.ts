@@ -390,6 +390,14 @@ export const changelog: ChangelogEntry[] = [
       'A timed task now shows a quiet amber "overlaps" flag when its time or block runs into another of today’s still-to-do tasks — a 10 AM call landing inside a 9–11 AM block, or two things booked for the same moment. Hovering the flag names the clash and its time. Back-to-back blocks that only touch (9–11, then 11–12) don’t flag, and a bare time counts as a single minute so same-time collisions still register. It reads the whole day, not a tag-filtered slice, and reuses the existing time and estimate fields, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 49,
+    date: '2026-08-01',
+    title: 'A head start on reminders',
+    description:
+      'Reminders can now fire a few minutes before a timed task instead of only as it begins. When reminders are on, a small control under the day header sets the lead — at the time, or 5, 10, or 15 minutes early — and the notification says how soon the task starts. The choice is kept in the browser under a new bed-reminder-lead key; nothing about how tasks are stored changed, and reminders still only fire while the tab is open.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
