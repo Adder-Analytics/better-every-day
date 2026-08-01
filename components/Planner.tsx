@@ -186,9 +186,22 @@ function ClipboardIcon({ className }: { className?: string }) {
 // has to be open for a notification to fire, since everything here stays on your
 // device with nothing sent anywhere.
 const REMINDERS_KEY = 'bed-reminders'
+// How many minutes before a task's time its reminder fires. 0 means "at the
+// time" — a bare nudge as the moment arrives; a positive lead gives a head start
+// to wrap up what you're doing or get ready. Stored as its own preference, so
+// nothing about how tasks are saved changes.
+const REMINDER_LEAD_KEY = 'bed-reminder-lead'
+const LEAD_OPTIONS = [0, 5, 10, 15] as const
 
 type ReminderTask = { id: string; timeMin: number; text: string }
-type Reminders = { supported: boolean; enabled: boolean; blocked: boolean; toggle: () => void }
+type Reminders = {
+  supported: boolean
+  enabled: boolean
+  blocked: boolean
+  toggle: () => void
+  leadMin: number
+  setLead: (min: number) => void
+}
 
 function useReminders(timedTasks: ReminderTask[]): Reminders {
   // These read the browser directly at init. That's hydration-safe here because
@@ -197,6 +210,14 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
   const [supported] = useState(() => typeof window !== 'undefined' && 'Notification' in window)
   const [pref, setPref] = useState(() => {
     try { return typeof window !== 'undefined' && localStorage.getItem(REMINDERS_KEY) === 'on' } catch { return false }
+  })
+  // The chosen head start, clamped to the offered set so a stray stored value
+  // can't wander off it.
+  const [leadMin, setLeadMin] = useState<number>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? Number(localStorage.getItem(REMINDER_LEAD_KEY)) : 0
+      return (LEAD_OPTIONS as readonly number[]).includes(raw) ? raw : 0
+    } catch { return 0 }
   })
   const [permission, setPermission] = useState<NotificationPermission>(() =>
     typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'default'
@@ -227,12 +248,18 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
     }
   }, [supported, pref])
 
-  // A signature of what to remind about — id, time, and text — plus the day, so
-  // the timers reschedule exactly when the set of upcoming reminders changes
-  // (a task edited, completed, or rescheduled; midnight turning routines over)
-  // and not on every minute tick.
+  const setLead = useCallback((min: number) => {
+    setLeadMin(min)
+    try { localStorage.setItem(REMINDER_LEAD_KEY, String(min)) } catch {}
+  }, [])
+
+  // A signature of what to remind about — id, time, and text — plus the day and
+  // the chosen lead, so the timers reschedule exactly when the set of upcoming
+  // reminders (or how early they fire) changes — a task edited, completed, or
+  // rescheduled; the lead adjusted; midnight turning routines over — and not on
+  // every minute tick.
   const today = todayStr()
-  const signature = today + '#' + timedTasks.map(t => `${t.id}:${t.timeMin}:${t.text}`).join('|')
+  const signature = today + '#' + leadMin + '#' + timedTasks.map(t => `${t.id}:${t.timeMin}:${t.text}`).join('|')
 
   useEffect(() => {
     if (!enabled) return
@@ -241,16 +268,21 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
     const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
     const timers: ReturnType<typeof setTimeout>[] = []
     for (const t of tasksRef.current) {
-      const key = `${today}:${t.id}:${t.timeMin}`
+      // The lead is part of the key, so changing how early reminders fire
+      // reschedules cleanly rather than counting an old fire against the new one.
+      const key = `${today}:${t.id}:${t.timeMin}:${leadMin}`
       if (firedRef.current.has(key)) continue
-      const delay = midnight + t.timeMin * 60_000 - now
-      if (delay <= 0) continue // its time already passed today — nothing to fire
+      // Fire the lead ahead of the task's time (or at it, when the lead is 0).
+      const delay = midnight + (t.timeMin - leadMin) * 60_000 - now
+      if (delay <= 0) continue // its moment (or lead) already passed — nothing to fire
       timers.push(
         setTimeout(() => {
           firedRef.current.add(key)
           try {
             new Notification(t.text, {
-              body: `It’s ${formatTime(t.timeMin)} — time to start.`,
+              body: leadMin > 0
+                ? `Starts in ${leadMin} min, at ${formatTime(t.timeMin)}.`
+                : `It’s ${formatTime(t.timeMin)} — time to start.`,
               tag: key, // collapse duplicates at the OS level too
               icon: '/favicon.ico',
             })
@@ -259,9 +291,9 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
       )
     }
     return () => timers.forEach(clearTimeout)
-  }, [enabled, signature, today])
+  }, [enabled, signature, today, leadMin])
 
-  return { supported, enabled, blocked, toggle }
+  return { supported, enabled, blocked, toggle, leadMin, setLead }
 }
 
 // The live "now" marker that sits in the agenda at the current time — a small
@@ -1139,6 +1171,35 @@ export default function Planner() {
         <p className="px-1 text-xs text-amber-600 dark:text-amber-500">
           Notifications are blocked for this site. Allow them in your browser to get reminders.
         </p>
+      )}
+
+      {/* How early a reminder fires — a head start to wrap up or get ready, not
+          just a nudge as the moment lands. Only shown while reminders are on and
+          there's a timed task to remind about, so it never adds noise otherwise. */}
+      {reminders.enabled && !inFocus && timedActive.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-1 text-xs text-zinc-400">
+          <span className="inline-flex items-center gap-1.5">
+            <BellIcon className="w-3.5 h-3.5 flex-shrink-0" />
+            Remind me
+          </span>
+          <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 font-medium">
+            {LEAD_OPTIONS.map(min => (
+              <button
+                key={min}
+                onClick={() => reminders.setLead(min)}
+                aria-pressed={reminders.leadMin === min}
+                title={min === 0 ? 'Remind me as the task begins' : `Remind me ${min} minutes before the task begins`}
+                className={`rounded-full px-2 py-0.5 tabular-nums transition-colors ${
+                  reminders.leadMin === min
+                    ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+                }`}
+              >
+                {min === 0 ? 'at the time' : `${min} min early`}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Time on your plate today — a quiet, honest read on how full the day is.
