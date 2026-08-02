@@ -296,6 +296,57 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
   return { supported, enabled, blocked, toggle, leadMin, setLead }
 }
 
+// A task's steps, shown inside Focus mode so a multi-step task can be worked
+// through without leaving focus. Read-and-check only — each step toggles in
+// place (adding, renaming, and removing still live in the main list) — laid out
+// as a calm, centered block that suits the single-task view. It reads and writes
+// the same subtasks as the task row, so completion stays in sync between them.
+function FocusSteps({ subtasks, onChange }: { subtasks: Subtask[]; onChange: (next: Subtask[]) => void }) {
+  const done = subtasks.filter(s => s.done).length
+  return (
+    <div className="mt-6 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+      <p className="mb-2.5 flex items-center justify-center gap-1.5 text-xs font-medium tabular-nums text-zinc-400">
+        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" />
+        </svg>
+        {done} of {subtasks.length} steps
+      </p>
+      <ul className="mx-auto max-w-xs space-y-0.5 text-left">
+        {subtasks.map(s => (
+          <li key={s.id}>
+            <button
+              onClick={() => onChange(subtasks.map(x => (x.id === s.id ? { ...x, done: !x.done } : x)))}
+              aria-label={s.done ? `Mark “${s.text}” not done` : `Mark “${s.text}” done`}
+              className="group flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+            >
+              <span
+                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  s.done
+                    ? 'border-transparent bg-emerald-500 text-white'
+                    : 'border-zinc-300 dark:border-zinc-600 group-hover:border-zinc-400 dark:group-hover:border-zinc-500'
+                }`}
+              >
+                {s.done && (
+                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </span>
+              <span
+                className={`min-w-0 flex-1 break-words text-sm ${
+                  s.done ? 'text-zinc-400 line-through dark:text-zinc-600' : 'text-zinc-600 dark:text-zinc-300'
+                }`}
+              >
+                {s.text}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // The live "now" marker that sits in the agenda at the current time — a small
 // pulsing dot, the clock, and a hairline. It quietly answers "where am I in my
 // day?" by separating what's already passed from what's still ahead.
@@ -1259,6 +1310,14 @@ export default function Planner() {
             <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{stripTags(focusTask.text)}</p>
             {focusTask.note && (
               <NoteText text={focusTask.note} className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap break-words" />
+            )}
+            {/* The task's steps, checkable in place — so a multi-step task is
+                worked through here rather than by leaving focus for the list. */}
+            {focusTask.subtasks && focusTask.subtasks.length > 0 && (
+              <FocusSteps
+                subtasks={focusTask.subtasks}
+                onChange={next => setSubtasks(focusTask.id, next)}
+              />
             )}
             {/* A focus session timer — work this task in a block of time. Keyed to
                 the task so switching focus starts a fresh session. */}

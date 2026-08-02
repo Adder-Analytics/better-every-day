@@ -398,6 +398,14 @@ export const changelog: ChangelogEntry[] = [
       'Reminders can now fire a few minutes before a timed task instead of only as it begins. When reminders are on, a small control under the day header sets the lead — at the time, or 5, 10, or 15 minutes early — and the notification says how soon the task starts. The choice is kept in the browser under a new bed-reminder-lead key; nothing about how tasks are stored changed, and reminders still only fire while the tab is open.',
     type: 'feature',
   },
+  {
+    day: 50,
+    date: '2026-08-02',
+    title: 'Work a task’s steps in Focus mode',
+    description:
+      'Focus mode now shows a task’s steps beneath it, each checkable in place, so a multi-step task can be worked through without leaving focus. A count reads how many are done, and the steps stay in sync with the task’s row — checking one here or there is the same step. It appears only when the task has steps; adding, renaming, and removing them still happens in the main list. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
