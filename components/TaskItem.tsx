@@ -154,10 +154,14 @@ function StepsIcon({ className }: { className?: string }) {
 // Hover-revealed action icons: hidden until the row is hovered or focused
 // with the keyboard. On touch screens (no hover) they're removed entirely —
 // the ellipsis menu carries those actions instead.
-const hoverAction =
-  'flex-shrink-0 p-1 transition-all rounded pointer-coarse:hidden opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400'
-const visibleAction =
-  'flex-shrink-0 p-1 transition-all rounded pointer-coarse:hidden text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+// The quick-action buttons share one look inside the reveal cluster (below).
+// `clusterAction` is the quiet default; `clusterActionOn` is a touch stronger
+// for an action whose state is set (a task that repeats, carries a note, or
+// has its menu open), so once revealed it still reads as active.
+const clusterAction =
+  'flex-shrink-0 p-1 rounded text-zinc-300 dark:text-zinc-600 hover:text-zinc-500 dark:hover:text-zinc-400 transition-colors'
+const clusterActionOn =
+  'flex-shrink-0 p-1 rounded text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors'
 
 type Props = {
   task: Task
@@ -623,87 +627,102 @@ export default function TaskItem({
 
         {!editing && (
           <>
-            {canPrioritize && !task.priority && !task.done && !editingNote && (
-              <button
-                onClick={() => onSetPriority!(task.id, true)}
-                aria-label="Star as important"
-                title="Star as important"
-                className={hoverAction}
-              >
-                <StarOutlineIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {/* Quick actions live in a cluster that stays out of the title's
+                way. On a mouse it's collapsed to zero width — so the title
+                keeps the full width of the row instead of being squeezed into
+                a sliver — and slides open when the row is hovered, a button
+                inside takes keyboard focus, or one of its menus is open. On
+                touch (no hover) the whole cluster is hidden; the always-present
+                ellipsis menu below carries these actions there instead. */}
+            <div
+              className={`pointer-coarse:hidden grid transition-[grid-template-columns] duration-200 ease-out ${
+                menu ? 'grid-cols-[1fr]' : 'grid-cols-[0fr] group-hover:grid-cols-[1fr] group-focus-within:grid-cols-[1fr]'
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
+                {canPrioritize && !task.priority && !task.done && !editingNote && (
+                  <button
+                    onClick={() => onSetPriority!(task.id, true)}
+                    aria-label="Star as important"
+                    title="Star as important"
+                    className={clusterAction}
+                  >
+                    <StarOutlineIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {canRepeat && !task.done && !editingNote && (
-              <button
-                onClick={() => setMenu(m => (m === 'repeat' ? null : 'repeat'))}
-                aria-label={task.repeat ? 'Change repeat' : 'Repeat task'}
-                aria-haspopup="menu"
-                aria-expanded={menu === 'repeat'}
-                title={task.repeat ? 'Change repeat' : 'Repeat task'}
-                className={task.repeat || menu === 'repeat' ? visibleAction : hoverAction}
-              >
-                <RepeatIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {canRepeat && !task.done && !editingNote && (
+                  <button
+                    onClick={() => setMenu(m => (m === 'repeat' ? null : 'repeat'))}
+                    aria-label={task.repeat ? 'Change repeat' : 'Repeat task'}
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'repeat'}
+                    title={task.repeat ? 'Change repeat' : 'Repeat task'}
+                    className={task.repeat || menu === 'repeat' ? clusterActionOn : clusterAction}
+                  >
+                    <RepeatIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {canSchedule && !task.done && !editingNote && (
-              <button
-                onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
-                aria-label="Schedule for a day"
-                aria-haspopup="menu"
-                aria-expanded={menu === 'schedule'}
-                title="Schedule for a day"
-                className={menu === 'schedule' ? visibleAction : hoverAction}
-              >
-                <CalendarIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {canSchedule && !task.done && !editingNote && (
+                  <button
+                    onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
+                    aria-label="Schedule for a day"
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'schedule'}
+                    title="Schedule for a day"
+                    className={menu === 'schedule' ? clusterActionOn : clusterAction}
+                  >
+                    <CalendarIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {canEstimate && !task.estimateMin && !task.done && !editingNote && (
-              <button
-                onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
-                aria-label="Estimate time"
-                aria-haspopup="menu"
-                aria-expanded={menu === 'estimate'}
-                title="Estimate time"
-                className={menu === 'estimate' ? visibleAction : hoverAction}
-              >
-                <ClockIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {canEstimate && !task.estimateMin && !task.done && !editingNote && (
+                  <button
+                    onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
+                    aria-label="Estimate time"
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'estimate'}
+                    title="Estimate time"
+                    className={menu === 'estimate' ? clusterActionOn : clusterAction}
+                  >
+                    <ClockIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {canNote && !task.done && !editingNote && (
-              <button
-                onClick={startNote}
-                aria-label={task.note ? 'Edit note' : 'Add note'}
-                title={task.note ? 'Edit note' : 'Add note'}
-                className={task.note ? visibleAction : hoverAction}
-              >
-                <NoteIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {canNote && !task.done && !editingNote && (
+                  <button
+                    onClick={startNote}
+                    aria-label={task.note ? 'Edit note' : 'Add note'}
+                    title={task.note ? 'Edit note' : 'Add note'}
+                    className={task.note ? clusterActionOn : clusterAction}
+                  >
+                    <NoteIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {canSubtask && !task.done && !editingNote && !showSubtasks && (
-              <button
-                onClick={() => setAddingStep(true)}
-                aria-label="Add a step"
-                title="Break into steps"
-                className={hoverAction}
-              >
-                <StepsIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {canSubtask && !task.done && !editingNote && !showSubtasks && (
+                  <button
+                    onClick={() => setAddingStep(true)}
+                    aria-label="Add a step"
+                    title="Break into steps"
+                    className={clusterAction}
+                  >
+                    <StepsIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
-            {!task.done && onEdit && (
-              <button
-                onClick={startEdit}
-                aria-label="Edit task"
-                className={hoverAction}
-              >
-                <PencilIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
+                {!task.done && onEdit && (
+                  <button
+                    onClick={startEdit}
+                    aria-label="Edit task"
+                    className={clusterAction}
+                  >
+                    <PencilIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}

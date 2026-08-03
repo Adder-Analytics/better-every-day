@@ -398,6 +398,22 @@ export const changelog: ChangelogEntry[] = [
       'Reminders can now fire a few minutes before a timed task instead of only as it begins. When reminders are on, a small control under the day header sets the lead — at the time, or 5, 10, or 15 minutes early — and the notification says how soon the task starts. The choice is kept in the browser under a new bed-reminder-lead key; nothing about how tasks are stored changed, and reminders still only fire while the tab is open.',
     type: 'feature',
   },
+  {
+    day: 50,
+    date: '2026-08-02',
+    title: 'Work a task’s steps in Focus mode',
+    description:
+      'Focus mode now shows a task’s steps beneath it, each checkable in place, so a multi-step task can be worked through without leaving focus. A count reads how many are done, and the steps stay in sync with the task’s row — checking one here or there is the same step. It appears only when the task has steps; adding, renaming, and removing them still happens in the main list. No stored data changed.',
+    type: 'feature',
+  },
+  {
+    day: 51,
+    date: '2026-08-03',
+    title: 'Room for the full task title',
+    description:
+      'On a mouse, a task row’s quick-action buttons (star, repeat, schedule, estimate, note, steps, edit) used to reserve their horizontal space even while hidden, squeezing the title into a narrow strip — so a normal entry like “Draft the quarterly planning doc” was clipped to a few words with the rest of the row sitting empty. Those buttons now live in a cluster that collapses to nothing at rest and slides open only when the row is hovered, a button inside takes keyboard focus, or one of its menus is open, so the title keeps the row’s full width. Touch screens are unchanged — the actions were already tucked behind the ellipsis menu there. No stored data changed.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
