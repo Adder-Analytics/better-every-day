@@ -66,7 +66,7 @@ export default function HistoryList() {
           <p className="mb-2 px-0.5 text-xs font-medium text-zinc-400">Streaks</p>
           <ul className="space-y-1.5">
             {streaks.map(({ task, current, best }) => {
-              const unit = task.repeat === 'weekly' ? 'week' : 'day'
+              const unit = task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
               return (
                 <li key={task.id} className="flex items-center gap-2.5 px-0.5 min-w-0">
                   <svg
