@@ -414,6 +414,14 @@ export const changelog: ChangelogEntry[] = [
       'On a mouse, a task row’s quick-action buttons (star, repeat, schedule, estimate, note, steps, edit) used to reserve their horizontal space even while hidden, squeezing the title into a narrow strip — so a normal entry like “Draft the quarterly planning doc” was clipped to a few words with the rest of the row sitting empty. Those buttons now live in a cluster that collapses to nothing at rest and slides open only when the row is hovered, a button inside takes keyboard focus, or one of its menus is open, so the title keeps the row’s full width. Touch screens are unchanged — the actions were already tucked behind the ellipsis menu there. No stored data changed.',
     type: 'fix',
   },
+  {
+    day: 52,
+    date: '2026-08-04',
+    title: 'Tasks that repeat every month',
+    description:
+      'Routines can now recur monthly, alongside daily, weekdays, weekly, and specific weekdays. A monthly task returns on the same day-of-month it was created — pick Monthly from the repeat menu, or type "monthly"/"every month" when adding ("Pay rent monthly"). Months too short for that day (a task set for the 31st) fall to the month’s last day, so it still fires once every month. The row names the cadence, and its streak counts by months. Stored data bumps to version 10 with the new repeat value; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

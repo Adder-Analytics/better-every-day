@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, formatTimeRange, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, formatTimeRange, monthlyDayLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
@@ -12,6 +12,7 @@ const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
   { value: 'daily', label: 'Every day' },
   { value: 'weekdays', label: 'Weekdays' },
   { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
 ]
 
 // The one-tap estimates the menu offers, in minutes. Anything in between is
@@ -28,10 +29,11 @@ const fromTimeInput = (value: string): number | null => {
 
 // The fixed cadences carry a static label; the 'days' rule is labelled from its
 // weekday set (see formatRepeatDays), so it's kept out of this record.
-const REPEAT_LABEL: Record<'daily' | 'weekdays' | 'weekly', string> = {
+const REPEAT_LABEL: Record<'daily' | 'weekdays' | 'weekly' | 'monthly', string> = {
   daily: 'Daily',
   weekdays: 'Weekdays',
   weekly: 'Weekly',
+  monthly: 'Monthly',
 }
 
 // Full weekday names for the day-picker's accessible labels.
@@ -319,7 +321,7 @@ export default function TaskItem({
   // A routine's current streak. Only a real run (2+) earns the flame — a
   // single completion is just a task done, not yet a streak.
   const streak = task.repeat ? routineStreak(task) : 0
-  const streakUnit = task.repeat === 'weekly' ? 'week' : 'day'
+  const streakUnit = task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
 
   // How this task's recurrence reads on its row and in tooltips: the fixed
   // cadences have a static word; a 'days' routine names its weekdays.
@@ -328,6 +330,14 @@ export default function TaskItem({
     : task.repeat
       ? REPEAT_LABEL[task.repeat]
       : ''
+  // The recurrence tooltip: a 'days' routine reads its weekday set as-is; a
+  // monthly one names the day it lands on ("Repeats monthly on the 15th"); the
+  // rest lower-case their word ("Repeats weekly").
+  const repeatTitle = task.repeat === 'days'
+    ? `Repeats ${repeatLabel}`
+    : task.repeat === 'monthly'
+      ? `Repeats monthly on ${monthlyDayLabel(task)}`
+      : `Repeats ${repeatLabel.toLowerCase()}`
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -565,7 +575,7 @@ export default function TaskItem({
 
               {task.repeat && (
                 <span
-                  title={task.repeat === 'days' ? `Repeats ${repeatLabel}` : `Repeats ${repeatLabel.toLowerCase()}`}
+                  title={repeatTitle}
                   className={`inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
                 >
                   <RepeatIcon className="w-3 h-3" />

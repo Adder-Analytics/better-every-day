@@ -1,6 +1,8 @@
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
-// chosen set of weekdays (see `repeatDays`) — the rest are fixed cadences.
-export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days'
+// chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
+// day-of-month it was created (clamped to a short month's last day) — the rest
+// are fixed weekly/daily cadences.
+export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly'
 
 // A single step within a task — a way to break one thing into the smaller
 // pieces it actually takes. Each is checked off on its own; they don't drive
@@ -42,10 +44,11 @@ export type Task = {
 // an optional priority (star) flag. v7: added an optional subtask checklist.
 // v8: added the 'days' repeat rule and an optional `repeatDays` weekday set.
 // v9: added an optional `someday` flag (the Someday backlog list).
+// v10: added the 'monthly' repeat rule (a new repeat value old data never used).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v9 alike.
-export const PLANNER_VERSION = 9
+// loadPlanner reads v1–v10 alike.
+export const PLANNER_VERSION = 10
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -118,7 +121,9 @@ export function formatDayLabel(dateStr: string): string {
 }
 
 function isRepeatRule(value: unknown): value is RepeatRule {
-  return value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days'
+  return (
+    value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' || value === 'monthly'
+  )
 }
 
 function isWeekdaySet(value: unknown): value is number[] {
@@ -258,6 +263,15 @@ export function isDueOn(task: Task, dateStr: string): boolean {
   if (!task.repeat) return false
   if (dateStr < task.createdDate) return false
   if (task.repeat === 'daily') return true
+  // monthly: recurs on the same day-of-month it was created on. Months shorter
+  // than that day (a 31st routine in February) fall to the month's last day, so
+  // it still fires once every month rather than skipping the short ones.
+  if (task.repeat === 'monthly') {
+    const anchorDay = Number(task.createdDate.split('-')[2])
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const lastDay = new Date(y, m, 0).getDate()
+    return d === Math.min(anchorDay, lastDay)
+  }
   const dow = weekdayOf(dateStr)
   if (task.repeat === 'weekdays') return dow >= 1 && dow <= 5
   // days: recurs on each chosen weekday (0 = Sun … 6 = Sat).
@@ -289,6 +303,26 @@ export function formatRepeatDays(days: number[]): string {
 
 function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// An ordinal day-of-month: "1st", "2nd", "3rd", "21st", "31st". Used to name the
+// day a monthly routine recurs on, in its tooltip and the History streak line.
+export function ordinalDay(n: number): string {
+  const rem100 = n % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}
+
+// The day-of-month a monthly routine recurs on, read from the date it was
+// anchored to: "the 15th". Empty for any non-monthly task.
+export function monthlyDayLabel(task: Task): string {
+  if (task.repeat !== 'monthly') return ''
+  return `the ${ordinalDay(Number(task.createdDate.split('-')[2]))}`
 }
 
 // A routine's current streak: how many of its due days in a row have been
@@ -353,10 +387,11 @@ export function loadPlanner(): PlannerData {
     if (typeof parsed !== 'object' || parsed === null) return empty
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
-    // day), v6 (priority), v7 (subtasks), v8 (specific-day routines) and v9
-    // (the Someday list) only add optional fields, so every version's tasks
-    // load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
+    // Someday list) and v10 (monthly routines) only add optional fields (or a
+    // repeat value old data never used), so every version's tasks load cleanly
+    // into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -548,6 +583,7 @@ export type QuickAdd = {
 // "weekly" a literal task; the optional trailing period tolerates "tomorrow.".
 const REPEAT_PHRASES: { re: RegExp; rule: RepeatRule; label: string }[] = [
   { re: /\s+(?:every\s+weekday|on\s+weekdays|weekdays?)\.?\s*$/i, rule: 'weekdays', label: 'Weekdays' },
+  { re: /\s+(?:every\s+month|monthly)\.?\s*$/i, rule: 'monthly', label: 'Monthly' },
   { re: /\s+(?:every\s+week|weekly)\.?\s*$/i, rule: 'weekly', label: 'Weekly' },
   { re: /\s+(?:every\s*day|everyday|daily)\.?\s*$/i, rule: 'daily', label: 'Every day' },
 ]
