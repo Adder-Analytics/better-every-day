@@ -155,6 +155,15 @@ function DownToTodayIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+// A forward arrow — the mirror of DownToTodayIcon (down = into today, right =
+// on to tomorrow). Names the "move the day's leftovers to tomorrow" action.
+function ToTomorrowIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6l6 6-6 6M19.5 12H4.5" />
+    </svg>
+  )
+}
 // Heroicons "question-mark-circle" — opens the keyboard shortcuts reference.
 function ShortcutsIcon({ className }: { className?: string }) {
   return (
@@ -735,6 +744,19 @@ export default function Planner() {
     setTasks(prev => prev.map(t => (!t.repeat && !t.done && t.createdDate < today ? { ...t, createdDate: today } : t)))
   }
 
+  // Sweep today's still-to-do one-off tasks to tomorrow at once — the bulk form
+  // of each row's "Move to tomorrow", for the end of a day: what you won't get
+  // to now becomes tomorrow's plan rather than nagging as an overdue carryover.
+  // Routines recur on their own schedule and are left alone; each moved task
+  // keeps its time, estimate, notes, and steps (only its day changes).
+  const moveRemainingToTomorrow = () => {
+    const today = todayStr()
+    const tmw = tomorrowStr()
+    setTasks(prev =>
+      prev.map(t => (!t.repeat && !t.someday && !t.done && t.createdDate === today ? { ...t, createdDate: tmw } : t))
+    )
+  }
+
   const handleDragStart = (id: string) => setDragId(id)
   const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id) }
   const handleDrop = (targetId: string) => {
@@ -791,6 +813,10 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
+  // Today's still-to-do one-off tasks — what "move remaining to tomorrow" acts
+  // on. Routines are excluded (they recur on their own schedule), so the count
+  // and the action always agree.
+  const movableToTomorrow = todayActive.filter(t => !t.repeat).length
 
   // Copy today's plan to the clipboard as a plain-text checklist — the whole
   // day in the order it's shown (still-to-do first, then finished), so it can
@@ -1000,6 +1026,15 @@ export default function Planner() {
           keywords: 'carryover yesterday move backlog do today',
           icon: <DownToTodayIcon className="h-4 w-4" />,
           run: bringCarryoversToToday,
+        }]
+      : []),
+    ...(movableToTomorrow > 0
+      ? [{
+          id: 'move-tomorrow',
+          label: `Move ${movableToTomorrow} unfinished ${movableToTomorrow === 1 ? 'task' : 'tasks'} to tomorrow`,
+          keywords: 'tomorrow postpone defer reschedule remaining leftover wrap up end of day',
+          icon: <ToTomorrowIcon className="h-4 w-4" />,
+          run: moveRemainingToTomorrow,
         }]
       : []),
     ...(reminders.supported && timedActive.length > 0
@@ -1475,6 +1510,24 @@ export default function Planner() {
         if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} />)
         return nodes
       })()}
+      {/* Wrap up the day — sweep the still-to-do tasks to tomorrow in one move,
+          so what's left is planned as tomorrow's work rather than nagging as an
+          overdue carryover. The bulk form of each row's "Move to tomorrow";
+          shown once two or more are left (one is quick enough on its own) and
+          held back while a tag filter is showing only a slice. */}
+      {!activeTag && movableToTomorrow >= 2 && (
+        <div className="flex justify-end px-1">
+          <button
+            type="button"
+            onClick={moveRemainingToTomorrow}
+            title="Move today’s unfinished tasks to tomorrow"
+            className="inline-flex items-center gap-1 text-xs font-medium text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+          >
+            <ToTomorrowIcon className="h-3.5 w-3.5" />
+            Move {movableToTomorrow} to tomorrow
+          </button>
+        </div>
+      )}
       {/* Completed today — finished tasks, foldable into a tidy summary so a
           busy day keeps the remaining work up top. Collapsed or not, they still
           sit below what's left; the choice is remembered across visits. */}

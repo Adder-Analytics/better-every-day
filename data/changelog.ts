@@ -422,6 +422,14 @@ export const changelog: ChangelogEntry[] = [
       'Routines can now recur monthly, alongside daily, weekdays, weekly, and specific weekdays. A monthly task returns on the same day-of-month it was created — pick Monthly from the repeat menu, or type "monthly"/"every month" when adding ("Pay rent monthly"). Months too short for that day (a task set for the 31st) fall to the month’s last day, so it still fires once every month. The row names the cadence, and its streak counts by months. Stored data bumps to version 10 with the new repeat value; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 53,
+    date: '2026-08-05',
+    title: 'Send the rest of today to tomorrow',
+    description:
+      'A one-tap action moves today’s still-to-do tasks to tomorrow at once, so what you won’t get to now is planned as tomorrow’s work instead of nagging the next morning as an overdue carryover. It sits below today’s list once two or more tasks are left, and in the command menu (Cmd/Ctrl+K). It complements the per-task "Move to tomorrow" with the bulk form. Routines recur on their own schedule and are left alone; each moved task keeps its time, estimate, notes, and steps. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
