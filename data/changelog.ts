@@ -430,6 +430,14 @@ export const changelog: ChangelogEntry[] = [
       'A one-tap action moves today’s still-to-do tasks to tomorrow at once, so what you won’t get to now is planned as tomorrow’s work instead of nagging the next morning as an overdue carryover. It sits below today’s list once two or more tasks are left, and in the command menu (Cmd/Ctrl+K). It complements the per-task "Move to tomorrow" with the bulk form. Routines recur on their own schedule and are left alone; each moved task keeps its time, estimate, notes, and steps. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 54,
+    date: '2026-08-06',
+    title: 'A daily streak for showing up',
+    description:
+      'The "This week" card now shows how many days in a row you’ve completed at least one task. Today is a grace day — an unfinished today doesn’t break a run, and finishing something extends it — and the count reads from the completion history the week bars and calendar already keep, so both one-off tasks and routines feed it. It appears once a run reaches two days and uses the same flame the per-routine streaks do. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

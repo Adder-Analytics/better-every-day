@@ -433,6 +433,26 @@ export function completionCounts(tasks: Task[]): Map<string, number> {
   return counts
 }
 
+// A daily consistency streak: how many days in a row, counting back from today,
+// at least one task was completed. Today is a grace day — a not-yet-productive
+// today never breaks a run that's going, but finishing something today extends
+// it. Built from the same completion history the week bars and calendar read, so
+// one-offs and routines both count. (Finished one-offs are trimmed after 30 days,
+// so a run longer than that is honestly capped rather than overstated.)
+export function activityStreak(tasks: Task[], today: string = todayStr()): number {
+  const counts = completionCounts(tasks)
+  const [y, m, d] = today.split('-').map(Number)
+  const cursor = new Date(y, m - 1, d)
+  let streak = 0
+  for (let isToday = true; ; isToday = false) {
+    const date = fmtDate(cursor)
+    if ((counts.get(date) ?? 0) > 0) streak++
+    else if (!isToday) break
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
 // How many tasks were completed on each of the last 7 days, oldest first.
 // Reads from the completion history the planner already retains.
 export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
