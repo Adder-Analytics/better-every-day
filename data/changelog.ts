@@ -438,6 +438,14 @@ export const changelog: ChangelogEntry[] = [
       'The "This week" card now shows how many days in a row you’ve completed at least one task. Today is a grace day — an unfinished today doesn’t break a run, and finishing something extends it — and the count reads from the completion history the week bars and calendar already keep, so both one-off tasks and routines feed it. It appears once a run reaches two days and uses the same flame the per-routine streaks do. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 55,
+    date: '2026-08-07',
+    title: 'Your last 30 days, at a glance',
+    description:
+      'The History page opens with a short summary of the last 30 days: tasks done, how many days had at least one thing completed, the weekday you finish the most on, and the longest run of days in a row. The activity calendar below still shows the day-by-day shape; the summary just reads the same completion history back as a few plain numbers, replacing the single "N tasks completed" line. Nothing is stored differently.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

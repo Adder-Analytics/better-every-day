@@ -5,6 +5,7 @@ import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRa
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
 import ActivityCalendar from '@/components/ActivityCalendar'
+import HistoryStats from '@/components/HistoryStats'
 import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
@@ -59,7 +60,8 @@ export default function HistoryList() {
   }
 
   return (
-    <div className="py-2">
+    <div className="py-2 space-y-2">
+      <HistoryStats tasks={tasks} />
       <ActivityCalendar tasks={tasks} />
       {streaks.length > 0 && (
         <div className="mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
@@ -94,10 +96,6 @@ export default function HistoryList() {
           </ul>
         </div>
       )}
-      <p className="px-1 py-2 text-xs text-zinc-400 tabular-nums">
-        <span className="font-semibold text-zinc-700 dark:text-zinc-200">{total}</span>
-        {' '}task{total === 1 ? '' : 's'} completed in the last 30 days
-      </p>
       <ol className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
         {days.map(day => (
           <li key={day.date} className="py-4">

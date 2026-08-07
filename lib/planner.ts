@@ -453,6 +453,56 @@ export function activityStreak(tasks: Task[], today: string = todayStr()): numbe
   return streak
 }
 
+// A read on the last `windowDays` of history, summarized into a few plain
+// numbers: how much got done, on how many days, which weekday carried the most,
+// and the longest run of consecutive active days. All derived from the same
+// completion history the week bars and calendar read, so one-offs and routines
+// both count. Scoped to the window so the numbers stay honest against the
+// 30-day retention of finished one-off tasks.
+export type ActivityInsights = {
+  windowDays: number
+  total: number // tasks completed across the window
+  activeDays: number // days in the window with at least one completion
+  busiestDow: number | null // 0 = Sun … 6 = Sat, null when nothing's been done
+  busiestCount: number // completions on that weekday, summed across the window
+  bestStreak: number // longest run of consecutive active days in the window
+}
+
+export function activityInsights(
+  tasks: Task[],
+  windowDays: number = COMPLETED_RETENTION_DAYS
+): ActivityInsights {
+  const counts = completionCounts(tasks)
+  const byDow = new Array(7).fill(0)
+  let total = 0
+  let activeDays = 0
+  let bestStreak = 0
+  let run = 0
+  for (const date of lastNDates(windowDays)) {
+    const c = counts.get(date) ?? 0
+    total += c
+    if (c > 0) {
+      activeDays++
+      run++
+      if (run > bestStreak) bestStreak = run
+      byDow[weekdayOf(date)] += c
+    } else {
+      run = 0
+    }
+  }
+  // The heaviest weekday, first-wins on a tie (Sun leads Sat) so the pick is
+  // stable. Null while nothing's been done, though callers gate on total first.
+  let busiestDow: number | null = null
+  let busiestCount = 0
+  for (let d = 0; d < 7; d++) {
+    if (byDow[d] > busiestCount) {
+      busiestCount = byDow[d]
+      busiestDow = d
+    }
+  }
+  return { windowDays, total, activeDays, busiestDow, busiestCount, bestStreak }
+}
+
 // How many tasks were completed on each of the last 7 days, oldest first.
 // Reads from the completion history the planner already retains.
 export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
