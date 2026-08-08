@@ -446,6 +446,14 @@ export const changelog: ChangelogEntry[] = [
       'The History page opens with a short summary of the last 30 days: tasks done, how many days had at least one thing completed, the weekday you finish the most on, and the longest run of days in a row. The activity calendar below still shows the day-by-day shape; the summary just reads the same completion history back as a few plain numbers, replacing the single "N tasks completed" line. Nothing is stored differently.',
     type: 'feature',
   },
+  {
+    day: 56,
+    date: '2026-08-08',
+    title: 'Your day on a timeline',
+    description:
+      'Today now opens with a compact timeline above the list: each timed task is a block, sized to its estimate and placed by its start time, with the gaps between blocks left as free time and a live marker for the current moment — so how full the day is, and where the openings are, reads at a glance. Tapping a block jumps to that task in the list. It appears once at least two tasks have a time of day, reads the whole day (a tag filter narrows the list, not the timeline), and sits under the "planned today" summary. Finished blocks are green and starred ones amber, matching the rest of the app. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
