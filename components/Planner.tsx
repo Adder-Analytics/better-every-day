@@ -15,6 +15,7 @@ import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
+import DayTimeline from '@/components/DayTimeline'
 
 const emptySubscribe = () => () => {}
 
@@ -813,6 +814,10 @@ export default function Planner() {
   // within each group, and reordering still works (drag keys off task ids).
   const todayActive = todayTasks.filter(t => !t.done).sort(byPriorityTime)
   const todayDone = todayTasks.filter(t => t.done)
+  // Today's timed tasks — done and still-to-do alike — in time order, for the
+  // day timeline's spatial read of the day. The full day (not a tag-filtered
+  // slice) so the shape stays honest; a tap on a block clears any filter anyway.
+  const timelineTasks = todayTasks.filter(t => t.timeMin != null).sort(byTime)
   // Today's still-to-do one-off tasks — what "move remaining to tomorrow" acts
   // on. Routines are excluded (they recur on their own schedule), so the count
   // and the action always agree.
@@ -1310,6 +1315,25 @@ export default function Planner() {
             )}
           </span>
         </p>
+      )}
+
+      {/* The day at a glance — a spatial companion to the agenda list below.
+          Timed blocks in proportion, the gaps between them left as free time,
+          and a live "now" marker; a tap jumps to the block's task. Held back in
+          focus mode and until there are two timed tasks to make a shape. */}
+      {!inFocus && timelineTasks.length >= 2 && (
+        <DayTimeline
+          tasks={timelineTasks.map(t => ({
+            id: t.id,
+            text: t.text,
+            timeMin: t.timeMin!,
+            estimateMin: t.estimateMin,
+            done: t.done,
+            priority: t.priority,
+          }))}
+          nowMin={nowMin}
+          onSelect={revealTask}
+        />
       )}
 
       {/* Focus mode — one task, front and center, the rest tucked away */}
