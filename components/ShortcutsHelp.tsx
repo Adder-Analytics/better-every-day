@@ -128,6 +128,7 @@ export default function ShortcutsHelp() {
 
           <Section title="Today’s list">
             <Row keys={['j', 'k']} joiner="/">Move the selection</Row>
+            <Row keys={['⇧J', '⇧K']} joiner="/">Move the selected task</Row>
             <Row keys={['Space']}>Complete the selected task</Row>
             <Row keys={['Bksp']}>Delete the selected task</Row>
           </Section>

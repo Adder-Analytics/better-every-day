@@ -427,9 +427,14 @@ export default function Planner() {
   // each is computed below.
   const navRef = useRef<Task[]>([])
   const selectedRef = useRef<string | null>(null)
-  const actionsRef = useRef<{ toggle: (id: string) => void; del: (id: string) => void }>({
+  const actionsRef = useRef<{
+    toggle: (id: string) => void
+    del: (id: string) => void
+    reorder: (id: string, dir: 1 | -1) => void
+  }>({
     toggle: () => {},
     del: () => {},
+    reorder: () => {},
   })
   const router = useRouter()
   // The live theme preference, so the palette can flag the active one and set
@@ -526,6 +531,10 @@ export default function Planner() {
         if (hasSel) {
           if (e.key === 'ArrowDown') { e.preventDefault(); move(1); return }
           if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); return }
+          // Shift+J / Shift+K move the selected task itself (the keyboard
+          // counterpart to dragging), rather than moving the selection.
+          if (e.key === 'J') { e.preventDefault(); actionsRef.current.reorder(selId!, 1); return }
+          if (e.key === 'K') { e.preventDefault(); actionsRef.current.reorder(selId!, -1); return }
           if (e.key === ' ' || e.key === 'Enter') {
             e.preventDefault()
             const cur = nav[idx]
@@ -758,12 +767,13 @@ export default function Planner() {
     )
   }
 
-  const handleDragStart = (id: string) => setDragId(id)
-  const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id) }
-  const handleDrop = (targetId: string) => {
-    if (!dragId || dragId === targetId) return
+  // Move a task next to another in the stored array — the single reorder both
+  // dragging and the keyboard drive. The visible order among manually-ordered
+  // tasks mirrors the array order, so splicing here reorders what's on screen.
+  const reorderTask = (id: string, targetId: string) => {
+    if (!id || id === targetId) return
     setTasks(prev => {
-      const from = prev.findIndex(t => t.id === dragId)
+      const from = prev.findIndex(t => t.id === id)
       const to = prev.findIndex(t => t.id === targetId)
       if (from === -1 || to === -1) return prev
       const next = [...prev]
@@ -771,6 +781,13 @@ export default function Planner() {
       next.splice(to, 0, moved)
       return next
     })
+  }
+
+  const handleDragStart = (id: string) => setDragId(id)
+  const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id) }
+  const handleDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) return
+    reorderTask(dragId, targetId)
     setDragId(null)
     setDragOverId(null)
   }
@@ -851,6 +868,18 @@ export default function Planner() {
   // one clear meaning there. Kept in a ref for the global key handler above.
   // Folded-away finished tasks aren't navigable — nor are ones a filter hides.
   const navList = [...vTodayActive, ...(showCompleted ? vTodayDone : [])]
+  // Move the keyboard-selected task within its manually-ordered group — the
+  // untimed, still-to-do tasks of the same priority, which is exactly what drag
+  // reorders. Timed tasks keep their chronological order and finished ones their
+  // place, so neither is movable this way. The selection is tracked by id, so it
+  // rides along with the task as it shifts.
+  const reorderSelected = (id: string, dir: 1 | -1) => {
+    const sel = navList.find(t => t.id === id)
+    if (!sel || sel.timeMin != null || sel.done) return
+    const group = navList.filter(t => t.timeMin == null && !t.done && !!t.priority === !!sel.priority)
+    const target = group[group.findIndex(t => t.id === id) + dir]
+    if (target) reorderTask(id, target.id)
+  }
   // Keep the global key handler's refs current after each commit (assigning
   // refs during render isn't allowed). A stale selection needs no cleanup — a
   // task that leaves the list simply matches no row (no ring), and the next
@@ -858,7 +887,7 @@ export default function Planner() {
   useEffect(() => {
     navRef.current = navList
     selectedRef.current = selectedId
-    actionsRef.current = { toggle: toggleTask, del: deleteTask }
+    actionsRef.current = { toggle: toggleTask, del: deleteTask, reorder: reorderSelected }
     activeTagRef.current = activeTag
   })
   // The live agenda. Timed tasks lead the list in time order, so a single "now"
