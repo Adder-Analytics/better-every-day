@@ -454,6 +454,14 @@ export const changelog: ChangelogEntry[] = [
       'Today now opens with a compact timeline above the list: each timed task is a block, sized to its estimate and placed by its start time, with the gaps between blocks left as free time and a live marker for the current moment — so how full the day is, and where the openings are, reads at a glance. Tapping a block jumps to that task in the list. It appears once at least two tasks have a time of day, reads the whole day (a tag filter narrows the list, not the timeline), and sits under the "planned today" summary. Finished blocks are green and starred ones amber, matching the rest of the app. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 57,
+    date: '2026-08-09',
+    title: 'Reorder tasks from the keyboard',
+    description:
+      'Today’s list can now be reordered without a pointer. With a task selected (j/k), press Shift+J or Shift+K to move it down or up — the keyboard counterpart to dragging, which was mouse- and touch-only. It moves a task within its manual group (untimed, still-to-do, same priority — the same tasks dragging reorders), so the timed agenda keeps its chronological order and finished tasks keep their place; the selection rides along with the task as it shifts. The new keys are listed in the shortcuts panel (?). No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
