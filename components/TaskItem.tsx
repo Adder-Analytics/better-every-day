@@ -143,6 +143,17 @@ function NoteIcon({ className }: { className?: string }) {
   )
 }
 
+// Two stacked sheets — the duplicate action: copy this task, with its details,
+// into a fresh one just below.
+function DuplicateIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" />
+    </svg>
+  )
+}
+
 // Heroicons "list-bullet" — the steps (subtask checklist) action and the
 // progress pill.
 function StepsIcon({ className }: { className?: string }) {
@@ -180,6 +191,8 @@ type Props = {
   // Park this task in the Someday list (given, a dated task can be moved there
   // from its schedule menu). Someday tasks themselves don't receive this.
   onSetSomeday?: (id: string, someday: boolean) => void
+  // Copy this task into a fresh one placed right below it, carrying its details.
+  onDuplicate?: (id: string) => void
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
@@ -220,6 +233,7 @@ export default function TaskItem({
   onSetPriority,
   onSetSubtasks,
   onSetSomeday,
+  onDuplicate,
   upNextLabel,
   overdueLabel,
   conflictLabel,
@@ -258,6 +272,7 @@ export default function TaskItem({
   const canPrioritize = !!onSetPriority
   const canSubtask = !!onSetSubtasks
   const canSomeday = !!onSetSomeday
+  const canDuplicate = !!onDuplicate
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
   // Tags are read from the task's own text: chips to show, and a clean title
@@ -731,12 +746,23 @@ export default function TaskItem({
                     <PencilIcon className="w-3.5 h-3.5" />
                   </button>
                 )}
+
+                {canDuplicate && !task.done && !editingNote && (
+                  <button
+                    onClick={() => onDuplicate!(task.id)}
+                    aria-label="Duplicate task"
+                    title="Duplicate task"
+                    className={clusterAction}
+                  >
+                    <DuplicateIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -807,6 +833,7 @@ export default function TaskItem({
               canSchedule && { label: 'Schedule', icon: <CalendarIcon className="w-3.5 h-3.5" />, run: () => setMenu('schedule') },
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
+              canDuplicate && { label: 'Duplicate', icon: <DuplicateIcon className="w-3.5 h-3.5" />, run: () => onDuplicate!(task.id) },
             ].filter(Boolean) as { label: string; icon: React.ReactNode; run: () => void }[]
           ).map(item => (
             <button

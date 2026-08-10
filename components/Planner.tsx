@@ -688,6 +688,40 @@ export default function Planner() {
     armUndoTimer()
   }
 
+  // Make a copy of a task, dropped in right below the original so it lands in
+  // the same section, ready to tweak. The copy starts clean — not done, no
+  // completion history, and any steps reset to unchecked — while everything
+  // that describes the task (its text and tags, note, time, estimate, star, and
+  // repeat cadence) carries over. A fast way to set up a near-identical task, or
+  // fork a routine, without retyping it. The fresh copy briefly flashes so it's
+  // clear where it landed.
+  const duplicateTask = (id: string) => {
+    const stamp = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+    const newId = `t${stamp}`
+    setTasks(prev => {
+      const index = prev.findIndex(t => t.id === id)
+      if (index === -1) return prev
+      const src = prev[index]
+      const copy: Task = {
+        ...src,
+        id: newId,
+        done: false,
+        completedDate: undefined,
+        completions: src.repeat ? [] : undefined,
+        subtasks: src.subtasks?.map((s, i) => ({ ...s, id: `s${stamp}${i}`, done: false })),
+      }
+      const next = [...prev]
+      next.splice(index + 1, 0, copy)
+      return next
+    })
+    setRevealId(newId)
+    setTimeout(() => {
+      document.getElementById(`task-${newId}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }, 60)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }
+
   // Move a task to any day. The whole today / tomorrow / upcoming / carryover
   // split is driven by createdDate, so changing it is all rescheduling needs:
   // a task slides into the right section and resurfaces in Today on its day.
@@ -1481,6 +1515,7 @@ export default function Planner() {
                   onSetPriority={setPriority}
                   onSetSubtasks={setSubtasks}
                   onSetSomeday={setSomeday}
+                  onDuplicate={duplicateTask}
                 />
               ))}
             </div>
@@ -1551,6 +1586,7 @@ export default function Planner() {
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
+              onDuplicate={duplicateTask}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}
@@ -1777,6 +1813,7 @@ export default function Planner() {
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
+              onDuplicate={duplicateTask}
             />
           ))}
         </div>
@@ -1811,6 +1848,7 @@ export default function Planner() {
               onSetEstimate={setEstimate}
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
+              onDuplicate={duplicateTask}
             />
           ))}
         </div>

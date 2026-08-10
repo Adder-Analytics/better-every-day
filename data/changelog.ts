@@ -462,6 +462,14 @@ export const changelog: ChangelogEntry[] = [
       'Today’s list can now be reordered without a pointer. With a task selected (j/k), press Shift+J or Shift+K to move it down or up — the keyboard counterpart to dragging, which was mouse- and touch-only. It moves a task within its manual group (untimed, still-to-do, same priority — the same tasks dragging reorders), so the timed agenda keeps its chronological order and finished tasks keep their place; the selection rides along with the task as it shifts. The new keys are listed in the shortcuts panel (?). No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 58,
+    date: '2026-08-10',
+    title: 'Duplicate a task',
+    description:
+      'A task can now be duplicated from its actions — the hover icons on a mouse, the ellipsis menu on touch. The copy drops in right below the original, in the same section, carrying its text and tags, note, time, estimate, star, and repeat cadence, so a near-identical task (or a fork of a routine) takes one tap instead of retyping. The copy starts clean: not done, no completion history, and any steps reset to unchecked. It flashes briefly where it lands. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
