@@ -16,6 +16,7 @@ import CommandPalette, { type Command, type TaskResult, openCommandPalette } fro
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
 import DayTimeline from '@/components/DayTimeline'
+import TagBar from '@/components/TagBar'
 
 const emptySubscribe = () => () => {}
 
@@ -987,6 +988,22 @@ export default function Planner() {
   // How many tasks the current filter is showing across every section — the
   // count on the filter bar, and what tells the filtered empty state to appear.
   const filterCount = vTodayActive.length + vTodayDone.length + vCarryovers.length + vUpcoming.length + vSomeday.length
+  // Every distinct tag in play across the day's rendered rows, with how many
+  // tasks carry it — the contents of the tag bar. Counted from the *unfiltered*
+  // universe (the same rows search sees) so the bar stays put no matter which
+  // tag is active. Sorted busiest-first, ties broken by name so the order holds.
+  const universe = [...todayActive, ...todayDone, ...carryovers, ...upcoming, ...somedayTasks]
+  const tagCounts = new Map<string, number>()
+  for (const t of universe) {
+    for (const tag of extractTags(t.text)) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
+  }
+  const tagList = [...tagCounts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+  // Keep an active tag on the bar even once its last task is gone (all finished
+  // and folded, or deleted), so the filter is always clearable from here — the
+  // filtered empty state offers the same way out.
+  if (activeTag && !tagCounts.has(activeTag)) tagList.push({ tag: activeTag, count: 0 })
   // Everything currently on screen, flattened for search: today's tasks (with a
   // routine's cadence as its context), what's carried over from past days,
   // what's planned ahead, and the Someday backlog. Every entry maps to a
@@ -1215,10 +1232,25 @@ export default function Planner() {
     )}
 
     <div className="space-y-2.5">
-      {/* Tag filter bar — the list is sliced to one context. Shows the tag, how
-          many tasks match, and a way out (the button, or Esc). Only here while a
-          filter is on, so it never adds noise to the default view. */}
-      {activeTag && (
+      {/* Tag bar — every tag in play, each a one-tap filter with its count, so a
+          context is reachable without hunting for a task that wears it. The
+          primary way to slice the day (and switch or clear the slice) once two
+          or more tags exist; held back in focus mode, where a single task is the
+          whole view. */}
+      {!inFocus && (
+        <TagBar
+          tags={tagList}
+          activeTag={activeTag}
+          totalCount={universe.length}
+          onSelect={setActiveTag}
+        />
+      )}
+
+      {/* The older, single-tag filter indicator — its clear button still carries
+          the cases the tag bar leaves: a lone tag (the bar needs two to switch
+          between), and focus mode (where the bar is hidden). Shows the tag, the
+          match count, and a way out (the button, or Esc). */}
+      {activeTag && (inFocus || tagList.length < 2) && (
         <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex-shrink-0 text-xs text-zinc-400">Filtered by</span>

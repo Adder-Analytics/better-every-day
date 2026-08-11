@@ -470,6 +470,14 @@ export const changelog: ChangelogEntry[] = [
       'A task can now be duplicated from its actions — the hover icons on a mouse, the ellipsis menu on touch. The copy drops in right below the original, in the same section, carrying its text and tags, note, time, estimate, star, and repeat cadence, so a near-identical task (or a fork of a routine) takes one tap instead of retyping. The copy starts clean: not done, no completion history, and any steps reset to unchecked. It flashes briefly where it lands. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 59,
+    date: '2026-08-11',
+    title: 'Filter the day by tag, in one tap',
+    description:
+      'A tag bar now sits above the day: every tag in play, each with how many tasks carry it, and a leading "All". Tapping one slices the whole board — today, carryovers, upcoming, and Someday — to that context; tapping it again, or "All", clears it. Until now a filter could only be started by finding a task already wearing a tag and clicking its chip, so a context whose tasks were all finished, folded away, or on another day was unreachable. Tapping a chip switches contexts directly, and the bar appears once there are two or more tags. Tags are still read from task text, so nothing is stored differently; the row chips, Esc-to-clear, and the existing filter indicator all keep working.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
