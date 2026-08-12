@@ -154,6 +154,24 @@ function DuplicateIcon({ className }: { className?: string }) {
   )
 }
 
+// Plain up/down arrows — the "move task" actions in the touch menu, giving a
+// keyboard-free, hover-free way to reorder (what drag and Shift+J/K do for a
+// mouse and keyboard).
+function ArrowUpIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 19.5V4.5m0 0L6 10.5m6-6l6 6" />
+    </svg>
+  )
+}
+function ArrowDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m0 0l6-6m-6 6l-6-6" />
+    </svg>
+  )
+}
+
 // Heroicons "list-bullet" — the steps (subtask checklist) action and the
 // progress pill.
 function StepsIcon({ className }: { className?: string }) {
@@ -193,6 +211,13 @@ type Props = {
   onSetSomeday?: (id: string, someday: boolean) => void
   // Copy this task into a fresh one placed right below it, carrying its details.
   onDuplicate?: (id: string) => void
+  // Move this task one place up (-1) or down (1) within its manual group — the
+  // touch-and-keyboard-free counterpart to drag, surfaced in the actions menu.
+  // `canMoveUp`/`canMoveDown` gate the two directions so an edge task never
+  // offers a move that would do nothing.
+  onMove?: (id: string, dir: 1 | -1) => void
+  canMoveUp?: boolean
+  canMoveDown?: boolean
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
@@ -234,6 +259,9 @@ export default function TaskItem({
   onSetSubtasks,
   onSetSomeday,
   onDuplicate,
+  onMove,
+  canMoveUp = false,
+  canMoveDown = false,
   upNextLabel,
   overdueLabel,
   conflictLabel,
@@ -834,13 +862,18 @@ export default function TaskItem({
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
               canDuplicate && { label: 'Duplicate', icon: <DuplicateIcon className="w-3.5 h-3.5" />, run: () => onDuplicate!(task.id) },
-            ].filter(Boolean) as { label: string; icon: React.ReactNode; run: () => void }[]
+              // Reorder within the task's manual group. keepOpen leaves the menu
+              // up so several nudges take several taps, not a reopen each time;
+              // once a task reaches an edge, its direction drops out on re-render.
+              onMove && canMoveUp && { label: 'Move up', icon: <ArrowUpIcon className="w-3.5 h-3.5" />, run: () => onMove!(task.id, -1), keepOpen: true },
+              onMove && canMoveDown && { label: 'Move down', icon: <ArrowDownIcon className="w-3.5 h-3.5" />, run: () => onMove!(task.id, 1), keepOpen: true },
+            ].filter(Boolean) as { label: string; icon: React.ReactNode; run: () => void; keepOpen?: boolean }[]
           ).map(item => (
             <button
               key={item.label}
               role="menuitem"
               onClick={() => {
-                setMenu(null)
+                if (!item.keepOpen) setMenu(null)
                 item.run()
               }}
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"

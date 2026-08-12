@@ -915,6 +915,17 @@ export default function Planner() {
     const target = group[group.findIndex(t => t.id === id) + dir]
     if (target) reorderTask(id, target.id)
   }
+  // Which move directions are live for a task — the same manual group
+  // reorderSelected acts on, so the touch "Move up"/"Move down" actions offer a
+  // direction only when it would actually move the task. Timed and finished
+  // tasks (kept in their own fixed order) offer neither.
+  const moveOptions = (id: string): { up: boolean; down: boolean } => {
+    const sel = navList.find(t => t.id === id)
+    if (!sel || sel.timeMin != null || sel.done) return { up: false, down: false }
+    const group = navList.filter(t => t.timeMin == null && !t.done && !!t.priority === !!sel.priority)
+    const i = group.findIndex(t => t.id === id)
+    return { up: i > 0, down: i >= 0 && i < group.length - 1 }
+  }
   // Keep the global key handler's refs current after each commit (assigning
   // refs during render isn't allowed). A stale selection needs no cleanup — a
   // task that leaves the list simply matches no row (no ring), and the next
@@ -1596,6 +1607,9 @@ export default function Planner() {
           // Timed tasks are ordered by their time, so they aren't drag-reorderable;
           // untimed tasks keep the manual drag handle.
           const draggable = task.timeMin == null
+          // The touch reorder actions mirror what drag and Shift+J/K already do,
+          // so touch users aren't the only ones who can't reorder.
+          const move = moveOptions(task.id)
           return (
             <TaskItem
               key={task.id}
@@ -1619,6 +1633,9 @@ export default function Planner() {
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
               onDuplicate={duplicateTask}
+              onMove={reorderSelected}
+              canMoveUp={move.up}
+              canMoveDown={move.down}
               onDragStart={draggable ? handleDragStart : undefined}
               onDragOver={draggable ? handleDragOver : undefined}
               onDrop={draggable ? handleDrop : undefined}

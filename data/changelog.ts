@@ -478,6 +478,14 @@ export const changelog: ChangelogEntry[] = [
       'A tag bar now sits above the day: every tag in play, each with how many tasks carry it, and a leading "All". Tapping one slices the whole board — today, carryovers, upcoming, and Someday — to that context; tapping it again, or "All", clears it. Until now a filter could only be started by finding a task already wearing a tag and clicking its chip, so a context whose tasks were all finished, folded away, or on another day was unreachable. Tapping a chip switches contexts directly, and the bar appears once there are two or more tags. Tags are still read from task text, so nothing is stored differently; the row chips, Esc-to-clear, and the existing filter indicator all keep working.',
     type: 'feature',
   },
+  {
+    day: 60,
+    date: '2026-08-12',
+    title: 'Reorder tasks on a touch screen',
+    description:
+      'Reordering today’s tasks reached a touch screen. Until now the manual order could only be changed by dragging the grip handle (which needs a mouse) or with Shift+J/Shift+K (which needs a keyboard), so on a phone or tablet there was no way to do it at all. A task’s actions menu — the ellipsis on touch — now offers "Move up" and "Move down", shown only for the untimed, still-to-do tasks that drag and the keyboard already reorder, and only in a direction that would actually move it. The menu stays open between moves so a task can be nudged several places in a row. It reorders within the same manual group as before (timed tasks keep their chronological order, finished ones their place), and nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
