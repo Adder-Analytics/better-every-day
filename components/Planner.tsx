@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -637,6 +637,35 @@ export default function Planner() {
     )
   }
 
+  // Take a rest day: mark a routine as skipped today, so it steps out of
+  // today's list without breaking its streak. Skipping also clears any stray
+  // completion for today, so a task is never both done and skipped. Only a
+  // routine is ever skipped (a one-off is moved or deleted instead).
+  const skipRoutine = (id: string) => {
+    const today = todayStr()
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id || !t.repeat) return t
+        const skips = [...new Set([...(t.skips ?? []), today])]
+        const completions = (t.completions ?? []).filter(c => c !== today)
+        return { ...t, skips, completions }
+      })
+    )
+  }
+
+  // Undo a rest day: drop today from a routine's skips so it returns to today's
+  // list. Stored as undefined when the list empties, keeping the shape clean.
+  const resumeRoutine = (id: string) => {
+    const today = todayStr()
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id) return t
+        const skips = (t.skips ?? []).filter(s => s !== today)
+        return { ...t, skips: skips.length ? skips : undefined }
+      })
+    )
+  }
+
   // Turn repeating on/off for a task. Switching off keeps the task as a normal
   // one-off and clears its completion log; switching on anchors the cadence to
   // the task's createdDate (which drives the weekly weekday). A 'days' routine
@@ -838,11 +867,16 @@ export default function Planner() {
   const view = (t: Task): Task =>
     t.repeat ? { ...t, done: isCompletedOn(t, today) } : t
   // Today = one-off tasks created today, plus any routines due today. Someday
-  // tasks are held out — they wait in their own list until scheduled. Filtering
-  // the full array preserves order, so drag-reordering still works by id.
+  // tasks are held out — they wait in their own list until scheduled. A routine
+  // taken as a rest day today is held out too (see the Skipped section below).
+  // Filtering the full array preserves order, so drag-reordering still works.
   const todayTasks = tasks
-    .filter(t => (t.repeat ? isDueOn(t, today) : t.createdDate === today && !t.someday))
+    .filter(t => (t.repeat ? isDueOn(t, today) && !isSkippedOn(t, today) : t.createdDate === today && !t.someday))
     .map(view)
+  // Routines rested today — due, but deliberately skipped. Held out of every
+  // count and the agenda above (so a rest day never nags or blocks "all done"),
+  // and shown in their own quiet section with a one-tap way back.
+  const skippedToday = tasks.filter(t => t.repeat && isDueOn(t, today) && isSkippedOn(t, today))
   // Tasks with a time of day lead the list in chronological order, turning the
   // day into a quiet agenda; untimed tasks keep their manual order below (sort
   // is stable, so dragging still works among them).
@@ -996,6 +1030,7 @@ export default function Planner() {
   // keep the order they were added in. Routines are never someday tasks.
   const somedayTasks = tasks.filter(t => t.someday && !t.repeat).sort(byPriorityTime)
   const vSomeday = somedayTasks.filter(matchesTag)
+  const vSkipped = skippedToday.filter(matchesTag)
   // How many tasks the current filter is showing across every section — the
   // count on the filter bar, and what tells the filtered empty state to appear.
   const filterCount = vTodayActive.length + vTodayDone.length + vCarryovers.length + vUpcoming.length + vSomeday.length
@@ -1633,6 +1668,7 @@ export default function Planner() {
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
               onDuplicate={duplicateTask}
+              onSkip={skipRoutine}
               onMove={reorderSelected}
               canMoveUp={move.up}
               canMoveDown={move.down}
@@ -1899,6 +1935,45 @@ export default function Planner() {
               onSetSubtasks={setSubtasks}
               onDuplicate={duplicateTask}
             />
+          ))}
+        </div>
+      )}
+
+      {/* Resting today — routines taken as a rest day. They step out of the
+          agenda and every count (so a day off never nags or blocks "all done")
+          but keep their streak, and a tap brings one back. Shown only when
+          there's a rest day in play, so it adds nothing on an ordinary day. */}
+      {vSkipped.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5 px-1 pt-2">
+            <MoonIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />
+            <p className="text-xs font-medium text-zinc-400">Resting today</p>
+            <span className="text-xs tabular-nums text-zinc-300 dark:text-zinc-600">{vSkipped.length}</span>
+          </div>
+          {vSkipped.map(task => (
+            <div
+              key={task.id}
+              id={`task-${task.id}`}
+              className={`flex items-center gap-3 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 px-4 py-3 ${task.id === revealId ? 'reveal-flash' : ''}`}
+            >
+              <button
+                onClick={() => resumeRoutine(task.id)}
+                title="Bring this routine back to today"
+                className="flex-shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300 transition-colors"
+              >
+                Resume
+              </button>
+              <span className="min-w-0 flex-1 truncate text-sm text-zinc-400 dark:text-zinc-500">
+                {stripTags(task.text)}
+              </span>
+              <span
+                title="Rest day — your streak is safe"
+                className="inline-flex flex-shrink-0 items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500"
+              >
+                <ScheduleIcon kind="repeat" className="w-3 h-3" />
+                {repeatContext(task)}
+              </span>
+            </div>
           ))}
         </div>
       )}

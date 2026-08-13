@@ -28,6 +28,11 @@ export type Task = {
   // when `repeat === 'days'`; the fixed cadences ignore it.
   repeatDays?: number[]
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
+  // Rest days: dates (YYYY-MM-DD) this routine was deliberately skipped. A
+  // skipped due day steps out of that day's list and counts as neither done nor
+  // missed — it bridges the streak rather than breaking it. Only meaningful on a
+  // routine; a one-off is moved or deleted instead.
+  skips?: string[]
   estimateMin?: number // optional rough time estimate, in minutes
   timeMin?: number // optional time of day, minutes since local midnight (0–1439)
   priority?: boolean // starred as important — floats to the top of the day
@@ -45,10 +50,11 @@ export type Task = {
 // v8: added the 'days' repeat rule and an optional `repeatDays` weekday set.
 // v9: added an optional `someday` flag (the Someday backlog list).
 // v10: added the 'monthly' repeat rule (a new repeat value old data never used).
+// v11: added an optional `skips` list (routine rest days).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v10 alike.
-export const PLANNER_VERSION = 10
+// loadPlanner reads v1–v11 alike.
+export const PLANNER_VERSION = 11
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -149,6 +155,8 @@ function isTask(value: unknown): value is Task {
     (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
+    (t.skips === undefined ||
+      (Array.isArray(t.skips) && t.skips.every(s => typeof s === 'string'))) &&
     (t.estimateMin === undefined ||
       (typeof t.estimateMin === 'number' && Number.isFinite(t.estimateMin) && t.estimateMin > 0)) &&
     (t.timeMin === undefined ||
@@ -285,6 +293,13 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.completions ?? []).includes(dateStr)
 }
 
+// Whether a repeating task was taken as a rest day (skipped) on the given date.
+// A skipped due day is held out of that day's list and treated as neither done
+// nor missed — it bridges the streak instead of breaking it.
+export function isSkippedOn(task: Task, dateStr: string): boolean {
+  return !!task.repeat && (task.skips ?? []).includes(dateStr)
+}
+
 // Short weekday names, keyed by day-of-week (0 = Sun … 6 = Sat).
 export const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -329,19 +344,26 @@ export function monthlyDayLabel(task: Task): string {
 // completed, counting back from today. The streak follows the task's own
 // cadence — a weekend never breaks a weekday streak, and a weekly routine
 // counts weeks — and today is a grace day: not-yet-done doesn't break the
-// run while the day is still in progress, but completing it counts.
+// run while the day is still in progress, but completing it counts. A rest day
+// (a skipped due day) is neutral: it neither adds to the run nor ends it, so a
+// deliberate day off keeps the streak alive.
 export function routineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
+  const skips = new Set(task.skips ?? [])
   const [y, m, d] = today.split('-').map(Number)
   const cursor = new Date(y, m - 1, d)
   let streak = 0
+  // Scan back until we've counted every completion there could be, or run out
+  // of history. A skipped due day bridges the gap, so the bound is on completed
+  // days seen (streak), not calendar days visited.
   for (let isToday = true; streak < done.size; isToday = false) {
     const date = fmtDate(cursor)
     if (date < task.createdDate) break
     if (isDueOn(task, date)) {
-      if (done.has(date)) streak++
+      if (skips.has(date)) { /* rest day — bridge the run */ }
+      else if (done.has(date)) streak++
       else if (!isToday) break
     }
     cursor.setDate(cursor.getDate() - 1)
@@ -350,11 +372,14 @@ export function routineStreak(task: Task, today: string = todayStr()): number {
 }
 
 // A routine's longest-ever run of completed due days, by the same cadence
-// rules as routineStreak. An unfinished today never ends a run early.
+// rules as routineStreak. An unfinished today never ends a run early, and a
+// rest day (a skipped due day) is neutral — it bridges a run rather than
+// ending it, matching how the current streak counts.
 export function bestRoutineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
+  const skips = new Set(task.skips ?? [])
   const first = [...done].sort()[0]
   const [y, m, d] = first.split('-').map(Number)
   const cursor = new Date(y, m - 1, d)
@@ -364,7 +389,9 @@ export function bestRoutineStreak(task: Task, today: string = todayStr()): numbe
     const date = fmtDate(cursor)
     if (date > today) break
     if (isDueOn(task, date)) {
-      if (done.has(date)) {
+      if (skips.has(date)) {
+        // Rest day — carry the run across without adding to it.
+      } else if (done.has(date)) {
         run++
         if (run > best) best = run
       } else if (date !== today) {
@@ -388,10 +415,10 @@ export function loadPlanner(): PlannerData {
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
-    // Someday list) and v10 (monthly routines) only add optional fields (or a
-    // repeat value old data never used), so every version's tasks load cleanly
-    // into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // Someday list), v10 (monthly routines) and v11 (routine rest days) only add
+    // optional fields (or a repeat value old data never used), so every
+    // version's tasks load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
