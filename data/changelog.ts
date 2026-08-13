@@ -486,6 +486,14 @@ export const changelog: ChangelogEntry[] = [
       'Reordering today’s tasks reached a touch screen. Until now the manual order could only be changed by dragging the grip handle (which needs a mouse) or with Shift+J/Shift+K (which needs a keyboard), so on a phone or tablet there was no way to do it at all. A task’s actions menu — the ellipsis on touch — now offers "Move up" and "Move down", shown only for the untimed, still-to-do tasks that drag and the keyboard already reorder, and only in a direction that would actually move it. The menu stays open between moves so a task can be nudged several places in a row. It reorders within the same manual group as before (timed tasks keep their chronological order, finished ones their place), and nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 61,
+    date: '2026-08-13',
+    title: 'Take a rest day from a routine',
+    description:
+      'A repeating task can now be skipped for today from its actions (the hover icons on a mouse, the ellipsis menu on touch) — a rest day. A skipped routine steps out of today’s list, its done count, the timeline, and any reminders, and waits in a "Resting today" section with a one-tap Resume that puts it back exactly where it was. A rest day counts as neither done nor missed, so it bridges the routine’s streak rather than breaking it — a deliberate day off no longer costs a run, and the best-ever streak counts the same way. Stored data bumps to version 11 with an added optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

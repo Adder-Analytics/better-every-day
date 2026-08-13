@@ -172,6 +172,16 @@ function ArrowDownIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "moon" — take a rest day (skip today) on a routine. A crescent
+// reads as a night off; the routine returns on its next due day, streak intact.
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+    </svg>
+  )
+}
+
 // Heroicons "list-bullet" — the steps (subtask checklist) action and the
 // progress pill.
 function StepsIcon({ className }: { className?: string }) {
@@ -211,6 +221,9 @@ type Props = {
   onSetSomeday?: (id: string, someday: boolean) => void
   // Copy this task into a fresh one placed right below it, carrying its details.
   onDuplicate?: (id: string) => void
+  // Take a rest day: skip this routine for today. Given only for a routine's
+  // today instance; it steps out of today's list without breaking its streak.
+  onSkip?: (id: string) => void
   // Move this task one place up (-1) or down (1) within its manual group — the
   // touch-and-keyboard-free counterpart to drag, surfaced in the actions menu.
   // `canMoveUp`/`canMoveDown` gate the two directions so an edge task never
@@ -259,6 +272,7 @@ export default function TaskItem({
   onSetSubtasks,
   onSetSomeday,
   onDuplicate,
+  onSkip,
   onMove,
   canMoveUp = false,
   canMoveDown = false,
@@ -301,6 +315,8 @@ export default function TaskItem({
   const canSubtask = !!onSetSubtasks
   const canSomeday = !!onSetSomeday
   const canDuplicate = !!onDuplicate
+  // A rest day only makes sense on a routine that's still open today.
+  const canSkip = !!onSkip && !!task.repeat && !task.done
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
   // Tags are read from the task's own text: chips to show, and a clean title
@@ -785,12 +801,23 @@ export default function TaskItem({
                     <DuplicateIcon className="w-3.5 h-3.5" />
                   </button>
                 )}
+
+                {canSkip && !editingNote && (
+                  <button
+                    onClick={() => onSkip!(task.id)}
+                    aria-label="Skip today"
+                    title="Skip today — a rest day that keeps your streak"
+                    className={clusterAction}
+                  >
+                    <MoonIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canSkip) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -862,6 +889,7 @@ export default function TaskItem({
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
               canDuplicate && { label: 'Duplicate', icon: <DuplicateIcon className="w-3.5 h-3.5" />, run: () => onDuplicate!(task.id) },
+              canSkip && { label: 'Skip today', icon: <MoonIcon className="w-3.5 h-3.5" />, run: () => onSkip!(task.id) },
               // Reorder within the task's manual group. keepOpen leaves the menu
               // up so several nudges take several taps, not a reopen each time;
               // once a task reaches an edge, its direction drops out on re-render.
