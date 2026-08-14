@@ -494,6 +494,14 @@ export const changelog: ChangelogEntry[] = [
       'A repeating task can now be skipped for today from its actions (the hover icons on a mouse, the ellipsis menu on touch) — a rest day. A skipped routine steps out of today’s list, its done count, the timeline, and any reminders, and waits in a "Resting today" section with a one-tap Resume that puts it back exactly where it was. A rest day counts as neither done nor missed, so it bridges the routine’s streak rather than breaking it — a deliberate day off no longer costs a run, and the best-ever streak counts the same way. Stored data bumps to version 11 with an added optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 62,
+    date: '2026-08-14',
+    title: 'The week ahead',
+    description:
+      'A new page lays out the next seven days at once, so planning ahead no longer means scrolling past today. Each day is a card showing what falls on it — one-off tasks scheduled for that day and any routines due — with times, estimates, tags, and a slim meter that reads each day’s load against the busiest one, so a lopsided week is visible at a glance. Today’s card also gathers the tasks carried over from earlier days. Every card has its own quick-add: type a task under any day to place it there, with the same inline parsing the home box uses (a time like "9am", a block like "9–11am", or "every day" to make it repeat). One-off tasks can be removed from here; routines are managed from their row on the home page. It reads and writes the tasks already stored — nothing about how data is saved changed. Reachable from a "Week" link in the header and the command menu (Cmd/Ctrl+K).',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
