@@ -1217,6 +1217,9 @@ export default function Planner() {
       : []),
     { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', keywords: 'keys help hotkeys cheatsheet', icon: <ShortcutsIcon className="h-4 w-4" />, run: openShortcutsHelp },
     { id: 'week', label: 'Plan the week ahead', keywords: 'week upcoming plan ahead schedule seven days', icon: <CalendarDaysIcon className="h-4 w-4" />, run: () => router.push('/week') },
+    ...(tasks.some(t => t.repeat)
+      ? [{ id: 'routines', label: 'Open Routines', keywords: 'routine habit repeat streak recurring cadence rhythm', icon: <ScheduleIcon kind="repeat" className="h-4 w-4" />, run: () => router.push('/routines') }]
+      : []),
     { id: 'history', label: 'Open History', keywords: 'past done completed calendar activity', icon: <HistoryIcon className="h-4 w-4" />, run: () => router.push('/history') },
     { id: 'changelog', label: 'What’s new', keywords: 'changelog updates releases day', icon: <SparkIcon className="h-4 w-4" />, run: () => router.push('/changelog') },
   ]

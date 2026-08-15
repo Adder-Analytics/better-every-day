@@ -502,6 +502,14 @@ export const changelog: ChangelogEntry[] = [
       'A new page lays out the next seven days at once, so planning ahead no longer means scrolling past today. Each day is a card showing what falls on it — one-off tasks scheduled for that day and any routines due — with times, estimates, tags, and a slim meter that reads each day’s load against the busiest one, so a lopsided week is visible at a glance. Today’s card also gathers the tasks carried over from earlier days. Every card has its own quick-add: type a task under any day to place it there, with the same inline parsing the home box uses (a time like "9am", a block like "9–11am", or "every day" to make it repeat). One-off tasks can be removed from here; routines are managed from their row on the home page. It reads and writes the tasks already stored — nothing about how data is saved changed. Reachable from a "Week" link in the header and the command menu (Cmd/Ctrl+K).',
     type: 'feature',
   },
+  {
+    day: 63,
+    date: '2026-08-15',
+    title: 'All your routines in one place',
+    description:
+      'A new Routines page gathers every repeating task, so your habits are visible even on days they aren’t due — until now a routine only showed up on the home page when it was scheduled for that day. Each one lists its cadence, current streak, best-ever run, and when it’s next due, alongside a strip of dots for its recent due days: kept, rested, or missed at a glance. Today’s due routines can be checked off right from the page (the same per-day completion the home page records), and a rest day can be resumed here too. Rows sort with the ones still waiting on you today first, then by streak. It reads and writes the tasks already stored — nothing about how data is saved changed. Reachable from a "Routines" link in the header and the command menu (Cmd/Ctrl+K).',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
