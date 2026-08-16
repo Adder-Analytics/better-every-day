@@ -1,8 +1,9 @@
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
 // chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
-// day-of-month it was created (clamped to a short month's last day) — the rest
-// are fixed weekly/daily cadences.
-export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly'
+// day-of-month it was created (clamped to a short month's last day);
+// 'interval' recurs every N days counting from the day it was created (see
+// `repeatEvery`) — the rest are fixed weekly/daily cadences.
+export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly' | 'interval'
 
 // A single step within a task — a way to break one thing into the smaller
 // pieces it actually takes. Each is checked off on its own; they don't drive
@@ -27,6 +28,10 @@ export type Task = {
   // Which weekdays a 'days' routine recurs on (0 = Sun … 6 = Sat). Only read
   // when `repeat === 'days'`; the fixed cadences ignore it.
   repeatDays?: number[]
+  // How many days apart an 'interval' routine recurs — the N in "every N days"
+  // ("every other day" is 2). Counted from `createdDate`. Integer ≥ 2; only
+  // read when `repeat === 'interval'`, ignored by every other cadence.
+  repeatEvery?: number
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   // Rest days: dates (YYYY-MM-DD) this routine was deliberately skipped. A
   // skipped due day steps out of that day's list and counts as neither done nor
@@ -51,10 +56,12 @@ export type Task = {
 // v9: added an optional `someday` flag (the Someday backlog list).
 // v10: added the 'monthly' repeat rule (a new repeat value old data never used).
 // v11: added an optional `skips` list (routine rest days).
+// v12: added the 'interval' repeat rule and an optional `repeatEvery` count
+// (every-N-days routines) — a new repeat value and field old data never used.
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v11 alike.
-export const PLANNER_VERSION = 11
+// loadPlanner reads v1–v12 alike.
+export const PLANNER_VERSION = 12
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -128,7 +135,8 @@ export function formatDayLabel(dateStr: string): string {
 
 function isRepeatRule(value: unknown): value is RepeatRule {
   return (
-    value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' || value === 'monthly'
+    value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' ||
+    value === 'monthly' || value === 'interval'
   )
 }
 
@@ -153,6 +161,8 @@ function isTask(value: unknown): value is Task {
     (t.note === undefined || typeof t.note === 'string') &&
     (t.repeat === undefined || isRepeatRule(t.repeat)) &&
     (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
+    (t.repeatEvery === undefined ||
+      (typeof t.repeatEvery === 'number' && Number.isInteger(t.repeatEvery) && t.repeatEvery >= 2)) &&
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
     (t.skips === undefined ||
@@ -265,6 +275,15 @@ function weekdayOf(dateStr: string): number {
   return new Date(y, m - 1, d).getDay()
 }
 
+// Whole calendar days between two YYYY-MM-DD strings (to − from). Built from
+// parts and rounded, so a daylight-saving hour never throws the count off by a
+// day. Used to place an every-N-days routine relative to the day it began.
+function daysBetween(fromStr: string, toStr: string): number {
+  const [fy, fm, fd] = fromStr.split('-').map(Number)
+  const [ty, tm, td] = toStr.split('-').map(Number)
+  return Math.round((new Date(ty, tm - 1, td).getTime() - new Date(fy, fm - 1, fd).getTime()) / 86_400_000)
+}
+
 // Whether a repeating task is scheduled to appear on the given date. A routine
 // never shows before the day it was created; after that it follows its cadence.
 export function isDueOn(task: Task, dateStr: string): boolean {
@@ -279,6 +298,12 @@ export function isDueOn(task: Task, dateStr: string): boolean {
     const [y, m, d] = dateStr.split('-').map(Number)
     const lastDay = new Date(y, m, 0).getDate()
     return d === Math.min(anchorDay, lastDay)
+  }
+  // interval: recurs every N days counting from the day it was created, so the
+  // create day itself is day 0 (due), then every Nth day after.
+  if (task.repeat === 'interval') {
+    const every = Math.max(2, task.repeatEvery ?? 2)
+    return daysBetween(task.createdDate, dateStr) % every === 0
   }
   const dow = weekdayOf(dateStr)
   if (task.repeat === 'weekdays') return dow >= 1 && dow <= 5
@@ -314,6 +339,14 @@ export function formatRepeatDays(days: number[]): string {
   if (key === '1,2,3,4,5') return 'Weekdays'
   if (key === '0,6') return 'Weekends'
   return set.map(d => WEEKDAY_ABBR[d]).join(' ')
+}
+
+// A short label for an 'interval' routine's cadence: "Every other day" for a
+// two-day gap, "Every 3 days" beyond that. The shared wording for the task row,
+// the repeat menu, the routines page, and search.
+export function formatInterval(every: number): string {
+  const n = Math.max(2, Math.round(every))
+  return n === 2 ? 'Every other day' : `Every ${n} days`
 }
 
 function fmtDate(d: Date): string {
@@ -415,10 +448,11 @@ export function loadPlanner(): PlannerData {
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
-    // Someday list), v10 (monthly routines) and v11 (routine rest days) only add
-    // optional fields (or a repeat value old data never used), so every
-    // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // Someday list), v10 (monthly routines), v11 (routine rest days) and v12
+    // (every-N-days routines) only add optional fields (or a repeat value old
+    // data never used), so every version's tasks load cleanly into the current
+    // shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -670,6 +704,7 @@ export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
+  repeatEvery?: number // the N of an 'interval' recurrence ("every 3 days")
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   schedule?: QuickAddSchedule // what was recognized, for the live preview
@@ -684,6 +719,29 @@ const REPEAT_PHRASES: { re: RegExp; rule: RepeatRule; label: string }[] = [
   { re: /\s+(?:every\s+week|weekly)\.?\s*$/i, rule: 'weekly', label: 'Weekly' },
   { re: /\s+(?:every\s*day|everyday|daily)\.?\s*$/i, rule: 'daily', label: 'Every day' },
 ]
+// Trailing every-N-days phrases: "every other day", "every 3 days". These name
+// an interval routine (a start-anchored cadence, N ≥ 2), so they're read before
+// the fixed recurrences above — "every 3 days" is an interval, not a mistaken
+// daily. A bare "every day"/"daily" stays with the daily rule above.
+const INTERVAL_OTHER_RE = /\s+every\s+other\s+day\.?\s*$/i
+const INTERVAL_N_RE = /\s+every\s+(\d{1,3})\s+days?\.?\s*$/i
+
+// Strip a trailing every-N-days phrase and resolve it to an interval count
+// (2–365). Returns null when nothing is recognized, when stripping would empty
+// the title, or when the count is out of range.
+function parseTrailingInterval(text: string): { text: string; every: number } | null {
+  const other = text.replace(INTERVAL_OTHER_RE, '').trim()
+  if (other && other !== text) return { text: other, every: 2 }
+
+  const nDays = text.match(INTERVAL_N_RE)
+  if (nDays) {
+    const n = Number(nDays[1])
+    const stripped = text.replace(INTERVAL_N_RE, '').trim()
+    if (stripped && n >= 2 && n <= 365) return { text: stripped, every: n }
+  }
+  return null
+}
+
 // Trailing day phrases, each resolving the title to an absolute date so the
 // preview and the stored task always agree. The three-letter prefix of a
 // matched weekday name keys its day-of-week. "today" is intentionally absent,
@@ -845,6 +903,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   if (!text) return { text }
 
   let repeat: RepeatRule | undefined
+  let repeatEvery: number | undefined
   let repeatLabel = ''
   let date: string | undefined
   let timeMin: number | undefined
@@ -854,6 +913,16 @@ export function parseQuickAdd(input: string): QuickAdd {
   // pass finds nothing — so order in the text doesn't matter.
   for (;;) {
     if (repeat === undefined) {
+      // An every-N-days interval is tried before the fixed phrases, so "every 3
+      // days" reads as an interval rather than being missed by them.
+      const interval = parseTrailingInterval(text)
+      if (interval) {
+        text = interval.text
+        repeat = 'interval'
+        repeatEvery = interval.every
+        repeatLabel = formatInterval(interval.every)
+        continue
+      }
       const hit = REPEAT_PHRASES.find(({ re }) => {
         const stripped = text.replace(re, '').trim()
         return stripped && stripped !== text
@@ -910,7 +979,7 @@ export function parseQuickAdd(input: string): QuickAdd {
       ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, date, repeat, estimateMin, timeMin, schedule }
+  return { text, date, repeat, repeatEvery, estimateMin, timeMin, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------

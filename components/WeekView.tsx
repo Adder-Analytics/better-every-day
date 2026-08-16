@@ -17,6 +17,7 @@ import {
   formatTimeRange,
   formatDuration,
   formatRepeatDays,
+  formatInterval,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -49,6 +50,7 @@ function repeatLabel(task: Task): string {
   if (task.repeat === 'weekdays') return 'Weekdays'
   if (task.repeat === 'weekly') return 'Weekly'
   if (task.repeat === 'monthly') return 'Monthly'
+  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return ''
 }

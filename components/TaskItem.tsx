@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatTime, formatTimeRange, monthlyDayLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, formatDayLabel, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
@@ -211,7 +211,7 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
   onSchedule?: (id: string, date: string) => void
-  onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[]) => void
+  onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
@@ -362,6 +362,28 @@ export default function TaskItem({
     }
   }, [menu, draftDays, onSetRepeat, task.id])
 
+  // The every-N-days interval, for the stepper in the repeat menu — the count
+  // shown before it's applied. Seeded from the task when it already recurs on an
+  // interval, otherwise "every other day" (2), the smallest interval that isn't
+  // just daily. Stays in range 2–30 (a sensible menu span; typing "every 60
+  // days" in the add box still reaches further).
+  const isInterval = task.repeat === 'interval'
+  const [draftEvery, setDraftEvery] = useState(isInterval ? (task.repeatEvery ?? 2) : 2)
+  const chooseInterval = (every: number) => {
+    const n = Math.min(30, Math.max(2, every))
+    setDraftDays(null) // an interval supersedes any pending weekday draft
+    setDraftEvery(n)
+    onSetRepeat?.(task.id, 'interval', undefined, n)
+  }
+  // Nudge the count. While the interval is already the active cadence, apply it
+  // live so the change is immediate; otherwise just move the draft, ready for
+  // the row itself to switch the task on.
+  const bumpEvery = (delta: number) => {
+    const n = Math.min(30, Math.max(2, draftEvery + delta))
+    if (isInterval) chooseInterval(n)
+    else setDraftEvery(n)
+  }
+
   const chooseDate = (date: string) => {
     onSchedule?.(task.id, date)
     setMenu(null)
@@ -383,15 +405,18 @@ export default function TaskItem({
   const streakUnit = task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
 
   // How this task's recurrence reads on its row and in tooltips: the fixed
-  // cadences have a static word; a 'days' routine names its weekdays.
+  // cadences have a static word; a 'days' routine names its weekdays and an
+  // 'interval' one its every-N-days count.
   const repeatLabel = task.repeat === 'days'
     ? formatRepeatDays(task.repeatDays ?? [])
-    : task.repeat
-      ? REPEAT_LABEL[task.repeat]
-      : ''
+    : task.repeat === 'interval'
+      ? formatInterval(task.repeatEvery ?? 2)
+      : task.repeat
+        ? REPEAT_LABEL[task.repeat]
+        : ''
   // The recurrence tooltip: a 'days' routine reads its weekday set as-is; a
   // monthly one names the day it lands on ("Repeats monthly on the 15th"); the
-  // rest lower-case their word ("Repeats weekly").
+  // rest lower-case their word ("Repeats weekly", "Repeats every other day").
   const repeatTitle = task.repeat === 'days'
     ? `Repeats ${repeatLabel}`
     : task.repeat === 'monthly'
@@ -966,6 +991,54 @@ export default function TaskItem({
                   </button>
                 )
               })}
+            </div>
+          </div>
+
+          {/* Every N days — a start-anchored cadence for the habits that don't
+              fall on fixed weekdays: water the plants every 3 days, a workout
+              every other day. The center pill switches the task to this cadence
+              at the shown count; − and + adjust it (live once it's active). */}
+          <div className="mt-1 border-t border-zinc-100 dark:border-zinc-800 px-1.5 pt-2 pb-1">
+            <p className="mb-1.5 px-1 text-[11px] font-medium text-zinc-400">Every few days</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Fewer days between"
+                title="Fewer days between"
+                onClick={() => bumpEvery(-1)}
+                disabled={draftEvery <= 2}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={isInterval}
+                onClick={() => chooseInterval(draftEvery)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs tabular-nums transition-colors ${
+                  isInterval
+                    ? 'font-medium text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {formatInterval(draftEvery)}
+                {isInterval && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button
+                type="button"
+                aria-label="More days between"
+                title="More days between"
+                onClick={() => bumpEvery(1)}
+                disabled={draftEvery >= 30}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
             </div>
           </div>
 
