@@ -510,6 +510,14 @@ export const changelog: ChangelogEntry[] = [
       'A new Routines page gathers every repeating task, so your habits are visible even on days they aren’t due — until now a routine only showed up on the home page when it was scheduled for that day. Each one lists its cadence, current streak, best-ever run, and when it’s next due, alongside a strip of dots for its recent due days: kept, rested, or missed at a glance. Today’s due routines can be checked off right from the page (the same per-day completion the home page records), and a rest day can be resumed here too. Rows sort with the ones still waiting on you today first, then by streak. It reads and writes the tasks already stored — nothing about how data is saved changed. Reachable from a "Routines" link in the header and the command menu (Cmd/Ctrl+K).',
     type: 'feature',
   },
+  {
+    day: 64,
+    date: '2026-08-16',
+    title: 'Repeat every few days',
+    description:
+      'Routines can now recur every N days — every other day, every 3 days, every 10 — counting from the day the task was created, alongside daily, weekdays, weekly, specific weekdays, and monthly. Pick it from the repeat menu (a stepper under "Every few days"), or type it when adding a task: "Workout every other day", "Water plants every 3 days". It fills the gap between daily and weekly for the habits that fall on their own rhythm rather than fixed weekdays. The cadence shows on the task row and the Routines page, and its streak counts by that rhythm like every other routine. Stored data bumps to version 12 with the new repeat value and one optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

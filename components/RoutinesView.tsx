@@ -14,6 +14,7 @@ import {
   routineStreak,
   bestRoutineStreak,
   formatRepeatDays,
+  formatInterval,
   monthlyDayLabel,
   formatDayLabel,
   PLANNER_VERSION,
@@ -69,6 +70,8 @@ function cadenceLabel(task: Task): string {
       return 'Weekly'
     case 'monthly':
       return `Monthly on ${monthlyDayLabel(task)}`
+    case 'interval':
+      return formatInterval(task.repeatEvery ?? 2)
     case 'days':
       return formatRepeatDays(task.repeatDays ?? [])
     default:

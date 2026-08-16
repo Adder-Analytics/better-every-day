@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -30,6 +30,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'weekdays') return 'Weekdays'
   if (task.repeat === 'weekly') return 'Weekly'
   if (task.repeat === 'monthly') return 'Monthly'
+  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return 'Today'
 }
@@ -609,8 +610,8 @@ export default function Planner() {
   // routine anchored to today. Shared by single and multi-line adds so every
   // line is captured exactly as one typed alone would be.
   const buildTask = (line: string): Task => {
-    const { text, date, repeat, estimateMin, timeMin } = parseQuickAdd(line)
-    if (repeat) return { ...newTask(text, todayStr()), repeat, estimateMin, timeMin }
+    const { text, date, repeat, repeatEvery, estimateMin, timeMin } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin }
     if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
     return { ...newTask(text, day), estimateMin, timeMin }
@@ -676,10 +677,11 @@ export default function Planner() {
 
   // Turn repeating on/off for a task. Switching off keeps the task as a normal
   // one-off and clears its completion log; switching on anchors the cadence to
-  // the task's createdDate (which drives the weekly weekday). A 'days' routine
-  // also carries its chosen weekday set; every other rule clears it, so the
-  // stored shape stays clean.
-  const setRepeat = (id: string, repeat: RepeatRule | undefined, repeatDays?: number[]) => {
+  // the task's createdDate (which drives the weekly weekday and the every-N-days
+  // count). A 'days' routine carries its chosen weekday set and an 'interval'
+  // one its every-N-days count; every other rule clears both, so the stored
+  // shape stays clean.
+  const setRepeat = (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number) => {
     setTasks(prev =>
       prev.map(t =>
         t.id === id
@@ -687,6 +689,7 @@ export default function Planner() {
               ...t,
               repeat,
               repeatDays: repeat === 'days' ? repeatDays : undefined,
+              repeatEvery: repeat === 'interval' ? repeatEvery : undefined,
               completions: repeat ? (t.completions ?? []) : undefined,
             }
           : t
