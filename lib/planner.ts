@@ -750,13 +750,51 @@ const DOW3: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, f
 const TOMORROW_RE = /\s+(?:tomorrow|tmrw|tmw)\.?\s*$/i
 const NEXT_WEEK_RE = /\s+next\s+week\.?\s*$/i
 const IN_DAYS_RE = /\s+in\s+(\d{1,3})\s+days?\.?\s*$/i
+const IN_WEEKS_RE = /\s+in\s+(\d{1,2})\s+weeks?\.?\s*$/i
 const WEEKDAY_RE =
   /\s+(?:(?:on|next|this)\s+)?(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\.?\s*$/i
 
-// Strip a trailing day phrase ("tomorrow", "friday", "in 3 days", "next week")
-// and resolve it to an absolute date. Returns null when nothing is recognized,
-// or when stripping would empty the title (so "friday" typed alone stays a
-// literal task).
+// The three-letter prefix of a month name keys its month (0 = Jan … 11 = Dec),
+// so "Aug", "August", and "Sept" all resolve the same way. The alternation
+// below tolerates the common long forms and the "Sept" spelling of September.
+const MONTH3: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+}
+const MONTH_NAME =
+  '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)'
+// A trailing calendar date, written either way round: "Aug 20", "on August 3rd",
+// "20 Aug", "3rd of December". The day carries an optional ordinal suffix. A
+// meridiem-less number and a required month name keep it clear of a time of day.
+const MONTH_DAY_RE = new RegExp(`\\s+(?:on\\s+)?${MONTH_NAME}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\.?\\s*$`, 'i')
+const DAY_MONTH_RE = new RegExp(`\\s+(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_NAME}\\.?\\s*$`, 'i')
+
+// Days in a given month (0 = Jan … 11 = Dec) of a given year — day 0 of the
+// next month is the last day of this one, so February's length follows the
+// year's leap rule.
+function daysInMonth(year: number, month0: number): number {
+  return new Date(year, month0 + 1, 0).getDate()
+}
+
+// Resolve a bare month-and-day to the next date that lands on it (YYYY-MM-DD).
+// Like a weekday name, a calendar date always points forward: a day already
+// past this year rolls to next year. Returns null for a day the month can't
+// hold (e.g. "Feb 30", or "Feb 29" in the coming non-leap years), so an
+// impossible date stays literal text rather than being quietly moved.
+function nextDateOnMonthDay(month0: number, day: number): string | null {
+  const today = todayStr()
+  const thisYear = Number(today.split('-')[0])
+  for (const year of [thisYear, thisYear + 1]) {
+    if (day < 1 || day > daysInMonth(year, month0)) continue
+    const candidate = `${year}-${String(month0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    if (candidate >= today) return candidate
+  }
+  return null
+}
+
+// Strip a trailing day phrase ("tomorrow", "friday", "in 3 days", "next week",
+// "in 2 weeks", "Aug 20", "20 August") and resolve it to an absolute date.
+// Returns null when nothing is recognized, or when stripping would empty the
+// title (so "friday" or "August" typed alone stays a literal task).
 function parseTrailingDate(text: string): { text: string; date: string } | null {
   const tomorrow = text.replace(TOMORROW_RE, '').trim()
   if (tomorrow && tomorrow !== text) return { text: tomorrow, date: addDaysStr(1) }
@@ -764,11 +802,34 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
   const nextWeek = text.replace(NEXT_WEEK_RE, '').trim()
   if (nextWeek && nextWeek !== text) return { text: nextWeek, date: addDaysStr(7) }
 
+  const inWeeks = text.match(IN_WEEKS_RE)
+  if (inWeeks) {
+    const n = Number(inWeeks[1])
+    const stripped = text.replace(IN_WEEKS_RE, '').trim()
+    if (stripped && n >= 1 && n <= 52) return { text: stripped, date: addDaysStr(n * 7) }
+  }
+
   const inDays = text.match(IN_DAYS_RE)
   if (inDays) {
     const n = Number(inDays[1])
     const stripped = text.replace(IN_DAYS_RE, '').trim()
     if (stripped && n >= 1 && n <= 365) return { text: stripped, date: addDaysStr(n) }
+  }
+
+  // A calendar date, either order ("Aug 20" or "20 Aug"). Both need a month
+  // name, so a bare number is never mistaken for one; an impossible day leaves
+  // the phrase in the title.
+  const monthDay = text.match(MONTH_DAY_RE)
+  if (monthDay) {
+    const stripped = text.replace(MONTH_DAY_RE, '').trim()
+    const date = nextDateOnMonthDay(MONTH3[monthDay[1].slice(0, 3).toLowerCase()], Number(monthDay[2]))
+    if (stripped && date) return { text: stripped, date }
+  }
+  const dayMonth = text.match(DAY_MONTH_RE)
+  if (dayMonth) {
+    const stripped = text.replace(DAY_MONTH_RE, '').trim()
+    const date = nextDateOnMonthDay(MONTH3[dayMonth[2].slice(0, 3).toLowerCase()], Number(dayMonth[1]))
+    if (stripped && date) return { text: stripped, date }
   }
 
   const weekday = text.match(WEEKDAY_RE)
