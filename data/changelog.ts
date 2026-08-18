@@ -518,6 +518,14 @@ export const changelog: ChangelogEntry[] = [
       'Routines can now recur every N days — every other day, every 3 days, every 10 — counting from the day the task was created, alongside daily, weekdays, weekly, specific weekdays, and monthly. Pick it from the repeat menu (a stepper under "Every few days"), or type it when adding a task: "Workout every other day", "Water plants every 3 days". It fills the gap between daily and weekly for the habits that fall on their own rhythm rather than fixed weekdays. The cadence shows on the task row and the Routines page, and its streak counts by that rhythm like every other routine. Stored data bumps to version 12 with the new repeat value and one optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 65,
+    date: '2026-08-18',
+    title: 'Schedule a task by its date',
+    description:
+      'Quick-add now understands a calendar date at the end of a task, so planning further out no longer means opening the week view or counting days. Type "Dentist Aug 20", "Renew passport Dec 1", "Wedding 3rd of December", or "Pick up order 20 Aug" and the task lands on that day; a date that has already passed this year rolls to next year, the way naming a weekday already points ahead. "In 2 weeks" joins the existing "in 3 days" and "next week". A month name is required, so a bare number like "Read pages 9-11" is never mistaken for a date, and an impossible day like "Feb 30" stays part of the title. It reads alongside the time, estimate, and repeat phrases already parsed, so "Call Sam Aug 20 at 2pm" sets both the day and the time, and the same parsing powers the week page. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
