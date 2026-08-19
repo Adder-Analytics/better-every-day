@@ -526,6 +526,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add now understands a calendar date at the end of a task, so planning further out no longer means opening the week view or counting days. Type "Dentist Aug 20", "Renew passport Dec 1", "Wedding 3rd of December", or "Pick up order 20 Aug" and the task lands on that day; a date that has already passed this year rolls to next year, the way naming a weekday already points ahead. "In 2 weeks" joins the existing "in 3 days" and "next week". A month name is required, so a bare number like "Read pages 9-11" is never mistaken for a date, and an impossible day like "Feb 30" stays part of the title. It reads alongside the time, estimate, and repeat phrases already parsed, so "Call Sam Aug 20 at 2pm" sets both the day and the time, and the same parsing powers the week page. Nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 66,
+    date: '2026-08-19',
+    title: 'Tags no longer hide a task’s schedule',
+    description:
+      'Quick-add reads a time, estimate, date, or repeat even when a #tag is written after it, so a natural entry like "Standup 10am #work", "Gym 6pm every day #health", or "Write proposal 90m #work" now sets the time (or routine, or estimate) and keeps the tag. Before, a hashtag at the end of the line sat between the parser and the schedule phrase, so the whole phrase was left as literal text — the task got no time chip and a routine never started repeating. Tags anywhere in the line are set aside while the trailing schedule is read, then put back in their original order; a task typed as just "#tag" still stays a plain title. Nothing about how tasks are stored changed.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
