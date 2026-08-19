@@ -953,12 +953,21 @@ function parseTrailingTime(text: string): { text: string; timeMin: number } | nu
   return null
 }
 
+// A single trailing hashtag, matched the same way tags.ts recognizes one (a
+// leading letter, then up to 30 word characters or hyphens). Tags live inline in
+// the task text, so a natural entry often ends with one — "Standup 10am #work".
+// Peeling it aside lets the schedule phrase behind it be read, then it's put
+// back; the leading \s keeps a task typed as just "#work" a literal title.
+const TRAILING_TAG_RE = /\s#[A-Za-z][\w-]{0,29}$/
+
 // Strip recognized trailing phrases from `input`, returning the cleaned title
 // and everything found. People stack these in any order ("Standup 9am 15m",
 // "Call Sam friday 2pm"), so each kind — recurrence, day, time of day, estimate
 // — is peeled off the end in turn until none remains, at most one of each.
-// Never strips down to an empty title. Recurrence wins as the schedule, since
-// the task will recur.
+// Trailing hashtags are peeled aside the same way and reattached at the end, so
+// a tag written after the schedule ("Gym 6pm every day #health") doesn't hide
+// it. Never strips down to an empty title. Recurrence wins as the schedule,
+// since the task will recur.
 export function parseQuickAdd(input: string): QuickAdd {
   let text = input.trim()
   if (!text) return { text }
@@ -969,10 +978,25 @@ export function parseQuickAdd(input: string): QuickAdd {
   let date: string | undefined
   let timeMin: number | undefined
   let estimateMin: number | undefined
+  // Hashtags peeled off the end, newest first, so a schedule phrase sitting
+  // behind them can be read. Reattached after the loop in their original order.
+  const trailingTags: string[] = []
 
   // Peel one recognized trailing token per pass, newest match first, until a
   // pass finds nothing — so order in the text doesn't matter.
   for (;;) {
+    // A trailing hashtag is set aside first each pass, so "Standup 10am #work"
+    // reads the time behind it. Skipped when it would empty the title, leaving a
+    // bare "#work" as its own literal task.
+    const tag = text.match(TRAILING_TAG_RE)
+    if (tag) {
+      const stripped = text.slice(0, tag.index).trim()
+      if (stripped) {
+        trailingTags.unshift(tag[0].trim())
+        text = stripped
+        continue
+      }
+    }
     if (repeat === undefined) {
       // An every-N-days interval is tried before the fixed phrases, so "every 3
       // days" reads as an interval rather than being missed by them.
@@ -1033,6 +1057,10 @@ export function parseQuickAdd(input: string): QuickAdd {
     }
     break
   }
+
+  // Put the peeled tags back on the title, so they still render as chips and
+  // drive the tag filter — only the schedule phrase between them was removed.
+  if (trailingTags.length > 0) text = `${text} ${trailingTags.join(' ')}`.trim()
 
   const schedule: QuickAddSchedule | undefined = repeat
     ? { kind: 'repeat', label: repeatLabel }
