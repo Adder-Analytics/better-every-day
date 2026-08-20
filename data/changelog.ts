@@ -534,6 +534,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add reads a time, estimate, date, or repeat even when a #tag is written after it, so a natural entry like "Standup 10am #work", "Gym 6pm every day #health", or "Write proposal 90m #work" now sets the time (or routine, or estimate) and keeps the tag. Before, a hashtag at the end of the line sat between the parser and the schedule phrase, so the whole phrase was left as literal text — the task got no time chip and a routine never started repeating. Tags anywhere in the line are set aside while the trailing schedule is read, then put back in their original order; a task typed as just "#tag" still stays a plain title. Nothing about how tasks are stored changed.',
     type: 'fix',
   },
+  {
+    day: 67,
+    date: '2026-08-20',
+    title: 'Send today’s schedule to your calendar',
+    description:
+      'Today’s timed tasks can now be handed to a real calendar. A new calendar action — in the today header next to Copy plan, and in the command menu (Cmd/Ctrl+K) as "Add today’s schedule to calendar" — downloads a standard .ics file that opens in Google Calendar, Apple Calendar, Outlook, or anything that reads iCalendar. It fills the one gap the in-app reminders leave: those only fire while this tab is open, whereas each exported event carries an alarm at its start, so your calendar nudges your phone even when the planner is closed. A task with an estimate becomes a block of that length; a bare time becomes a 30-minute event. Times are written as floating local times, so a 9 AM task stays 9 AM wherever it opens; #tags become the event’s categories and a task’s note becomes its description. Only still-to-do timed tasks are included — untimed to-dos and finished tasks are left out. The file is built in your browser and nothing is sent anywhere; how tasks are stored didn’t change.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
