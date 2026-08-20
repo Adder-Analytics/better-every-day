@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { tasksToICS, icsFilename } from '@/lib/calendar'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -180,6 +181,16 @@ function CalendarDaysIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+    </svg>
+  )
+}
+// A calendar with a plus — "add today's schedule to your calendar" (the .ics
+// export). Heroicons "calendar" frame with a small plus inside.
+function CalendarPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 8.25h18M4.5 5.25h15A1.5 1.5 0 0121 6.75v12A1.5 1.5 0 0119.5 20.25h-15A1.5 1.5 0 013 18.75v-12A1.5 1.5 0 014.5 5.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v4.5M9.75 14.25h4.5" />
     </svg>
   )
 }
@@ -937,6 +948,23 @@ export default function Planner() {
     }
     copiedTimer.current = setTimeout(() => setCopied(null), 2200)
   }, [])
+  // Hand today's timed tasks to a real calendar (.ics) so their alarms reach you
+  // even when this tab is closed — the one thing the in-app reminders can't do.
+  // Only timed, still-to-do tasks become events; the file is built locally and
+  // downloaded, nothing is sent anywhere.
+  const downloadTodayCalendar = () => {
+    const events = todayActive.filter(t => t.timeMin != null)
+    if (events.length === 0) return
+    const blob = new Blob([tasksToICS(events, today, new Date())], { type: 'text/calendar;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = icsFilename(today)
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
   // The visible slices — what a tag filter actually narrows down. Everything
   // else (counts, reminders, the celebration) keeps reading the full lists, so
   // the filter stays a lens over the day rather than a change to it.
@@ -1215,6 +1243,9 @@ export default function Planner() {
     ...(todayTasks.length > 0
       ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
       : []),
+    ...(timedActive.length > 0
+      ? [{ id: 'calendar-export', label: 'Add today’s schedule to calendar', keywords: 'ics calendar export event google apple outlook download reminder alarm subscribe', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
+      : []),
     ...(tasks.length > 0
       ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
       : []),
@@ -1361,6 +1392,16 @@ export default function Planner() {
                 <ClipboardIcon className="w-4 h-4" />
               )}
               <span className="sr-only">Copy today’s plan</span>
+            </button>
+          )}
+          {!inFocus && timedActive.length > 0 && (
+            <button
+              onClick={downloadTodayCalendar}
+              title="Add today’s timed tasks to your calendar (.ics) — their alarms reach you even with this tab closed"
+              className="flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              <CalendarPlusIcon className="w-4 h-4" />
+              <span className="sr-only">Add today’s schedule to calendar</span>
             </button>
           )}
           {!inFocus && reminders.supported && timedActive.length > 0 && (
