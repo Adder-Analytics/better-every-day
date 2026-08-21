@@ -542,6 +542,14 @@ export const changelog: ChangelogEntry[] = [
       'Today’s timed tasks can now be handed to a real calendar. A new calendar action — in the today header next to Copy plan, and in the command menu (Cmd/Ctrl+K) as "Add today’s schedule to calendar" — downloads a standard .ics file that opens in Google Calendar, Apple Calendar, Outlook, or anything that reads iCalendar. It fills the one gap the in-app reminders leave: those only fire while this tab is open, whereas each exported event carries an alarm at its start, so your calendar nudges your phone even when the planner is closed. A task with an estimate becomes a block of that length; a bare time becomes a 30-minute event. Times are written as floating local times, so a 9 AM task stays 9 AM wherever it opens; #tags become the event’s categories and a task’s note becomes its description. Only still-to-do timed tasks are included — untimed to-dos and finished tasks are left out. The file is built in your browser and nothing is sent anywhere; how tasks are stored didn’t change.',
     type: 'feature',
   },
+  {
+    day: 68,
+    date: '2026-08-21',
+    title: 'Say a time in words',
+    description:
+      'Quick-add now reads a named time of day the same way it already reads "9am" or "14:00", so the words people actually type set a time. "Lunch noon", "Meds midnight", "Call mom tonight", "Standup this morning", "Gym this evening", "Review notes afternoon" each land the task at a round hour — noon at 12 PM, midnight at 12 AM, morning at 9 AM, afternoon at 2 PM, evening at 6 PM, night or tonight at 9 PM. Only a trailing phrase is read, and only when a title is left in front of it, so a one-word task like "Morning" or a mid-sentence "the morning briefing" stays literal. The recognized time shows in the add preview before you commit, and the time menu can nudge it after. It stacks with the rest of quick-add, so "Dentist Aug 25 morning", "Lunch noon 45m", and "Standup noon #work" all read the day, estimate, or tag alongside the time. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
