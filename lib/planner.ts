@@ -953,6 +953,35 @@ function parseTrailingTime(text: string): { text: string; timeMin: number } | nu
   return null
 }
 
+// Trailing named times of day: "noon", "midnight", "morning", "tonight". People
+// reach for the word before the clock face — "Lunch noon", "Call mom tonight",
+// "Meds midnight" — so quick-add reads these the same way it reads "9am", and
+// maps each to a round hour. "noon" and "midnight" are exact; the vaguer words
+// take a conventional time (previewed before you commit, so the exact minute is
+// never a surprise, and the time menu can nudge it after). An optional leading
+// "at" ("at noon") or "this" ("this morning") is tolerated. Most specific first
+// so "tonight" wins before a bare "night". A leading \s keeps a one-word task
+// like "Morning" literal, and each phrase must leave a non-empty title behind.
+const NAMED_TIME_PHRASES: { re: RegExp; timeMin: number }[] = [
+  { re: /\s+(?:at\s+)?midnight\.?\s*$/i, timeMin: 0 },
+  { re: /\s+(?:at\s+)?noon\.?\s*$/i, timeMin: 12 * 60 },
+  { re: /\s+(?:this\s+)?morning\.?\s*$/i, timeMin: 9 * 60 },
+  { re: /\s+(?:this\s+)?afternoon\.?\s*$/i, timeMin: 14 * 60 },
+  { re: /\s+(?:this\s+)?evening\.?\s*$/i, timeMin: 18 * 60 },
+  { re: /\s+(?:tonight|(?:at\s+|this\s+)?night)\.?\s*$/i, timeMin: 21 * 60 },
+]
+
+// Strip a trailing named time of day and resolve it to minutes since midnight.
+// Returns null when nothing is recognized, or when stripping would empty the
+// title (so a bare "noon" stays a literal task).
+function parseTrailingNamedTime(text: string): { text: string; timeMin: number } | null {
+  for (const { re, timeMin } of NAMED_TIME_PHRASES) {
+    const stripped = text.replace(re, '').trim()
+    if (stripped && stripped !== text) return { text: stripped, timeMin }
+  }
+  return null
+}
+
 // A single trailing hashtag, matched the same way tags.ts recognizes one (a
 // leading letter, then up to 30 word characters or hyphens). Tags live inline in
 // the task text, so a natural entry often ends with one — "Standup 10am #work".
@@ -1044,6 +1073,13 @@ export function parseQuickAdd(input: string): QuickAdd {
       if (time) {
         text = time.text
         timeMin = time.timeMin
+        continue
+      }
+      // A named time — "noon", "tonight" — reads the same slot as a clock time.
+      const named = parseTrailingNamedTime(text)
+      if (named) {
+        text = named.text
+        timeMin = named.timeMin
         continue
       }
     }
