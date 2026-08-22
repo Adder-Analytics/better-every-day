@@ -550,6 +550,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add now reads a named time of day the same way it already reads "9am" or "14:00", so the words people actually type set a time. "Lunch noon", "Meds midnight", "Call mom tonight", "Standup this morning", "Gym this evening", "Review notes afternoon" each land the task at a round hour — noon at 12 PM, midnight at 12 AM, morning at 9 AM, afternoon at 2 PM, evening at 6 PM, night or tonight at 9 PM. Only a trailing phrase is read, and only when a title is left in front of it, so a one-word task like "Morning" or a mid-sentence "the morning briefing" stays literal. The recognized time shows in the add preview before you commit, and the time menu can nudge it after. It stacks with the rest of quick-add, so "Dentist Aug 25 morning", "Lunch noon 45m", and "Standup noon #work" all read the day, estimate, or tag alongside the time. Nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 69,
+    date: '2026-08-22',
+    title: 'Give a task a deadline',
+    description:
+      'A task can now carry a due date — when it needs to be done by — kept separate from the day it sits on. Type it in quick-add after the word "due": "Submit report due Friday", "Renew passport due Dec 1", "Pay invoice due tomorrow", "File taxes due today", "Call Sam due in 3 days". Or set it from a task\'s schedule menu, under "Due by", where a "Clear due date" option removes it. A "due" chip then shows on the row: quiet while the deadline is days out ("due Fri", "due Sep 1"), amber the day before and the day of ("due tomorrow", "due today"), and rose once it has passed ("overdue"). Because an unfinished one-off carries into the next day, the chip counts itself down without any nudging. The deadline is only a heads-up — it never changes which day a task appears on, so "Submit report due Friday" stays on today, while a plain "Dentist Aug 20" still schedules the task onto that day as before. It reads alongside the time, estimate, tag, and repeat phrases already parsed. Stored data bumps to version 13 with one new optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

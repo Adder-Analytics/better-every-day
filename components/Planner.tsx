@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
@@ -621,11 +621,11 @@ export default function Planner() {
   // routine anchored to today. Shared by single and multi-line adds so every
   // line is captured exactly as one typed alone would be.
   const buildTask = (line: string): Task => {
-    const { text, date, repeat, repeatEvery, estimateMin, timeMin } = parseQuickAdd(line)
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin }
-    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin }
+    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate }
+    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-    return { ...newTask(text, day), estimateMin, timeMin }
+    return { ...newTask(text, day), estimateMin, timeMin, dueDate }
   }
 
   const addTask = () => {
@@ -714,6 +714,12 @@ export default function Planner() {
 
   const setTime = (id: string, timeMin: number | undefined) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, timeMin } : t)))
+  }
+
+  // Set or clear a task's deadline. Stored as undefined when cleared so a task
+  // with no deadline carries no dueDate field, keeping the saved shape clean.
+  const setDueDate = (id: string, dueDate: string | undefined) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, dueDate } : t)))
   }
 
   // Star a task as important, or clear the star. Stored as undefined when off so
@@ -1642,6 +1648,7 @@ export default function Planner() {
                   onDelete={deleteTask}
                   onDoToday={doToday}
                   onSchedule={scheduleTask}
+                  onSetDue={setDueDate}
                   onEdit={editTask}
                   onEditNote={editNote}
                   onSetEstimate={setEstimate}
@@ -1717,6 +1724,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onSetDue={setDueDate}
               onSetRepeat={setRepeat}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
@@ -1853,7 +1861,7 @@ export default function Planner() {
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || previewTags.length > 0) && parsed.text && (
+      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || parsed.dueDate || previewTags.length > 0) && parsed.text && (
         <div
           aria-live="polite"
           className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-zinc-400"
@@ -1873,6 +1881,11 @@ export default function Planner() {
           {parsed.schedule && (
             <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
               {parsed.schedule.label}
+            </span>
+          )}
+          {parsed.dueDate && (
+            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium text-zinc-500 dark:text-zinc-400">
+              {formatDue(parsed.dueDate)?.label ?? `due ${formatDayLabel(parsed.dueDate)}`}
             </span>
           )}
           {/* A parsed time range fills both slots, so it previews as one window
@@ -1949,6 +1962,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onSetDue={setDueDate}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
               onSetPriority={setPriority}
@@ -1984,6 +1998,7 @@ export default function Planner() {
               onDelete={deleteTask}
               onDoToday={doToday}
               onSchedule={scheduleTask}
+              onSetDue={setDueDate}
               onEdit={editTask}
               onEditNote={editNote}
               onSetEstimate={setEstimate}
