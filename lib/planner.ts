@@ -47,6 +47,13 @@ export type Task = {
   // upcoming days, and the tab count until they're scheduled or brought to
   // today (which clears this flag). A routine is never a someday task.
   someday?: boolean
+  // A deadline (YYYY-MM-DD), distinct from the day the task sits on: when the
+  // task needs to be done by, not when you plan to work on it. Optional and
+  // purely informational — it drives the row's "due" chip and its urgency, never
+  // which day the task appears on. Because an unfinished one-off carries over
+  // each day, the chip counts down ("due Fri" → "due tomorrow" → "overdue") on
+  // its own. Cleared to undefined when removed.
+  dueDate?: string
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
@@ -58,10 +65,11 @@ export type Task = {
 // v11: added an optional `skips` list (routine rest days).
 // v12: added the 'interval' repeat rule and an optional `repeatEvery` count
 // (every-N-days routines) — a new repeat value and field old data never used.
+// v13: added an optional `dueDate` (a deadline, separate from the task's day).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v12 alike.
-export const PLANNER_VERSION = 12
+// loadPlanner reads v1–v13 alike.
+export const PLANNER_VERSION = 13
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -133,6 +141,41 @@ export function formatDayLabel(dateStr: string): string {
     : date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+// How a task's deadline reads on its row, and how much attention it deserves:
+// 'overdue' once the day has passed, 'soon' on the day itself and the day
+// before, 'later' beyond that. The label stays short — a relative word close in
+// ("due today", "due tomorrow"), then a weekday within the week ("due Fri"),
+// then a month and day further out ("due Sep 1"). Returns null for anything
+// that isn't a valid date, so a stray value never throws.
+export function formatDue(
+  dueDate: string,
+  from: string = todayStr()
+): { label: string; tone: 'overdue' | 'soon' | 'later' } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null
+  const [y, m, d] = dueDate.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  if (Number.isNaN(dt.getTime())) return null
+  const days = daysBetween(from, dueDate)
+  if (days < 0) return { label: 'overdue', tone: 'overdue' }
+  if (days === 0) return { label: 'due today', tone: 'soon' }
+  if (days === 1) return { label: 'due tomorrow', tone: 'soon' }
+  const label =
+    days <= 6
+      ? `due ${dt.toLocaleDateString('en-US', { weekday: 'short' })}`
+      : `due ${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  return { label, tone: 'later' }
+}
+
+// The full, spelled-out deadline for a due chip's tooltip — "Due Friday,
+// September 1". Reuses formatDue's validity check by way of the same regex.
+export function formatDueFull(dueDate: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return ''
+  const [y, m, d] = dueDate.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  if (Number.isNaN(dt.getTime())) return ''
+  return `Due ${dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`
+}
+
 function isRepeatRule(value: unknown): value is RepeatRule {
   return (
     value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' ||
@@ -173,7 +216,8 @@ function isTask(value: unknown): value is Task {
       (typeof t.timeMin === 'number' && Number.isInteger(t.timeMin) && t.timeMin >= 0 && t.timeMin <= 1439)) &&
     (t.priority === undefined || typeof t.priority === 'boolean') &&
     (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask))) &&
-    (t.someday === undefined || typeof t.someday === 'boolean')
+    (t.someday === undefined || typeof t.someday === 'boolean') &&
+    (t.dueDate === undefined || typeof t.dueDate === 'string')
   )
 }
 
@@ -448,11 +492,11 @@ export function loadPlanner(): PlannerData {
     const data = parsed as Record<string, unknown>
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
-    // Someday list), v10 (monthly routines), v11 (routine rest days) and v12
-    // (every-N-days routines) only add optional fields (or a repeat value old
-    // data never used), so every version's tasks load cleanly into the current
-    // shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // Someday list), v10 (monthly routines), v11 (routine rest days), v12
+    // (every-N-days routines) and v13 (task deadlines) only add optional fields
+    // (or a repeat value old data never used), so every version's tasks load
+    // cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -707,6 +751,7 @@ export type QuickAdd = {
   repeatEvery?: number // the N of an 'interval' recurrence ("every 3 days")
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
+  dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -838,6 +883,28 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
     if (stripped) return { text: stripped, date: nextWeekdayStr(DOW3[weekday[1].slice(0, 3).toLowerCase()]) }
   }
 
+  return null
+}
+
+// A trailing deadline: "due today", "due Friday", "due Aug 20", "due tomorrow",
+// "due in 3 days". It reuses the date grammar above, but only fires when the
+// word "due" sits right before the date — so a plain trailing date ("Dentist
+// Aug 20") still schedules the task onto that day, while "Submit report due Aug
+// 20" leaves the task on today and reads Aug 20 as its deadline. Tried before
+// the plain-date pass in the parse loop so the "due" case wins. Returns null
+// when no "due" precedes a date, or when stripping would leave no title.
+function parseTrailingDue(text: string): { text: string; date: string } | null {
+  // "due today" — the date grammar has no bare "today", so it's handled here.
+  const today = text.match(/\s+due\s+today\.?\s*$/i)
+  if (today) {
+    const stripped = text.slice(0, today.index).trim()
+    if (stripped) return { text: stripped, date: todayStr() }
+  }
+  const parsed = parseTrailingDate(text)
+  if (!parsed) return null
+  // The date is only a deadline if "due" is the word left right before it.
+  const withDue = parsed.text.match(/^(.+?)\s+due$/i)
+  if (withDue && withDue[1].trim()) return { text: withDue[1].trim(), date: parsed.date }
   return null
 }
 
@@ -1005,6 +1072,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let repeatEvery: number | undefined
   let repeatLabel = ''
   let date: string | undefined
+  let dueDate: string | undefined
   let timeMin: number | undefined
   let estimateMin: number | undefined
   // Hashtags peeled off the end, newest first, so a schedule phrase sitting
@@ -1045,6 +1113,16 @@ export function parseQuickAdd(input: string): QuickAdd {
         text = text.replace(hit.re, '').trim()
         repeat = hit.rule
         repeatLabel = hit.label
+        continue
+      }
+    }
+    // A deadline is read before a plain scheduled date, so "due Aug 20" dates
+    // the deadline rather than being swallowed as the task's day.
+    if (dueDate === undefined) {
+      const due = parseTrailingDue(text)
+      if (due) {
+        text = due.text
+        dueDate = due.date
         continue
       }
     }
@@ -1104,7 +1182,7 @@ export function parseQuickAdd(input: string): QuickAdd {
       ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, date, repeat, repeatEvery, estimateMin, timeMin, schedule }
+  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------
