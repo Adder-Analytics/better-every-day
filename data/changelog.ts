@@ -558,6 +558,14 @@ export const changelog: ChangelogEntry[] = [
       'A task can now carry a due date — when it needs to be done by — kept separate from the day it sits on. Type it in quick-add after the word "due": "Submit report due Friday", "Renew passport due Dec 1", "Pay invoice due tomorrow", "File taxes due today", "Call Sam due in 3 days". Or set it from a task\'s schedule menu, under "Due by", where a "Clear due date" option removes it. A "due" chip then shows on the row: quiet while the deadline is days out ("due Fri", "due Sep 1"), amber the day before and the day of ("due tomorrow", "due today"), and rose once it has passed ("overdue"). Because an unfinished one-off carries into the next day, the chip counts itself down without any nudging. The deadline is only a heads-up — it never changes which day a task appears on, so "Submit report due Friday" stays on today, while a plain "Dentist Aug 20" still schedules the task onto that day as before. It reads alongside the time, estimate, tag, and repeat phrases already parsed. Stored data bumps to version 13 with one new optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 70,
+    date: '2026-08-23',
+    title: 'Reuse a tag in a tap',
+    description:
+      'While you\'re composing a task, the add box now offers the tags you\'ve already used as small chips beneath it — tap one to drop it into the task instead of retyping it from memory. They\'re sorted by how often you use each, capped at eight, and a tag already in the draft steps out of the row. Because the spelling comes from the chip, a stray "#wrok" no longer splinters a filter away from "#work". The chips appear only while the box is focused and holds a single line, so a resting box and a pasted brain dump stay uncluttered, and a first-ever task shows nothing since there\'s nothing to suggest yet. Tags are still read from the task text, so nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
