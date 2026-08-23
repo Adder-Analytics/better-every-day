@@ -405,6 +405,9 @@ export default function Planner() {
   )
   const [newText, setNewText] = useState('')
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
+  // Whether the add box is focused — gates the "reuse a tag" suggestions so they
+  // appear only while you're composing, keeping the resting UI clean.
+  const [addFocused, setAddFocused] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   // Whether today's finished tasks are shown or folded into a "Completed"
@@ -1168,6 +1171,35 @@ export default function Planner() {
   // typed inline is seen before it's added.
   const previewTags = extractTags(newText)
 
+  // The tags you've already used, most-used first — offered under the add box so
+  // a tag can be reused in a tap instead of retyped from memory (and spelled the
+  // same way every time, so a stray "#wrok" never splinters a filter). Read from
+  // the task text like every other tag, so nothing new is stored. The ones
+  // already in the current draft drop out of the list, and it's capped so a long
+  // history of tags never floods the box.
+  const draftTags = new Set(previewTags)
+  const tagUse = new Map<string, number>()
+  for (const t of tasks) {
+    for (const tag of extractTags(t.text)) tagUse.set(tag, (tagUse.get(tag) ?? 0) + 1)
+  }
+  const tagSuggestions = [...tagUse.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([tag]) => tag)
+    .filter(tag => !draftTags.has(tag))
+    .slice(0, 8)
+
+  // Append a tag to the add box and keep composing — a trailing space so the
+  // next word (or another tag) follows cleanly. A tag written after a schedule
+  // phrase ("Gym 6pm #health") still reads the time behind it, so appending at
+  // the end is always safe.
+  const addTagToDraft = (tag: string) => {
+    setNewText(prev => {
+      const base = prev.replace(/\s+$/, '')
+      return base ? `${base} #${tag} ` : `#${tag} `
+    })
+    inputRef.current?.focus()
+  }
+
   // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
   // on the client; the opener only renders after mount, so it's never on the
   // server's HTML.
@@ -1824,6 +1856,8 @@ export default function Planner() {
           rows={1}
           aria-label="Add a task"
           onChange={e => setNewText(e.target.value)}
+          onFocus={() => setAddFocused(true)}
+          onBlur={() => setAddFocused(false)}
           onKeyDown={e => {
             // Plain Enter adds; Shift+Enter drops to a new line for the next task.
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() }
@@ -1846,6 +1880,37 @@ export default function Planner() {
           Add
         </button>
       </div>
+
+      {/* Reuse a tag — the tags you already use, one tap to drop into the box.
+          Only while composing a single line (a brain dump appends to the wrong
+          line), and never on a first-ever task, since there's nothing to
+          suggest yet. Kept touch-friendly: a plain tap, no hover needed. The
+          mousedown-preventDefault keeps the box focused so the row doesn't
+          vanish out from under the tap. */}
+      {addFocused && addLineCount < 2 && tagSuggestions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <svg aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+          </svg>
+          {tagSuggestions.map(tag => (
+            <button
+              key={tag}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => addTagToDraft(tag)}
+              title={`Add #${tag} to this task`}
+              aria-label={`Add tag ${tag}`}
+              className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pl-1 pr-1.5 text-[10px] font-medium transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${tagColor(tag)}`}
+            >
+              <svg aria-hidden="true" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              #{tag}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Brain-dump preview: several lines add several tasks, so say how many
           rather than trying to preview each one's schedule. */}
