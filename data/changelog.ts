@@ -566,6 +566,14 @@ export const changelog: ChangelogEntry[] = [
       'While you\'re composing a task, the add box now offers the tags you\'ve already used as small chips beneath it — tap one to drop it into the task instead of retyping it from memory. They\'re sorted by how often you use each, capped at eight, and a tag already in the draft steps out of the row. Because the spelling comes from the chip, a stray "#wrok" no longer splinters a filter away from "#work". The chips appear only while the box is focused and holds a single line, so a resting box and a pasted brain dump stay uncluttered, and a first-ever task shows nothing since there\'s nothing to suggest yet. Tags are still read from the task text, so nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 71,
+    date: '2026-08-24',
+    title: 'See what’s coming due',
+    description:
+      'A task with a deadline that isn’t sitting in today’s list — one parked in Someday, scheduled for a later day, or carried over from a past one — now shows in a "Coming due" panel at the top of the day instead of only on its own row further down. It gathers the ones that are overdue or due within a day, sorts them earliest-deadline-first, and notes where each lives and how its deadline reads ("overdue", "due today", "due tomorrow"); overdue items are marked in rose, ones due soon in amber. Tapping a row jumps to the task and flashes it. The panel only appears when something is in that window, so a day with nothing looming stays uncluttered, and today’s own tasks are left out since they already sit at the top with their due chip. It reads deadlines already stored on tasks, so nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

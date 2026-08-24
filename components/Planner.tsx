@@ -17,6 +17,7 @@ import CommandPalette, { type Command, type TaskResult, openCommandPalette } fro
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
 import DayTimeline from '@/components/DayTimeline'
+import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
 
 const emptySubscribe = () => () => {}
@@ -1118,6 +1119,27 @@ export default function Planner() {
     ...upcoming.map(t => searchTask(t, formatDayLabel(t.createdDate))),
     ...somedayTasks.map(t => searchTask(t, 'Someday')),
   ]
+  // Deadlines at risk of slipping: an unfinished task whose "due" chip only
+  // shows on its own row — parked in Someday, scheduled for a later day, or
+  // carried over from a past one — can go overdue unseen. Gather those that are
+  // overdue or due within a day (tone 'overdue' or 'soon') and lift them to the
+  // top, earliest deadline first. Today's active tasks are left out; they're
+  // already at the top of the list with their own chip. Sorting by the date
+  // string is chronological because it's YYYY-MM-DD, so overdue leads, then
+  // today, then tomorrow.
+  const dueCandidate = (t: Task, where: string): (DueItem & { on: string }) | null => {
+    if (t.done || !t.dueDate) return null
+    const due = formatDue(t.dueDate, today)
+    if (!due || due.tone === 'later') return null
+    return { id: t.id, text: stripTags(t.text), where, label: due.label, tone: due.tone, on: t.dueDate, run: () => revealTask(t.id) }
+  }
+  const comingDue: DueItem[] = [
+    ...carryovers.map(t => dueCandidate(t, formatPastDayLabel(t.createdDate))),
+    ...upcoming.map(t => dueCandidate(t, formatDayLabel(t.createdDate))),
+    ...somedayTasks.map(t => dueCandidate(t, 'Someday')),
+  ]
+    .filter((x): x is DueItem & { on: string } => x !== null)
+    .sort((a, b) => a.on.localeCompare(b.on))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
   // A gentle read on how full today is. Only today's estimated tasks count, so
@@ -1635,6 +1657,12 @@ export default function Planner() {
       )}
 
       {!inFocus && (<>
+      {/* Deadlines about to slip — surfaced above the day's list so a task due
+          today or tomorrow (or already overdue) that's parked elsewhere doesn't
+          hide until it's too late. Held back while a tag filter shows a slice,
+          matching the rest of the full-day state below. */}
+      {!activeTag && <ComingDue items={comingDue} />}
+
       {/* All done message — the full day's state, so it's held back while a tag
           filter is showing only a slice. */}
       {allDone && !activeTag && (
