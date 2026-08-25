@@ -752,6 +752,7 @@ export type QuickAdd = {
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
+  priority?: boolean // starred important, read from a trailing "!" flag
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -1049,6 +1050,14 @@ function parseTrailingNamedTime(text: string): { text: string; timeMin: number }
   return null
 }
 
+// A trailing importance flag: one or more "!" at the very end, set off from the
+// title by whitespace ("Submit report !", "Call the bank !!"). The leading \s is
+// the whole guard against prose — an ordinary exclamation ("Ship it!", "We did
+// it!!") has no space before the bang, so it's left literal. Peeled like the
+// other trailing phrases and only when a non-empty title remains, so a lone "!"
+// stays its own task.
+const TRAILING_PRIORITY_RE = /\s+!+$/
+
 // A single trailing hashtag, matched the same way tags.ts recognizes one (a
 // leading letter, then up to 30 word characters or hyphens). Tags live inline in
 // the task text, so a natural entry often ends with one — "Standup 10am #work".
@@ -1075,6 +1084,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let dueDate: string | undefined
   let timeMin: number | undefined
   let estimateMin: number | undefined
+  let priority: boolean | undefined
   // Hashtags peeled off the end, newest first, so a schedule phrase sitting
   // behind them can be read. Reattached after the loop in their original order.
   const trailingTags: string[] = []
@@ -1090,6 +1100,17 @@ export function parseQuickAdd(input: string): QuickAdd {
       const stripped = text.slice(0, tag.index).trim()
       if (stripped) {
         trailingTags.unshift(tag[0].trim())
+        text = stripped
+        continue
+      }
+    }
+    // A trailing "!" flags the task important. Peeled early each pass — like a
+    // tag — so a schedule phrase written in front of it ("Report tomorrow !")
+    // is still exposed to the checks below.
+    if (!priority) {
+      const stripped = text.replace(TRAILING_PRIORITY_RE, '').trim()
+      if (stripped && stripped !== text) {
+        priority = true
         text = stripped
         continue
       }
@@ -1182,7 +1203,7 @@ export function parseQuickAdd(input: string): QuickAdd {
       ? { kind: 'date', label: formatDayLabel(date) }
       : undefined
 
-  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, schedule }
+  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------

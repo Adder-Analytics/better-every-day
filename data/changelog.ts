@@ -574,6 +574,14 @@ export const changelog: ChangelogEntry[] = [
       'A task with a deadline that isn’t sitting in today’s list — one parked in Someday, scheduled for a later day, or carried over from a past one — now shows in a "Coming due" panel at the top of the day instead of only on its own row further down. It gathers the ones that are overdue or due within a day, sorts them earliest-deadline-first, and notes where each lives and how its deadline reads ("overdue", "due today", "due tomorrow"); overdue items are marked in rose, ones due soon in amber. Tapping a row jumps to the task and flashes it. The panel only appears when something is in that window, so a day with nothing looming stays uncluttered, and today’s own tasks are left out since they already sit at the top with their due chip. It reads deadlines already stored on tasks, so nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 72,
+    date: '2026-08-25',
+    title: 'Star a task as you add it',
+    description:
+      'Quick-add now reads a trailing "!" as an importance flag, so a task can be starred the moment it\'s captured instead of opening its menu afterward — handy on a phone. End the line with "!" (or "!!") set off by a space: "Call the bank !", "Submit report tomorrow 2pm !". The recognized star shows in the add preview as an "Important" chip before you commit, and the task lands already starred — floating to the top of the day like any other important task. The space in front of the bang is the whole guard: an ordinary exclamation with no space before it ("Ship it!", "We did it!!") stays literal, and a lone "!" stays its own task. It stacks with the day, time, estimate, tag, due, and repeat phrases already parsed, and reads them even when the "!" is written last. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
