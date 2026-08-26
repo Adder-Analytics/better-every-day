@@ -582,6 +582,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add now reads a trailing "!" as an importance flag, so a task can be starred the moment it\'s captured instead of opening its menu afterward — handy on a phone. End the line with "!" (or "!!") set off by a space: "Call the bank !", "Submit report tomorrow 2pm !". The recognized star shows in the add preview as an "Important" chip before you commit, and the task lands already starred — floating to the top of the day like any other important task. The space in front of the bang is the whole guard: an ordinary exclamation with no space before it ("Ship it!", "We did it!!") stays literal, and a lone "!" stays its own task. It stacks with the day, time, estimate, tag, due, and repeat phrases already parsed, and reads them even when the "!" is written last. Nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 73,
+    date: '2026-08-26',
+    title: 'See what you can type',
+    description:
+      'The add box has quietly grown to understand a lot of trailing phrases — "tomorrow" or "Friday" or "Aug 20" to pick a day, "9am" or "noon" or "9–11am" for a time, "30m" for how long, "due Friday" for a deadline, "every day" or "weekdays" or "every 3 days" to repeat, "#work" to tag, and a trailing "!" to mark it important — and they all stack in any order. None of that was written down where you type, so a "What you can type" line now sits under the add box: tap it and a small reference opens, grouped by what each phrase sets, each with an example you could type verbatim, and a note that they combine ("Report tomorrow 2pm 30m #work !" reads all of it at once). It is a plain disclosure — no hover, no modal, closes on tap again or Esc — and nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
