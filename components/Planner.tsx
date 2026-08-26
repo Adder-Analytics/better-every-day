@@ -19,6 +19,7 @@ import FocusTimer from '@/components/FocusTimer'
 import DayTimeline from '@/components/DayTimeline'
 import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
+import QuickAddTips from '@/components/QuickAddTips'
 
 const emptySubscribe = () => () => {}
 
@@ -2045,6 +2046,12 @@ export default function Planner() {
           </kbd>
         </button>
       </div>
+
+      {/* What the add box understands — a tappable reference to the trailing
+          phrases quick-add reads (a day, a time, an estimate, a deadline, a
+          repeat, a tag, a "!"), so the app's fastest path is discoverable
+          rather than something you have to already know. */}
+      <QuickAddTips />
 
       {/* Upcoming — what you've planned ahead, grouped by day and waiting
           quietly until each one turns into today. */}
