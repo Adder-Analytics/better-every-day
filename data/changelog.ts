@@ -590,6 +590,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box has quietly grown to understand a lot of trailing phrases — "tomorrow" or "Friday" or "Aug 20" to pick a day, "9am" or "noon" or "9–11am" for a time, "30m" for how long, "due Friday" for a deadline, "every day" or "weekdays" or "every 3 days" to repeat, "#work" to tag, and a trailing "!" to mark it important — and they all stack in any order. None of that was written down where you type, so a "What you can type" line now sits under the add box: tap it and a small reference opens, grouped by what each phrase sets, each with an example you could type verbatim, and a note that they combine ("Report tomorrow 2pm 30m #work !" reads all of it at once). It is a plain disclosure — no hover, no modal, closes on tap again or Esc — and nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 74,
+    date: '2026-08-27',
+    title: 'A recap when your day is done',
+    description:
+      'Checking off the last task of the day now shows a short recap in place of the plain "all done" line: how many tasks you finished, the time you had planned (when tasks carried estimates), and your current run of days completing something — each shown only when it has a real number. A "Plan tomorrow" button sits below it, setting the add box to Tomorrow and dropping the cursor there, so the natural next step is one tap away. It reads the completion history and estimates the planner already keeps; nothing about how tasks are stored changed, and the confetti burst is unchanged.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
@@ -20,6 +20,7 @@ import DayTimeline from '@/components/DayTimeline'
 import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
 import QuickAddTips from '@/components/QuickAddTips'
+import DayComplete from '@/components/DayComplete'
 
 const emptySubscribe = () => () => {}
 
@@ -1664,13 +1665,21 @@ export default function Planner() {
           matching the rest of the full-day state below. */}
       {!activeTag && <ComingDue items={comingDue} />}
 
-      {/* All done message — the full day's state, so it's held back while a tag
-          filter is showing only a slice. */}
+      {/* Day complete — the app's whole premise, a day finished. A warm recap of
+          what it held (tasks done, time planned, the running streak) with the
+          natural next step, plan tomorrow. Held back while a tag filter is
+          showing only a slice, since the recap reads the full day. */}
       {allDone && !activeTag && (
-        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-5 py-4 text-center">
-          <p className="text-emerald-700 dark:text-emerald-400 font-medium text-sm">All done for today</p>
-          <p className="text-emerald-600/70 dark:text-emerald-500/70 text-xs mt-0.5">Everything’s checked off. Enjoy the rest of your day.</p>
-        </div>
+        <DayComplete
+          doneCount={doneCount}
+          doneMin={doneMin}
+          streak={activityStreak(tasks)}
+          onPlanTomorrow={() => {
+            setAddFor('tomorrow')
+            inputRef.current?.focus()
+            inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }}
+        />
       )}
 
       {/* Carried over from past days — grouped by the day each was meant for so
