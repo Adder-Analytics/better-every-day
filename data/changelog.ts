@@ -598,6 +598,14 @@ export const changelog: ChangelogEntry[] = [
       'Checking off the last task of the day now shows a short recap in place of the plain "all done" line: how many tasks you finished, the time you had planned (when tasks carried estimates), and your current run of days completing something — each shown only when it has a real number. A "Plan tomorrow" button sits below it, setting the add box to Tomorrow and dropping the cursor there, so the natural next step is one tap away. It reads the completion history and estimates the planner already keeps; nothing about how tasks are stored changed, and the confetti burst is unchanged.',
     type: 'design',
   },
+  {
+    day: 75,
+    date: '2026-08-28',
+    title: 'Your streak, visible all day',
+    description:
+      'The daily streak — how many days in a row you\'ve finished at least one task — now sits quietly in the header beside the date, not only in the end-of-day recap. So the run you\'re keeping is visible the moment you open the app, when it can still nudge you to add and finish something today, rather than only once everything\'s already checked off. It appears once the run is real (two days or more), stays out of the way otherwise, and tapping it opens History and its activity calendar. Today counts as a grace day, so an unfinished morning never drops the streak early. It reads the completion history the recap and calendar already keep; nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

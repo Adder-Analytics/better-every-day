@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
@@ -152,6 +153,15 @@ function SparkIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+    </svg>
+  )
+}
+// Heroicons "fire" (solid) — the daily consistency streak. The warm, filled
+// form matches the streak flame the day-complete recap already uses.
+function FlameIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.963 2.286a.75.75 0 00-1.071-.136 9.742 9.742 0 00-3.539 6.176 7.547 7.547 0 01-1.705-1.715.75.75 0 00-1.152-.082A9 9 0 1015.68 4.534a7.46 7.46 0 01-2.717-2.248zM15.75 14.25a3.75 3.75 0 11-7.313-1.172c.628.465 1.35.81 2.133 1a5.99 5.99 0 011.925-3.545 3.75 3.75 0 013.255 3.717z" />
     </svg>
   )
 }
@@ -1144,6 +1154,11 @@ export default function Planner() {
     .sort((a, b) => a.on.localeCompare(b.on))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
+  // The daily consistency streak — days in a row with at least one task done,
+  // counting back from today (today is a grace day). Surfaced quietly in the
+  // header so momentum is visible on every visit, not only once the day's fully
+  // checked off. Reads the same completion history the recap and calendar use.
+  const streak = activityStreak(tasks)
   // A gentle read on how full today is. Only today's estimated tasks count, so
   // the number stays honest and never nags when nothing's been estimated.
   const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
@@ -1431,9 +1446,25 @@ export default function Planner() {
 
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">{greeting()}</h2>
-          <p className="text-xs text-zinc-400">{formatDate()}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-zinc-400">{formatDate()}</p>
+            {/* A quiet, always-on read on momentum — the day-in-a-row streak the
+                recap only shows once everything's checked off. Only a real run
+                (2+) earns the flame, so it encourages rather than nags, and it
+                links through to History where the streak's calendar lives. */}
+            {streak >= 2 && (
+              <Link
+                href="/history"
+                title={`${streak}-day streak — you’ve finished a task ${streak} days in a row. Keep it going today.`}
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 tabular-nums transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/50"
+              >
+                <FlameIcon className="h-3 w-3 flex-shrink-0" />
+                {streak}-day streak
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {!inFocus && todayTasks.length > 0 && (
