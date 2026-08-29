@@ -606,6 +606,14 @@ export const changelog: ChangelogEntry[] = [
       'The daily streak — how many days in a row you\'ve finished at least one task — now sits quietly in the header beside the date, not only in the end-of-day recap. So the run you\'re keeping is visible the moment you open the app, when it can still nudge you to add and finish something today, rather than only once everything\'s already checked off. It appears once the run is real (two days or more), stays out of the way otherwise, and tapping it opens History and its activity calendar. Today counts as a grace day, so an unfinished morning never drops the streak early. It reads the completion history the recap and calendar already keep; nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 76,
+    date: '2026-08-29',
+    title: 'Search your history',
+    description:
+      'The History page now has a search box: type a word and it filters the completed tasks below to the ones that match, grouped by the day they were finished, with a count of how many tasks across how many days. It answers the "when did I last do this?" questions — the gym, an invoice, a call — without scrolling the whole 30 days. Matches are highlighted in each result, the match runs over the task text and its #tags, and clearing the box (or pressing Escape) brings back the summary, calendar, and streaks. It reads the completion history the page already shows; nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
