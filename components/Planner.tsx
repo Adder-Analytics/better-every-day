@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
@@ -17,7 +18,10 @@ import CommandPalette, { type Command, type TaskResult, openCommandPalette } fro
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
 import DayTimeline from '@/components/DayTimeline'
+import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
+import QuickAddTips from '@/components/QuickAddTips'
+import DayComplete from '@/components/DayComplete'
 
 const emptySubscribe = () => () => {}
 
@@ -149,6 +153,15 @@ function SparkIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+    </svg>
+  )
+}
+// Heroicons "fire" (solid) — the daily consistency streak. The warm, filled
+// form matches the streak flame the day-complete recap already uses.
+function FlameIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.963 2.286a.75.75 0 00-1.071-.136 9.742 9.742 0 00-3.539 6.176 7.547 7.547 0 01-1.705-1.715.75.75 0 00-1.152-.082A9 9 0 1015.68 4.534a7.46 7.46 0 01-2.717-2.248zM15.75 14.25a3.75 3.75 0 11-7.313-1.172c.628.465 1.35.81 2.133 1a5.99 5.99 0 011.925-3.545 3.75 3.75 0 013.255 3.717z" />
     </svg>
   )
 }
@@ -624,11 +637,11 @@ export default function Planner() {
   // routine anchored to today. Shared by single and multi-line adds so every
   // line is captured exactly as one typed alone would be.
   const buildTask = (line: string): Task => {
-    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate } = parseQuickAdd(line)
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate }
-    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate }
+    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
+    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-    return { ...newTask(text, day), estimateMin, timeMin, dueDate }
+    return { ...newTask(text, day), estimateMin, timeMin, dueDate, priority }
   }
 
   const addTask = () => {
@@ -1118,8 +1131,34 @@ export default function Planner() {
     ...upcoming.map(t => searchTask(t, formatDayLabel(t.createdDate))),
     ...somedayTasks.map(t => searchTask(t, 'Someday')),
   ]
+  // Deadlines at risk of slipping: an unfinished task whose "due" chip only
+  // shows on its own row — parked in Someday, scheduled for a later day, or
+  // carried over from a past one — can go overdue unseen. Gather those that are
+  // overdue or due within a day (tone 'overdue' or 'soon') and lift them to the
+  // top, earliest deadline first. Today's active tasks are left out; they're
+  // already at the top of the list with their own chip. Sorting by the date
+  // string is chronological because it's YYYY-MM-DD, so overdue leads, then
+  // today, then tomorrow.
+  const dueCandidate = (t: Task, where: string): (DueItem & { on: string }) | null => {
+    if (t.done || !t.dueDate) return null
+    const due = formatDue(t.dueDate, today)
+    if (!due || due.tone === 'later') return null
+    return { id: t.id, text: stripTags(t.text), where, label: due.label, tone: due.tone, on: t.dueDate, run: () => revealTask(t.id) }
+  }
+  const comingDue: DueItem[] = [
+    ...carryovers.map(t => dueCandidate(t, formatPastDayLabel(t.createdDate))),
+    ...upcoming.map(t => dueCandidate(t, formatDayLabel(t.createdDate))),
+    ...somedayTasks.map(t => dueCandidate(t, 'Someday')),
+  ]
+    .filter((x): x is DueItem & { on: string } => x !== null)
+    .sort((a, b) => a.on.localeCompare(b.on))
   const doneCount = todayTasks.filter(t => t.done).length
   const allDone = todayTasks.length > 0 && doneCount === todayTasks.length && carryovers.length === 0
+  // The daily consistency streak — days in a row with at least one task done,
+  // counting back from today (today is a grace day). Surfaced quietly in the
+  // header so momentum is visible on every visit, not only once the day's fully
+  // checked off. Reads the same completion history the recap and calendar use.
+  const streak = activityStreak(tasks)
   // A gentle read on how full today is. Only today's estimated tasks count, so
   // the number stays honest and never nags when nothing's been estimated.
   const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
@@ -1407,9 +1446,25 @@ export default function Planner() {
 
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">{greeting()}</h2>
-          <p className="text-xs text-zinc-400">{formatDate()}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-zinc-400">{formatDate()}</p>
+            {/* A quiet, always-on read on momentum — the day-in-a-row streak the
+                recap only shows once everything's checked off. Only a real run
+                (2+) earns the flame, so it encourages rather than nags, and it
+                links through to History where the streak's calendar lives. */}
+            {streak >= 2 && (
+              <Link
+                href="/history"
+                title={`${streak}-day streak — you’ve finished a task ${streak} days in a row. Keep it going today.`}
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 tabular-nums transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/50"
+              >
+                <FlameIcon className="h-3 w-3 flex-shrink-0" />
+                {streak}-day streak
+              </Link>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {!inFocus && todayTasks.length > 0 && (
@@ -1635,13 +1690,27 @@ export default function Planner() {
       )}
 
       {!inFocus && (<>
-      {/* All done message — the full day's state, so it's held back while a tag
-          filter is showing only a slice. */}
+      {/* Deadlines about to slip — surfaced above the day's list so a task due
+          today or tomorrow (or already overdue) that's parked elsewhere doesn't
+          hide until it's too late. Held back while a tag filter shows a slice,
+          matching the rest of the full-day state below. */}
+      {!activeTag && <ComingDue items={comingDue} />}
+
+      {/* Day complete — the app's whole premise, a day finished. A warm recap of
+          what it held (tasks done, time planned, the running streak) with the
+          natural next step, plan tomorrow. Held back while a tag filter is
+          showing only a slice, since the recap reads the full day. */}
       {allDone && !activeTag && (
-        <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-5 py-4 text-center">
-          <p className="text-emerald-700 dark:text-emerald-400 font-medium text-sm">All done for today</p>
-          <p className="text-emerald-600/70 dark:text-emerald-500/70 text-xs mt-0.5">Everything’s checked off. Enjoy the rest of your day.</p>
-        </div>
+        <DayComplete
+          doneCount={doneCount}
+          doneMin={doneMin}
+          streak={activityStreak(tasks)}
+          onPlanTomorrow={() => {
+            setAddFor('tomorrow')
+            inputRef.current?.focus()
+            inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }}
+        />
       )}
 
       {/* Carried over from past days — grouped by the day each was meant for so
@@ -1926,7 +1995,7 @@ export default function Planner() {
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || parsed.dueDate || previewTags.length > 0) && parsed.text && (
+      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || parsed.dueDate || parsed.priority || previewTags.length > 0) && parsed.text && (
         <div
           aria-live="polite"
           className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-zinc-400"
@@ -1973,6 +2042,14 @@ export default function Planner() {
               )}
             </>
           )}
+          {parsed.priority && (
+            <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-950/50 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-400">
+              <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+              </svg>
+              Important
+            </span>
+          )}
           {previewTags.map(tag => (
             <TagChip key={tag} tag={tag} />
           ))}
@@ -2009,6 +2086,12 @@ export default function Planner() {
           </kbd>
         </button>
       </div>
+
+      {/* What the add box understands — a tappable reference to the trailing
+          phrases quick-add reads (a day, a time, an estimate, a deadline, a
+          repeat, a tag, a "!"), so the app's fastest path is discoverable
+          rather than something you have to already know. */}
+      <QuickAddTips />
 
       {/* Upcoming — what you've planned ahead, grouped by day and waiting
           quietly until each one turns into today. */}

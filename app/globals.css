@@ -47,6 +47,31 @@
   }
 }
 
+/* The quick-add tips disclosure: a short fade and slide as the card opens. */
+@keyframes tips-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The day-complete recap's entrance: a gentle fade and settle as the last task
+   is checked off. */
+@keyframes daycomplete-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* A task jumped to from search flashes an emerald outline once, then settles.
    box-shadow (not a ring) is used so it never fights a row's selection ring. */
 @keyframes reveal-flash {
@@ -65,7 +90,9 @@
 /* Honor a user's reduced-motion preference for the app's entrances. */
 @media (prefers-reduced-motion: reduce) {
   .animate-\[toast-in_150ms_ease-out\],
-  .animate-\[palette-in_120ms_ease-out\] {
+  .animate-\[palette-in_120ms_ease-out\],
+  .animate-\[tips-in_140ms_ease-out\],
+  .animate-\[daycomplete-in_260ms_ease-out\] {
     animation: none;
   }
   /* Keep a revealed task legible without the pulse: a steady outline for its

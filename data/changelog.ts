@@ -566,6 +566,62 @@ export const changelog: ChangelogEntry[] = [
       'While you\'re composing a task, the add box now offers the tags you\'ve already used as small chips beneath it — tap one to drop it into the task instead of retyping it from memory. They\'re sorted by how often you use each, capped at eight, and a tag already in the draft steps out of the row. Because the spelling comes from the chip, a stray "#wrok" no longer splinters a filter away from "#work". The chips appear only while the box is focused and holds a single line, so a resting box and a pasted brain dump stay uncluttered, and a first-ever task shows nothing since there\'s nothing to suggest yet. Tags are still read from the task text, so nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 71,
+    date: '2026-08-24',
+    title: 'See what’s coming due',
+    description:
+      'A task with a deadline that isn’t sitting in today’s list — one parked in Someday, scheduled for a later day, or carried over from a past one — now shows in a "Coming due" panel at the top of the day instead of only on its own row further down. It gathers the ones that are overdue or due within a day, sorts them earliest-deadline-first, and notes where each lives and how its deadline reads ("overdue", "due today", "due tomorrow"); overdue items are marked in rose, ones due soon in amber. Tapping a row jumps to the task and flashes it. The panel only appears when something is in that window, so a day with nothing looming stays uncluttered, and today’s own tasks are left out since they already sit at the top with their due chip. It reads deadlines already stored on tasks, so nothing about how data is stored changed.',
+    type: 'feature',
+  },
+  {
+    day: 72,
+    date: '2026-08-25',
+    title: 'Star a task as you add it',
+    description:
+      'Quick-add now reads a trailing "!" as an importance flag, so a task can be starred the moment it\'s captured instead of opening its menu afterward — handy on a phone. End the line with "!" (or "!!") set off by a space: "Call the bank !", "Submit report tomorrow 2pm !". The recognized star shows in the add preview as an "Important" chip before you commit, and the task lands already starred — floating to the top of the day like any other important task. The space in front of the bang is the whole guard: an ordinary exclamation with no space before it ("Ship it!", "We did it!!") stays literal, and a lone "!" stays its own task. It stacks with the day, time, estimate, tag, due, and repeat phrases already parsed, and reads them even when the "!" is written last. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
+  {
+    day: 73,
+    date: '2026-08-26',
+    title: 'See what you can type',
+    description:
+      'The add box has quietly grown to understand a lot of trailing phrases — "tomorrow" or "Friday" or "Aug 20" to pick a day, "9am" or "noon" or "9–11am" for a time, "30m" for how long, "due Friday" for a deadline, "every day" or "weekdays" or "every 3 days" to repeat, "#work" to tag, and a trailing "!" to mark it important — and they all stack in any order. None of that was written down where you type, so a "What you can type" line now sits under the add box: tap it and a small reference opens, grouped by what each phrase sets, each with an example you could type verbatim, and a note that they combine ("Report tomorrow 2pm 30m #work !" reads all of it at once). It is a plain disclosure — no hover, no modal, closes on tap again or Esc — and nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
+  {
+    day: 74,
+    date: '2026-08-27',
+    title: 'A recap when your day is done',
+    description:
+      'Checking off the last task of the day now shows a short recap in place of the plain "all done" line: how many tasks you finished, the time you had planned (when tasks carried estimates), and your current run of days completing something — each shown only when it has a real number. A "Plan tomorrow" button sits below it, setting the add box to Tomorrow and dropping the cursor there, so the natural next step is one tap away. It reads the completion history and estimates the planner already keeps; nothing about how tasks are stored changed, and the confetti burst is unchanged.',
+    type: 'design',
+  },
+  {
+    day: 75,
+    date: '2026-08-28',
+    title: 'Your streak, visible all day',
+    description:
+      'The daily streak — how many days in a row you\'ve finished at least one task — now sits quietly in the header beside the date, not only in the end-of-day recap. So the run you\'re keeping is visible the moment you open the app, when it can still nudge you to add and finish something today, rather than only once everything\'s already checked off. It appears once the run is real (two days or more), stays out of the way otherwise, and tapping it opens History and its activity calendar. Today counts as a grace day, so an unfinished morning never drops the streak early. It reads the completion history the recap and calendar already keep; nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
+  {
+    day: 76,
+    date: '2026-08-29',
+    title: 'Search your history',
+    description:
+      'The History page now has a search box: type a word and it filters the completed tasks below to the ones that match, grouped by the day they were finished, with a count of how many tasks across how many days. It answers the "when did I last do this?" questions — the gym, an invoice, a call — without scrolling the whole 30 days. Matches are highlighted in each result, the match runs over the task text and its #tags, and clearing the box (or pressing Escape) brings back the summary, calendar, and streaks. It reads the completion history the page already shows; nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
+  {
+    day: 77,
+    date: '2026-08-30',
+    title: 'Use it offline',
+    description:
+      'The planner now works with no connection. It was already installable and local-first — tasks live in the browser and nothing is sent anywhere — but opening it still needed the network, so an installed app on a plane or in a dead zone met a blank screen. A service worker caches the app shell and its assets on first visit, then serves them offline: the home, week, routines, history, and changelog pages all open and run without a connection. Online visits still load the freshest build (so each day\'s update arrives as before), and nothing about how tasks are stored changed. Registered only in production, so development is unaffected.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
