@@ -614,6 +614,14 @@ export const changelog: ChangelogEntry[] = [
       'The History page now has a search box: type a word and it filters the completed tasks below to the ones that match, grouped by the day they were finished, with a count of how many tasks across how many days. It answers the "when did I last do this?" questions — the gym, an invoice, a call — without scrolling the whole 30 days. Matches are highlighted in each result, the match runs over the task text and its #tags, and clearing the box (or pressing Escape) brings back the summary, calendar, and streaks. It reads the completion history the page already shows; nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 77,
+    date: '2026-08-30',
+    title: 'Use it offline',
+    description:
+      'The planner now works with no connection. It was already installable and local-first — tasks live in the browser and nothing is sent anywhere — but opening it still needed the network, so an installed app on a plane or in a dead zone met a blank screen. A service worker caches the app shell and its assets on first visit, then serves them offline: the home, week, routines, history, and changelog pages all open and run without a connection. Online visits still load the freshest build (so each day\'s update arrives as before), and nothing about how tasks are stored changed. Registered only in production, so development is unaffected.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
