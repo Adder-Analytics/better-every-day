@@ -11,13 +11,13 @@
 // of strategies over same-origin GETs. Data never touches it — there's nothing
 // to sync — so it only ever caches the code and static files that render the UI.
 
-const VERSION = 'bed-v1'
+const VERSION = 'bed-v2'
 const CORE_CACHE = `${VERSION}-core`
 const RUNTIME_CACHE = `${VERSION}-runtime`
 
 // The app's own routes, precached on install so each one opens offline even if
 // only the home page was visited before the connection dropped.
-const CORE_ROUTES = ['/', '/week', '/routines', '/history', '/changelog']
+const CORE_ROUTES = ['/', '/week', '/month', '/routines', '/history', '/changelog']
 
 self.addEventListener('install', event => {
   event.waitUntil(

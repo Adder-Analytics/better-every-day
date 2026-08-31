@@ -207,6 +207,15 @@ function CalendarPlusIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+// A calendar frame with a single highlighted cell — the month-ahead grid view.
+function CalendarMonthIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 8.25h18M4.5 5.25h15a1.5 1.5 0 011.5 1.5v12a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5v-12a1.5 1.5 0 011.5-1.5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12h2.25v2.25H7.5z" />
+    </svg>
+  )
+}
 // Heroicons "command-line" — the palette opener.
 function CommandIcon({ className }: { className?: string }) {
   return (
@@ -1328,6 +1337,7 @@ export default function Planner() {
       : []),
     { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', keywords: 'keys help hotkeys cheatsheet', icon: <ShortcutsIcon className="h-4 w-4" />, run: openShortcutsHelp },
     { id: 'week', label: 'Plan the week ahead', keywords: 'week upcoming plan ahead schedule seven days', icon: <CalendarDaysIcon className="h-4 w-4" />, run: () => router.push('/week') },
+    { id: 'month', label: 'Open the month ahead', keywords: 'month calendar ahead schedule deadlines grid overview', icon: <CalendarMonthIcon className="h-4 w-4" />, run: () => router.push('/month') },
     ...(tasks.some(t => t.repeat)
       ? [{ id: 'routines', label: 'Open Routines', keywords: 'routine habit repeat streak recurring cadence rhythm', icon: <ScheduleIcon kind="repeat" className="h-4 w-4" />, run: () => router.push('/routines') }]
       : []),
