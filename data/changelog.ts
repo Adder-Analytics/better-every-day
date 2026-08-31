@@ -622,6 +622,14 @@ export const changelog: ChangelogEntry[] = [
       'The planner now works with no connection. It was already installable and local-first — tasks live in the browser and nothing is sent anywhere — but opening it still needed the network, so an installed app on a plane or in a dead zone met a blank screen. A service worker caches the app shell and its assets on first visit, then serves them offline: the home, week, routines, history, and changelog pages all open and run without a connection. Online visits still load the freshest build (so each day\'s update arrives as before), and nothing about how tasks are stored changed. Registered only in production, so development is unaffected.',
     type: 'feature',
   },
+  {
+    day: 78,
+    date: '2026-08-31',
+    title: 'See the month ahead',
+    description:
+      'A new Month page lays out the whole month on a calendar, filling the gap between the day and the seven-day week views — so tasks scheduled weeks out and deadlines further off are finally visible somewhere instead of only on their own row when the day arrives. Each day cell carries small dots for what falls on it: scheduled one-off tasks, routines due, important (starred) tasks, and a ringed marker for any deadline landing that day. Tap a day to see everything on it below the grid — with times, tags, estimates, repeat cadence, and how each deadline reads — and drop a new task straight onto it with the same inline parsing the home box uses (a time, a block, "every day" to repeat, "due Friday" for a deadline). Move between months with the arrows, and a Today button jumps back. It reads and writes the tasks already stored, so nothing about how data is saved changed. Reachable from a "Month" link in the header, the command menu (Cmd/Ctrl+K), and the week view, and it opens offline like the other pages.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
