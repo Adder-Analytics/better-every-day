@@ -630,6 +630,14 @@ export const changelog: ChangelogEntry[] = [
       'A new Month page lays out the whole month on a calendar, filling the gap between the day and the seven-day week views — so tasks scheduled weeks out and deadlines further off are finally visible somewhere instead of only on their own row when the day arrives. Each day cell carries small dots for what falls on it: scheduled one-off tasks, routines due, important (starred) tasks, and a ringed marker for any deadline landing that day. Tap a day to see everything on it below the grid — with times, tags, estimates, repeat cadence, and how each deadline reads — and drop a new task straight onto it with the same inline parsing the home box uses (a time, a block, "every day" to repeat, "due Friday" for a deadline). Move between months with the arrows, and a Today button jumps back. It reads and writes the tasks already stored, so nothing about how data is saved changed. Reachable from a "Month" link in the header, the command menu (Cmd/Ctrl+K), and the week view, and it opens offline like the other pages.',
     type: 'feature',
   },
+  {
+    day: 79,
+    date: '2026-09-01',
+    title: 'Name your focus for the day',
+    description:
+      'A single line at the top of the day holds the one thing you most want to get done — set it in the morning and it stays in view while you work, above the list rather than lost inside it. It is the forward-looking counterpart to the day note at the bottom, which catches what a day leaves behind once it is over. Tap "Set today’s focus" to write it, edit or clear it any time; it is one line, kept per day in the browser under a new bed-dayfocus key, separate from your tasks, so nothing about how tasks are stored changed. It is held back in focus mode, where a single task is already the whole view.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

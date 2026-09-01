@@ -13,6 +13,7 @@ import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
+import DayFocus from '@/components/DayFocus'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
@@ -1453,6 +1454,13 @@ export default function Planner() {
           </button>
         </div>
       )}
+
+      {/* Today's focus — one line to name the thing that matters most today,
+          pinned above the list and glanced at all day. Forward-looking, the
+          counterpart to the retrospective day note at the bottom; stored under
+          its own key, so it never touches task data. Held back in focus mode,
+          where a single task is already the whole view. */}
+      {!inFocus && <DayFocus />}
 
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
