@@ -431,6 +431,12 @@ export default function Planner() {
   // Whether the add box is focused — gates the "reuse a tag" suggestions so they
   // appear only while you're composing, keeping the resting UI clean.
   const [addFocused, setAddFocused] = useState(false)
+  // The highlighted row in the task-suggestion list (−1 = none), and whether the
+  // list has been dismissed (Escape or an accepted pick) for the current draft.
+  // Both reset as soon as the text changes again, so the list follows what you
+  // type. See the suggestions computed below the render body.
+  const [suggestIndex, setSuggestIndex] = useState(-1)
+  const [suggestDismissed, setSuggestDismissed] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   // Whether today's finished tasks are shown or folded into a "Completed"
@@ -1249,6 +1255,71 @@ export default function Planner() {
     inputRef.current?.focus()
   }
 
+  // Task titles you've entered before, offered as you type so a task you add
+  // often — "Standup", "Walk the dog" — is one tap to reuse instead of retyping
+  // it (and its #tags, which ride along in the stored text). Read from the text
+  // already on your tasks, so nothing new is saved. A title is ranked by how
+  // often it's been used, then how recently, and shown only when what you've
+  // typed is a substring of it — a prefix match leads. Held to a single line
+  // (a brain dump appends to the wrong one), and to a real query so the resting
+  // box and a first keystroke stay quiet.
+  const suggestQuery = addLineCount < 2 ? newText.trim() : ''
+  const suggestQueryLower = suggestQuery.toLowerCase()
+  const taskUse = new Map<string, { count: number; last: string }>()
+  if (suggestQuery.length >= 2) {
+    for (const t of tasks) {
+      const text = t.text.trim()
+      if (!text) continue
+      const prev = taskUse.get(text)
+      const created = t.createdDate ?? ''
+      if (prev) {
+        prev.count++
+        if (created > prev.last) prev.last = created
+      } else {
+        taskUse.set(text, { count: 1, last: created })
+      }
+    }
+  }
+  const taskSuggestions =
+    suggestQuery.length >= 2
+      ? [...taskUse.entries()]
+          .filter(([text]) => {
+            const lower = text.toLowerCase()
+            return lower.includes(suggestQueryLower) && lower !== suggestQueryLower
+          })
+          .sort((a, b) => {
+            // Prefix matches lead, then most-used, then most-recent, then A–Z.
+            const ap = a[0].toLowerCase().startsWith(suggestQueryLower) ? 0 : 1
+            const bp = b[0].toLowerCase().startsWith(suggestQueryLower) ? 0 : 1
+            if (ap !== bp) return ap - bp
+            if (b[1].count !== a[1].count) return b[1].count - a[1].count
+            if (b[1].last !== a[1].last) return b[1].last.localeCompare(a[1].last)
+            return a[0].localeCompare(b[0])
+          })
+          .map(([text]) => text)
+          .slice(0, 6)
+      : []
+  const showTaskSuggestions = addFocused && !suggestDismissed && taskSuggestions.length > 0
+  // The highlighted row, clamped to what's actually shown so a shrinking list
+  // never points past its end.
+  const activeSuggest = suggestIndex >= 0 && suggestIndex < taskSuggestions.length ? suggestIndex : -1
+
+  // Drop a picked suggestion into the box (with a trailing space to keep typing)
+  // rather than adding it outright, so any time or estimate can still be tacked
+  // on and the quick-add preview confirms it before it's committed.
+  const applyTaskSuggestion = (text: string) => {
+    setNewText(`${text} `)
+    setSuggestIndex(-1)
+    setSuggestDismissed(true)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const end = el.value.length
+      el.setSelectionRange(end, end)
+    })
+  }
+
   // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
   // on the client; the opener only renders after mount, so it's never on the
   // server's HTML.
@@ -1942,13 +2013,39 @@ export default function Planner() {
           value={newText}
           rows={1}
           aria-label="Add a task"
-          onChange={e => setNewText(e.target.value)}
+          role="combobox"
+          aria-expanded={showTaskSuggestions}
+          aria-controls="task-suggestions"
+          aria-autocomplete="list"
+          aria-activedescendant={activeSuggest >= 0 ? `task-suggestion-${activeSuggest}` : undefined}
+          onChange={e => { setNewText(e.target.value); setSuggestIndex(-1); setSuggestDismissed(false) }}
           onFocus={() => setAddFocused(true)}
           onBlur={() => setAddFocused(false)}
           onKeyDown={e => {
+            // While the suggestion list is open, the arrow keys move the
+            // highlight (wrapping around) instead of the text cursor.
+            if (showTaskSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+              e.preventDefault()
+              const n = taskSuggestions.length
+              setSuggestIndex(i =>
+                e.key === 'ArrowDown' ? (i + 1 >= n ? 0 : i + 1) : (i - 1 < 0 ? n - 1 : i - 1)
+              )
+              return
+            }
             // Plain Enter adds; Shift+Enter drops to a new line for the next task.
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() }
-            if (e.key === 'Escape') setNewText('')
+            // With a suggestion highlighted, Enter takes it into the box instead,
+            // so the common type-and-add flow is unchanged when none is picked.
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (activeSuggest >= 0) applyTaskSuggestion(taskSuggestions[activeSuggest])
+              else addTask()
+              return
+            }
+            // Escape closes the suggestions first if they're open, then clears.
+            if (e.key === 'Escape') {
+              if (showTaskSuggestions) { setSuggestDismissed(true); setSuggestIndex(-1) }
+              else setNewText('')
+            }
           }}
           placeholder={
             addFor === 'tomorrow'
@@ -1968,13 +2065,62 @@ export default function Planner() {
         </button>
       </div>
 
+      {/* Reuse a task — titles you've entered before, matched against what
+          you're typing, so a task you add often is one tap to bring back instead
+          of retyping it. A plain tap or Enter drops it into the box (it isn't
+          added outright, so a time or estimate can still follow); the arrow keys
+          move the highlight and Escape dismisses. Touch-friendly — the
+          mousedown-preventDefault keeps the box focused so the list doesn't
+          vanish from under the tap. */}
+      {showTaskSuggestions && (
+        <ul
+          id="task-suggestions"
+          role="listbox"
+          aria-label="Tasks you've used before"
+          className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm"
+        >
+          {taskSuggestions.map((text, i) => {
+            // Split the title around the first match so the typed part reads a
+            // shade stronger than the rest — the same highlight History uses.
+            const at = text.toLowerCase().indexOf(suggestQueryLower)
+            const before = text.slice(0, at)
+            const match = text.slice(at, at + suggestQuery.length)
+            const after = text.slice(at + suggestQuery.length)
+            return (
+              <li key={text} role="option" id={`task-suggestion-${i}`} aria-selected={i === activeSuggest}>
+                <button
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onMouseEnter={() => setSuggestIndex(i)}
+                  onClick={() => applyTaskSuggestion(text)}
+                  title={`Reuse “${stripTags(text)}”`}
+                  className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors ${
+                    i === activeSuggest
+                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white'
+                      : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
+                  }`}
+                >
+                  <HistoryIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
+                  <span className="min-w-0 truncate">
+                    {before}
+                    <span className="font-medium text-zinc-900 dark:text-white">{match}</span>
+                    {after}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
       {/* Reuse a tag — the tags you already use, one tap to drop into the box.
           Only while composing a single line (a brain dump appends to the wrong
           line), and never on a first-ever task, since there's nothing to
-          suggest yet. Kept touch-friendly: a plain tap, no hover needed. The
+          suggest yet. Held back while task suggestions are showing so the two
+          don't stack. Kept touch-friendly: a plain tap, no hover needed. The
           mousedown-preventDefault keeps the box focused so the row doesn't
           vanish out from under the tap. */}
-      {addFocused && addLineCount < 2 && tagSuggestions.length > 0 && (
+      {addFocused && !showTaskSuggestions && addLineCount < 2 && tagSuggestions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-1">
           <svg aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
