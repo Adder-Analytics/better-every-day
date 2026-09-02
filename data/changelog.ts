@@ -638,6 +638,14 @@ export const changelog: ChangelogEntry[] = [
       'A single line at the top of the day holds the one thing you most want to get done — set it in the morning and it stays in view while you work, above the list rather than lost inside it. It is the forward-looking counterpart to the day note at the bottom, which catches what a day leaves behind once it is over. Tap "Set today’s focus" to write it, edit or clear it any time; it is one line, kept per day in the browser under a new bed-dayfocus key, separate from your tasks, so nothing about how tasks are stored changed. It is held back in focus mode, where a single task is already the whole view.',
     type: 'feature',
   },
+  {
+    day: 80,
+    date: '2026-09-02',
+    title: 'Reuse a task you’ve typed before',
+    description:
+      'As you type in the add box, the tasks you’ve entered before now surface as suggestions, so a task you add often — "Standup", "Walk the dog", "Email the team #work" — is one tap to bring back instead of retyping it. Matches are drawn from the text already stored on your tasks (so any #tags come along), ranked by how often and how recently each has been used, with prefix matches leading and the typed part highlighted. Picking one drops it into the box rather than adding it outright, so a time or estimate can still follow and the quick-add preview confirms it first; the arrow keys move through the list, Enter takes the highlighted one, and Escape dismisses it. It only appears while you’re composing a single line, so a pasted brain dump and the resting box stay uncluttered, and plain Enter still adds when nothing is highlighted — the type-and-add flow is unchanged. Tasks are still read from their stored text, so nothing about how data is saved changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
