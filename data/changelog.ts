@@ -646,6 +646,14 @@ export const changelog: ChangelogEntry[] = [
       'As you type in the add box, the tasks you’ve entered before now surface as suggestions, so a task you add often — "Standup", "Walk the dog", "Email the team #work" — is one tap to bring back instead of retyping it. Matches are drawn from the text already stored on your tasks (so any #tags come along), ranked by how often and how recently each has been used, with prefix matches leading and the typed part highlighted. Picking one drops it into the box rather than adding it outright, so a time or estimate can still follow and the quick-add preview confirms it first; the arrow keys move through the list, Enter takes the highlighted one, and Escape dismisses it. It only appears while you’re composing a single line, so a pasted brain dump and the resting box stay uncluttered, and plain Enter still adds when nothing is highlighted — the type-and-add flow is unchanged. Tasks are still read from their stored text, so nothing about how data is saved changed.',
     type: 'feature',
   },
+  {
+    day: 81,
+    date: '2026-09-03',
+    title: 'Plan into your open time',
+    description:
+      'The day timeline already drew the open stretches between your timed tasks; those gaps are now tappable. Tap one and the add box opens with that start time set, so the next task lands in the slot you picked — a way to plan around fixed blocks without reaching for the time menu. A slot only appears where the open stretch is at least half an hour and still ahead of now, and its start snaps to a clean five minutes; a quiet "+" marks it, with the time showing on hover or focus. A green "Planning at 3:30 PM" chip by the add box confirms the time and clears it, and a time or day typed into the task still wins over the slot, so nothing is forced. The timeline (and so this) shows once two tasks have a time of day. It reuses the time already stored on tasks — nothing about how data is saved changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
