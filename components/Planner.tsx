@@ -428,6 +428,11 @@ export default function Planner() {
   )
   const [newText, setNewText] = useState('')
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
+  // A start time picked from an open slot on the timeline. When set, the next
+  // task added (without its own time) lands at this minute of today; a chip by
+  // the add box shows it and clears it. Held to today, since it comes from
+  // today's shape.
+  const [presetTime, setPresetTime] = useState<number | null>(null)
   // Whether the add box is focused — gates the "reuse a tag" suggestions so they
   // appear only while you're composing, keeping the resting UI clean.
   const [addFocused, setAddFocused] = useState(false)
@@ -538,6 +543,19 @@ export default function Planner() {
     }, 60)
     if (revealTimer.current) clearTimeout(revealTimer.current)
     revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }, [])
+
+  // Plan into an open slot tapped on the timeline: remember the start time, make
+  // sure we're adding to today, and bring the add box into view with the cursor
+  // in it, so the tap flows straight into typing the task.
+  const planAt = useCallback((timeMin: number) => {
+    setPresetTime(timeMin)
+    setAddFor('today')
+    setFocusMode(false)
+    setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 60)
   }, [])
 
   useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
@@ -652,12 +670,17 @@ export default function Planner() {
   // otherwise the toggle is the default. A recognized recurrence becomes a
   // routine anchored to today. Shared by single and multi-line adds so every
   // line is captured exactly as one typed alone would be.
-  const buildTask = (line: string): Task => {
+  // `preset`, when given, is a start time picked from the timeline — it fills a
+  // plain today task that named no time of its own. A line that carries its own
+  // time, date, or recurrence is honored as typed, so the preset never overrides
+  // what the words already say.
+  const buildTask = (line: string, preset?: number): Task => {
     const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(line)
     if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
     if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-    return { ...newTask(text, day), estimateMin, timeMin, dueDate, priority }
+    const finalTime = timeMin ?? (!date && addFor === 'today' ? preset : undefined)
+    return { ...newTask(text, day), estimateMin, timeMin: finalTime, dueDate, priority }
   }
 
   const addTask = () => {
@@ -666,9 +689,13 @@ export default function Planner() {
     // case and behaves exactly as before.
     const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return
-    const created = lines.map(buildTask)
+    // A slot picked from the timeline applies to a single task — spreading one
+    // start time across a pasted list would just stack them at the same minute.
+    const preset = lines.length === 1 ? presetTime ?? undefined : undefined
+    const created = lines.map(line => buildTask(line, preset))
     setTasks(prev => [...prev, ...created])
     setNewText('')
+    setPresetTime(null)
   }
 
   const toggleTask = (id: string) => {
@@ -1712,6 +1739,7 @@ export default function Planner() {
           }))}
           nowMin={nowMin}
           onSelect={revealTask}
+          onPlan={planAt}
         />
       )}
 
@@ -2003,6 +2031,30 @@ export default function Planner() {
         </div>
       )}
 
+      {/* A start time carried in from an open slot on the timeline — the next
+          task lands here unless its own words say otherwise. Clearable, so a tap
+          on the timeline is never a commitment. */}
+      {presetTime != null && (
+        <div className="flex items-center px-1 pt-1">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 py-0.5 pl-2 pr-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="tabular-nums">Planning at {formatTime(presetTime)}</span>
+            <button
+              type="button"
+              onClick={() => setPresetTime(null)}
+              aria-label="Clear the planned time"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-emerald-600/80 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400/80 dark:hover:text-emerald-300"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Add task. A textarea, so a pasted list keeps its line breaks and
           Shift+Enter can stack several — each line becomes its own task. Plain
           Enter still adds (on every device), so the single-task flow is
@@ -2225,7 +2277,7 @@ export default function Planner() {
           {(['today', 'tomorrow', 'someday'] as const).map(when => (
             <button
               key={when}
-              onClick={() => setAddFor(when)}
+              onClick={() => { setAddFor(when); if (when !== 'today') setPresetTime(null) }}
               aria-pressed={addFor === when}
               className={`px-2.5 py-1 rounded-full capitalize transition-colors ${
                 addFor === when
