@@ -654,6 +654,14 @@ export const changelog: ChangelogEntry[] = [
       'The day timeline already drew the open stretches between your timed tasks; those gaps are now tappable. Tap one and the add box opens with that start time set, so the next task lands in the slot you picked — a way to plan around fixed blocks without reaching for the time menu. A slot only appears where the open stretch is at least half an hour and still ahead of now, and its start snaps to a clean five minutes; a quiet "+" marks it, with the time showing on hover or focus. A green "Planning at 3:30 PM" chip by the add box confirms the time and clears it, and a time or day typed into the task still wins over the slot, so nothing is forced. The timeline (and so this) shows once two tasks have a time of day. It reuses the time already stored on tasks — nothing about how data is saved changed.',
     type: 'feature',
   },
+  {
+    day: 82,
+    date: '2026-09-04',
+    title: 'Print today’s plan',
+    description:
+      'Today’s plan can now be printed as a clean paper sheet — to pin up, tuck in a notebook, or cross off by hand. A printer action sits in the day header beside Copy plan and the calendar export, and in the command menu (Cmd/Ctrl+K) as "Print today’s plan". The printout is just the day: the date, the day’s focus if one is set, today’s tasks (with times, blocks, estimates, tags, notes, and steps) and anything carried over from earlier, then the day note and a few ruled lines to write on. It drops the app’s chrome and dark background so what prints is the sheet alone — checkboxes drawn so they survive a black-and-white printer, finished tasks checked and struck through. It reads the full day, not a tag-filtered slice, and nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

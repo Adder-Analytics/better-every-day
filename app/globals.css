@@ -109,3 +109,24 @@ body {
   /* Use the Geist font loaded in the root layout (was incorrectly Arial). */
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Print: show only the day's print sheet (a body-level sibling of the app,
+   see DayPrintSheet). Hiding every other body child — rather than styling the
+   live app for print — keeps the printout free of app chrome and avoids blank
+   pages from the hidden app being laid out behind it. Force a light page so a
+   dark theme doesn't carry a black background onto paper. */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  body > *:not(.day-print-root) {
+    display: none !important;
+  }
+  .day-print-root {
+    display: block !important;
+  }
+  @page {
+    margin: 1.4cm;
+  }
+}
