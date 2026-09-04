@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
+import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
@@ -13,6 +14,7 @@ import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
+import DayFocus from '@/components/DayFocus'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
@@ -233,6 +235,15 @@ function ClipboardIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "printer" — print today's plan as a clean paper sheet.
+function PrinterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5z" />
+    </svg>
+  )
+}
+
 // Reminders turn today's agenda from something you read into something that
 // nudges you: when a timed task's moment arrives, a browser notification fires
 // so you don't have to keep an eye on the clock. It's opt-in (a bell in the
@@ -427,9 +438,20 @@ export default function Planner() {
   )
   const [newText, setNewText] = useState('')
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
+  // A start time picked from an open slot on the timeline. When set, the next
+  // task added (without its own time) lands at this minute of today; a chip by
+  // the add box shows it and clears it. Held to today, since it comes from
+  // today's shape.
+  const [presetTime, setPresetTime] = useState<number | null>(null)
   // Whether the add box is focused — gates the "reuse a tag" suggestions so they
   // appear only while you're composing, keeping the resting UI clean.
   const [addFocused, setAddFocused] = useState(false)
+  // The highlighted row in the task-suggestion list (−1 = none), and whether the
+  // list has been dismissed (Escape or an accepted pick) for the current draft.
+  // Both reset as soon as the text changes again, so the list follows what you
+  // type. See the suggestions computed below the render body.
+  const [suggestIndex, setSuggestIndex] = useState(-1)
+  const [suggestDismissed, setSuggestDismissed] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   // Whether today's finished tasks are shown or folded into a "Completed"
@@ -531,6 +553,19 @@ export default function Planner() {
     }, 60)
     if (revealTimer.current) clearTimeout(revealTimer.current)
     revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }, [])
+
+  // Plan into an open slot tapped on the timeline: remember the start time, make
+  // sure we're adding to today, and bring the add box into view with the cursor
+  // in it, so the tap flows straight into typing the task.
+  const planAt = useCallback((timeMin: number) => {
+    setPresetTime(timeMin)
+    setAddFor('today')
+    setFocusMode(false)
+    setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 60)
   }, [])
 
   useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
@@ -645,12 +680,17 @@ export default function Planner() {
   // otherwise the toggle is the default. A recognized recurrence becomes a
   // routine anchored to today. Shared by single and multi-line adds so every
   // line is captured exactly as one typed alone would be.
-  const buildTask = (line: string): Task => {
+  // `preset`, when given, is a start time picked from the timeline — it fills a
+  // plain today task that named no time of its own. A line that carries its own
+  // time, date, or recurrence is honored as typed, so the preset never overrides
+  // what the words already say.
+  const buildTask = (line: string, preset?: number): Task => {
     const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(line)
     if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
     if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
-    return { ...newTask(text, day), estimateMin, timeMin, dueDate, priority }
+    const finalTime = timeMin ?? (!date && addFor === 'today' ? preset : undefined)
+    return { ...newTask(text, day), estimateMin, timeMin: finalTime, dueDate, priority }
   }
 
   const addTask = () => {
@@ -659,9 +699,13 @@ export default function Planner() {
     // case and behaves exactly as before.
     const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
     if (lines.length === 0) return
-    const created = lines.map(buildTask)
+    // A slot picked from the timeline applies to a single task — spreading one
+    // start time across a pasted list would just stack them at the same minute.
+    const preset = lines.length === 1 ? presetTime ?? undefined : undefined
+    const created = lines.map(line => buildTask(line, preset))
     setTasks(prev => [...prev, ...created])
     setNewText('')
+    setPresetTime(null)
   }
 
   const toggleTask = (id: string) => {
@@ -996,6 +1040,10 @@ export default function Planner() {
     a.remove()
     URL.revokeObjectURL(url)
   }
+  // Print today's plan as a clean paper sheet. The browser's own print dialog
+  // handles the rest; DayPrintSheet (rendered below, portalled to <body>) is
+  // what the print stylesheet reveals, so this is just the trigger.
+  const printTodayPlan = () => window.print()
   // The visible slices — what a tag filter actually narrows down. Everything
   // else (counts, reminders, the celebration) keeps reading the full lists, so
   // the filter stays a lens over the day rather than a change to it.
@@ -1248,6 +1296,71 @@ export default function Planner() {
     inputRef.current?.focus()
   }
 
+  // Task titles you've entered before, offered as you type so a task you add
+  // often — "Standup", "Walk the dog" — is one tap to reuse instead of retyping
+  // it (and its #tags, which ride along in the stored text). Read from the text
+  // already on your tasks, so nothing new is saved. A title is ranked by how
+  // often it's been used, then how recently, and shown only when what you've
+  // typed is a substring of it — a prefix match leads. Held to a single line
+  // (a brain dump appends to the wrong one), and to a real query so the resting
+  // box and a first keystroke stay quiet.
+  const suggestQuery = addLineCount < 2 ? newText.trim() : ''
+  const suggestQueryLower = suggestQuery.toLowerCase()
+  const taskUse = new Map<string, { count: number; last: string }>()
+  if (suggestQuery.length >= 2) {
+    for (const t of tasks) {
+      const text = t.text.trim()
+      if (!text) continue
+      const prev = taskUse.get(text)
+      const created = t.createdDate ?? ''
+      if (prev) {
+        prev.count++
+        if (created > prev.last) prev.last = created
+      } else {
+        taskUse.set(text, { count: 1, last: created })
+      }
+    }
+  }
+  const taskSuggestions =
+    suggestQuery.length >= 2
+      ? [...taskUse.entries()]
+          .filter(([text]) => {
+            const lower = text.toLowerCase()
+            return lower.includes(suggestQueryLower) && lower !== suggestQueryLower
+          })
+          .sort((a, b) => {
+            // Prefix matches lead, then most-used, then most-recent, then A–Z.
+            const ap = a[0].toLowerCase().startsWith(suggestQueryLower) ? 0 : 1
+            const bp = b[0].toLowerCase().startsWith(suggestQueryLower) ? 0 : 1
+            if (ap !== bp) return ap - bp
+            if (b[1].count !== a[1].count) return b[1].count - a[1].count
+            if (b[1].last !== a[1].last) return b[1].last.localeCompare(a[1].last)
+            return a[0].localeCompare(b[0])
+          })
+          .map(([text]) => text)
+          .slice(0, 6)
+      : []
+  const showTaskSuggestions = addFocused && !suggestDismissed && taskSuggestions.length > 0
+  // The highlighted row, clamped to what's actually shown so a shrinking list
+  // never points past its end.
+  const activeSuggest = suggestIndex >= 0 && suggestIndex < taskSuggestions.length ? suggestIndex : -1
+
+  // Drop a picked suggestion into the box (with a trailing space to keep typing)
+  // rather than adding it outright, so any time or estimate can still be tacked
+  // on and the quick-add preview confirms it before it's committed.
+  const applyTaskSuggestion = (text: string) => {
+    setNewText(`${text} `)
+    setSuggestIndex(-1)
+    setSuggestDismissed(true)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const end = el.value.length
+      el.setSelectionRange(end, end)
+    })
+  }
+
   // Ctrl on Windows/Linux, ⌘ on Apple — shown on the palette opener. Read once
   // on the client; the opener only renders after mount, so it's never on the
   // server's HTML.
@@ -1328,6 +1441,9 @@ export default function Planner() {
     },
     ...(todayTasks.length > 0
       ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
+      : []),
+    ...(todayTasks.length > 0
+      ? [{ id: 'print-plan', label: 'Print today’s plan', keywords: 'printer paper sheet checklist hardcopy pin up', icon: <PrinterIcon className="h-4 w-4" />, run: printTodayPlan }]
       : []),
     ...(timedActive.length > 0
       ? [{ id: 'calendar-export', label: 'Add today’s schedule to calendar', keywords: 'ics calendar export event google apple outlook download reminder alarm subscribe', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
@@ -1454,6 +1570,13 @@ export default function Planner() {
         </div>
       )}
 
+      {/* Today's focus — one line to name the thing that matters most today,
+          pinned above the list and glanced at all day. Forward-looking, the
+          counterpart to the retrospective day note at the bottom; stored under
+          its own key, so it never touches task data. Held back in focus mode,
+          where a single task is already the whole view. */}
+      {!inFocus && <DayFocus />}
+
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
         <div className="min-w-0">
@@ -1495,6 +1618,16 @@ export default function Planner() {
                 <ClipboardIcon className="w-4 h-4" />
               )}
               <span className="sr-only">Copy today’s plan</span>
+            </button>
+          )}
+          {!inFocus && todayTasks.length > 0 && (
+            <button
+              onClick={printTodayPlan}
+              title="Print today’s plan — a clean sheet to pin up, tuck in a notebook, or cross off by hand"
+              className="flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+            >
+              <PrinterIcon className="w-4 h-4" />
+              <span className="sr-only">Print today’s plan</span>
             </button>
           )}
           {!inFocus && timedActive.length > 0 && (
@@ -1633,6 +1766,7 @@ export default function Planner() {
           }))}
           nowMin={nowMin}
           onSelect={revealTask}
+          onPlan={planAt}
         />
       )}
 
@@ -1924,6 +2058,30 @@ export default function Planner() {
         </div>
       )}
 
+      {/* A start time carried in from an open slot on the timeline — the next
+          task lands here unless its own words say otherwise. Clearable, so a tap
+          on the timeline is never a commitment. */}
+      {presetTime != null && (
+        <div className="flex items-center px-1 pt-1">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 py-0.5 pl-2 pr-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+            <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="tabular-nums">Planning at {formatTime(presetTime)}</span>
+            <button
+              type="button"
+              onClick={() => setPresetTime(null)}
+              aria-label="Clear the planned time"
+              className="flex h-4 w-4 items-center justify-center rounded-full text-emerald-600/80 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400/80 dark:hover:text-emerald-300"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      )}
+
       {/* Add task. A textarea, so a pasted list keeps its line breaks and
           Shift+Enter can stack several — each line becomes its own task. Plain
           Enter still adds (on every device), so the single-task flow is
@@ -1934,13 +2092,39 @@ export default function Planner() {
           value={newText}
           rows={1}
           aria-label="Add a task"
-          onChange={e => setNewText(e.target.value)}
+          role="combobox"
+          aria-expanded={showTaskSuggestions}
+          aria-controls="task-suggestions"
+          aria-autocomplete="list"
+          aria-activedescendant={activeSuggest >= 0 ? `task-suggestion-${activeSuggest}` : undefined}
+          onChange={e => { setNewText(e.target.value); setSuggestIndex(-1); setSuggestDismissed(false) }}
           onFocus={() => setAddFocused(true)}
           onBlur={() => setAddFocused(false)}
           onKeyDown={e => {
+            // While the suggestion list is open, the arrow keys move the
+            // highlight (wrapping around) instead of the text cursor.
+            if (showTaskSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+              e.preventDefault()
+              const n = taskSuggestions.length
+              setSuggestIndex(i =>
+                e.key === 'ArrowDown' ? (i + 1 >= n ? 0 : i + 1) : (i - 1 < 0 ? n - 1 : i - 1)
+              )
+              return
+            }
             // Plain Enter adds; Shift+Enter drops to a new line for the next task.
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTask() }
-            if (e.key === 'Escape') setNewText('')
+            // With a suggestion highlighted, Enter takes it into the box instead,
+            // so the common type-and-add flow is unchanged when none is picked.
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (activeSuggest >= 0) applyTaskSuggestion(taskSuggestions[activeSuggest])
+              else addTask()
+              return
+            }
+            // Escape closes the suggestions first if they're open, then clears.
+            if (e.key === 'Escape') {
+              if (showTaskSuggestions) { setSuggestDismissed(true); setSuggestIndex(-1) }
+              else setNewText('')
+            }
           }}
           placeholder={
             addFor === 'tomorrow'
@@ -1960,13 +2144,62 @@ export default function Planner() {
         </button>
       </div>
 
+      {/* Reuse a task — titles you've entered before, matched against what
+          you're typing, so a task you add often is one tap to bring back instead
+          of retyping it. A plain tap or Enter drops it into the box (it isn't
+          added outright, so a time or estimate can still follow); the arrow keys
+          move the highlight and Escape dismisses. Touch-friendly — the
+          mousedown-preventDefault keeps the box focused so the list doesn't
+          vanish from under the tap. */}
+      {showTaskSuggestions && (
+        <ul
+          id="task-suggestions"
+          role="listbox"
+          aria-label="Tasks you've used before"
+          className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm"
+        >
+          {taskSuggestions.map((text, i) => {
+            // Split the title around the first match so the typed part reads a
+            // shade stronger than the rest — the same highlight History uses.
+            const at = text.toLowerCase().indexOf(suggestQueryLower)
+            const before = text.slice(0, at)
+            const match = text.slice(at, at + suggestQuery.length)
+            const after = text.slice(at + suggestQuery.length)
+            return (
+              <li key={text} role="option" id={`task-suggestion-${i}`} aria-selected={i === activeSuggest}>
+                <button
+                  type="button"
+                  onMouseDown={e => e.preventDefault()}
+                  onMouseEnter={() => setSuggestIndex(i)}
+                  onClick={() => applyTaskSuggestion(text)}
+                  title={`Reuse “${stripTags(text)}”`}
+                  className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors ${
+                    i === activeSuggest
+                      ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white'
+                      : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
+                  }`}
+                >
+                  <HistoryIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
+                  <span className="min-w-0 truncate">
+                    {before}
+                    <span className="font-medium text-zinc-900 dark:text-white">{match}</span>
+                    {after}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
       {/* Reuse a tag — the tags you already use, one tap to drop into the box.
           Only while composing a single line (a brain dump appends to the wrong
           line), and never on a first-ever task, since there's nothing to
-          suggest yet. Kept touch-friendly: a plain tap, no hover needed. The
+          suggest yet. Held back while task suggestions are showing so the two
+          don't stack. Kept touch-friendly: a plain tap, no hover needed. The
           mousedown-preventDefault keeps the box focused so the row doesn't
           vanish out from under the tap. */}
-      {addFocused && addLineCount < 2 && tagSuggestions.length > 0 && (
+      {addFocused && !showTaskSuggestions && addLineCount < 2 && tagSuggestions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-1">
           <svg aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
@@ -2071,7 +2304,7 @@ export default function Planner() {
           {(['today', 'tomorrow', 'someday'] as const).map(when => (
             <button
               key={when}
-              onClick={() => setAddFor(when)}
+              onClick={() => { setAddFor(when); if (when !== 'today') setPresetTime(null) }}
               aria-pressed={addFor === when}
               className={`px-2.5 py-1 rounded-full capitalize transition-colors ${
                 addFor === when
@@ -2214,6 +2447,10 @@ export default function Planner() {
       </div>
       </>)}
     </div>
+    {/* The paper version of today — hidden on screen, revealed only when
+        printing (see DayPrintSheet and the print rules in globals.css). Reads
+        the full day plus anything carried over, never a tag-filtered slice. */}
+    <DayPrintSheet today={today} active={todayActive} done={todayDone} carryovers={carryovers} />
     </>
   )
 }
