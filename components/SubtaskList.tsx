@@ -86,7 +86,7 @@ export default function SubtaskList({ subtasks, editable, onChange, autoFocusAdd
             onClick={() => editable && toggle(s.id)}
             disabled={!editable}
             aria-label={s.done ? 'Mark step not done' : 'Mark step done'}
-            className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+            className={`checkbox-btn flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
               s.done
                 ? 'border-transparent bg-emerald-500 text-white'
                 : 'border-zinc-300 dark:border-zinc-600 ' + (editable ? 'hover:border-zinc-400 dark:hover:border-zinc-500' : '')

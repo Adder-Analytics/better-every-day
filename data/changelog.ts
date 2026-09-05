@@ -662,6 +662,14 @@ export const changelog: ChangelogEntry[] = [
       'Today’s plan can now be printed as a clean paper sheet — to pin up, tuck in a notebook, or cross off by hand. A printer action sits in the day header beside Copy plan and the calendar export, and in the command menu (Cmd/Ctrl+K) as "Print today’s plan". The printout is just the day: the date, the day’s focus if one is set, today’s tasks (with times, blocks, estimates, tags, notes, and steps) and anything carried over from earlier, then the day note and a few ruled lines to write on. It drops the app’s chrome and dark background so what prints is the sheet alone — checkboxes drawn so they survive a black-and-white printer, finished tasks checked and struck through. It reads the full day, not a tag-filtered slice, and nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 83,
+    date: '2026-09-05',
+    title: 'A more satisfying check-off',
+    description:
+      'Checking a task off is the thing you do most in the app, so it now has a little life to it: the circle gives a small press as you tap, the checkmark strokes itself in rather than blinking on, and the circle pops once as it fills. It stays quick and quiet — a detail, not a show — and plays only on the check you just made, so a page of already-finished tasks doesn’t all pop when it loads. It honors reduced-motion (the color fill, which carries the meaning, stays; the movement drops), and the same press feedback now applies to a task’s steps. No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

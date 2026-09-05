@@ -315,6 +315,21 @@ export default function TaskItem({
   const [addingStep, setAddingStep] = useState(false)
   // Only one popover per task is open at a time, so a single value tracks them.
   const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate' | 'actions'>(null)
+  // A brief, satisfying acknowledgment the moment a task is checked off: the
+  // tick strokes in and the circle pops. Played only on the false→true toggle
+  // the user just made — not on every render, and not when an already-finished
+  // task first mounts — so a page of done tasks doesn't all pop on load.
+  const [justCompleted, setJustCompleted] = useState(false)
+  const wasDone = useRef(task.done)
+  useEffect(() => {
+    if (task.done && !wasDone.current) {
+      setJustCompleted(true)
+      const id = setTimeout(() => setJustCompleted(false), 500)
+      wasDone.current = task.done
+      return () => clearTimeout(id)
+    }
+    wasDone.current = task.done
+  }, [task.done])
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -552,14 +567,16 @@ export default function TaskItem({
           <button
             onClick={() => onToggle(task.id)}
             aria-label={task.done ? 'Mark incomplete' : 'Mark complete'}
-            className={`w-8 h-8 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
+            className={`checkbox-btn w-8 h-8 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+              justCompleted ? 'just-done' : ''
+            } ${
               task.done
                 ? 'bg-emerald-500 hover:bg-emerald-600 border-transparent text-white'
                 : 'border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 bg-transparent'
             }`}
           >
             {task.done && (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <svg className={`w-4 h-4 ${justCompleted ? 'check-draw' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
