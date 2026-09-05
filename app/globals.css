@@ -72,6 +72,66 @@
   }
 }
 
+/* Checking a task off is the app's single most-repeated moment, so it stays
+   crisp rather than showy. The circle gives instant press feedback; on
+   completion the tick strokes itself on with a subtle pop. An already-finished
+   task shown on load gets a static check with no motion — only the fresh
+   false→true toggle animates (gated by `just-done` / `check-draw` in TaskItem). */
+.checkbox-btn {
+  transition:
+    background-color 200ms ease-out,
+    border-color 200ms ease-out,
+    transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.checkbox-btn:active {
+  transform: scale(0.9);
+}
+.checkbox-btn.just-done {
+  animation: check-pop 300ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* The tick draws in, start to finish. dasharray covers the ~20-unit path of the
+   24×24 checkmark with headroom, so it begins hidden and fills to a full mark. */
+.check-draw path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: check-draw 260ms 40ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+@keyframes check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* Reduced motion: keep the color fill (it carries the meaning), drop the
+   movement — no press scale, no pop, and the check simply appears drawn. */
+@media (prefers-reduced-motion: reduce) {
+  .checkbox-btn {
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease;
+  }
+  .checkbox-btn:active {
+    transform: none;
+  }
+  .checkbox-btn.just-done {
+    animation: none;
+  }
+  .check-draw path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* A task jumped to from search flashes an emerald outline once, then settles.
    box-shadow (not a ring) is used so it never fights a row's selection ring. */
 @keyframes reveal-flash {
