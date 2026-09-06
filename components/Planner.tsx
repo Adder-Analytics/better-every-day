@@ -15,6 +15,7 @@ import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import DayNote from '@/components/DayNote'
 import DayFocus from '@/components/DayFocus'
+import DayTarget from '@/components/DayTarget'
 import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
@@ -1748,6 +1749,14 @@ export default function Planner() {
             )}
           </span>
         </p>
+      )}
+
+      {/* A wrap-up time for today — set the hour the day should wind down and a
+          quiet line reads the plan against it: how long is left, and (once tasks
+          carry estimates) whether the still-to-do work fits or runs over. Held
+          out of focus mode, and once the day's fully done the recap takes over. */}
+      {!inFocus && !allDone && (
+        <DayTarget nowMin={nowMin} remainingMin={remainingMin} hasWork={remaining > 0} />
       )}
 
       {/* The day at a glance — a spatial companion to the agenda list below.

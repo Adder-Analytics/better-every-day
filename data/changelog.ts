@@ -670,6 +670,14 @@ export const changelog: ChangelogEntry[] = [
       'Checking a task off is the thing you do most in the app, so it now has a little life to it: the circle gives a small press as you tap, the checkmark strokes itself in rather than blinking on, and the circle pops once as it fills. It stays quick and quiet — a detail, not a show — and plays only on the check you just made, so a page of already-finished tasks doesn’t all pop when it loads. It honors reduced-motion (the color fill, which carries the meaning, stays; the movement drops), and the same press feedback now applies to a task’s steps. No stored data changed.',
     type: 'design',
   },
+  {
+    day: 84,
+    date: '2026-09-06',
+    title: 'Set a wrap-up time for the day',
+    description:
+      'You can now give today a wrap-up time — the hour you want the day to wind down, whether that’s the end of work, screens off, or bed. A quiet line under the day reads the plan against it: how long is left until then, and, once tasks carry time estimates, whether the still-to-do work fits with time to spare or runs over. It pairs with the existing "finish around" projection — that guesses when you’ll finish, this is the time you’re aiming to be done by — and turns the two into an at-a-glance "1h 10m to spare" or "25m over". Set it from a small picker (a time field plus one-tap presets), change or clear it any time; it appears only when there’s still-to-do work and steps aside once the day is fully done. The time is kept per day in the browser under a new bed-daytarget key, separate from your tasks, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
