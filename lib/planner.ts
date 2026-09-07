@@ -257,11 +257,15 @@ export function formatOverdue(deltaMin: number): string {
   return m === 0 ? `${h}h late` : `${h}h ${m}m late`
 }
 
-// A time of day from minutes-since-midnight: "9 AM", "9:30 AM", "12 PM",
-// "2:30 PM". Used by the agenda time pill and the quick-add preview.
-export function formatTime(min: number): string {
+// A time of day from minutes-since-midnight. On the 12-hour clock (the default):
+// "9 AM", "9:30 AM", "12 PM", "2:30 PM". On the 24-hour clock (hour12 = false):
+// "09:00", "14:30", "00:00". Used by the agenda time pill and the quick-add
+// preview; the clock preference lives in lib/timeformat and is threaded in by
+// callers (default 12-hour keeps every un-threaded caller unchanged).
+export function formatTime(min: number, hour12 = true): string {
   const h24 = Math.floor(min / 60)
   const m = min % 60
+  if (!hour12) return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`
   const period = h24 < 12 ? 'AM' : 'PM'
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12
   return m === 0 ? `${h12} ${period}` : `${h12}:${String(m).padStart(2, '0')} ${period}`
@@ -272,11 +276,14 @@ export function formatTime(min: number): string {
 // the day, so the window reads as one span. Used on a timed task that also
 // carries an estimate, so its row reads as a block rather than just a start. A
 // block that would run to or past midnight falls back to just the start time.
-export function formatTimeRange(startMin: number, durationMin: number): string {
+export function formatTimeRange(startMin: number, durationMin: number, hour12 = true): string {
   const endMin = startMin + durationMin
-  if (endMin >= 1440) return formatTime(startMin)
-  const startStr = formatTime(startMin)
-  const endStr = formatTime(endMin)
+  if (endMin >= 1440) return formatTime(startMin, hour12)
+  const startStr = formatTime(startMin, hour12)
+  const endStr = formatTime(endMin, hour12)
+  // The shared-meridiem trim ("9 – 11 AM") is a 12-hour nicety; a 24-hour block
+  // just reads "09:00 – 11:00" with both ends written in full.
+  if (!hour12) return `${startStr} – ${endStr}`
   const samePeriod = startMin < 720 === endMin < 720
   const start = samePeriod ? startStr.replace(/\s[AP]M$/, '') : startStr
   return `${start} – ${endStr}`
@@ -724,10 +731,10 @@ export function subtaskProgress(task: Task): { done: number; total: number } {
 // checked box for finished ones. Tags stay in the text as written. A heading
 // (the date) leads, so a pasted plan says which day it was. Callers pass tasks
 // already in display order; an empty list yields just the heading.
-export function formatPlanText(tasks: Task[], heading: string): string {
+export function formatPlanText(tasks: Task[], heading: string, hour12 = true): string {
   const lines = tasks.map(t => {
     const box = t.done ? '- [x]' : '- [ ]'
-    const time = t.timeMin != null ? `${formatTime(t.timeMin)} · ` : ''
+    const time = t.timeMin != null ? `${formatTime(t.timeMin, hour12)} · ` : ''
     const estimate = t.estimateMin ? ` (${formatDuration(t.estimateMin)})` : ''
     return `${box} ${time}${t.text}${estimate}`
   })

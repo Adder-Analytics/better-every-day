@@ -2,6 +2,7 @@ import Link from 'next/link'
 import DayBanner from '@/components/DayBanner'
 import Planner from '@/components/Planner'
 import ThemeToggle from '@/components/ThemeToggle'
+import TimeFormatToggle from '@/components/TimeFormatToggle'
 
 export default function Page() {
   return (
@@ -44,6 +45,7 @@ export default function Page() {
               </svg>
               <span>Routines</span>
             </Link>
+            <TimeFormatToggle />
             <ThemeToggle />
           </div>
         </div>

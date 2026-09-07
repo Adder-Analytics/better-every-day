@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { todayStr, formatDuration, formatTime } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { loadDayTarget, setDayTarget } from '@/lib/daytarget'
 
 // minutes-since-midnight ↔ the "HH:MM" a native <input type="time"> uses, the
@@ -49,6 +50,7 @@ export default function DayTarget({
   hasWork: boolean // whether there's still-to-do work to pace against
 }) {
   const today = todayStr()
+  const hour12 = useHour12()
   const [map, setMap] = useState<Record<string, number>>(() =>
     typeof window === 'undefined' ? {} : loadDayTarget()
   )
@@ -127,7 +129,7 @@ export default function DayTarget({
                 : 'bg-zinc-100 text-zinc-500 hover:text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100'
             }`}
           >
-            {formatTime(min)}
+            {formatTime(min, hour12)}
           </button>
         ))}
       </div>
@@ -183,7 +185,7 @@ export default function DayTarget({
         >
           <SunsetIcon className="h-3.5 w-3.5 flex-shrink-0 text-zinc-400" />
           <span className="tabular-nums">
-            Wrap up by <span className="font-medium">{formatTime(target)}</span>
+            Wrap up by <span className="font-medium">{formatTime(target, hour12)}</span>
           </span>
         </button>
         {clause && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from '
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
@@ -345,10 +346,11 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
         setTimeout(() => {
           firedRef.current.add(key)
           try {
+            const h12 = isHour12()
             new Notification(t.text, {
               body: leadMin > 0
-                ? `Starts in ${leadMin} min, at ${formatTime(t.timeMin)}.`
-                : `It’s ${formatTime(t.timeMin)} — time to start.`,
+                ? `Starts in ${leadMin} min, at ${formatTime(t.timeMin, h12)}.`
+                : `It’s ${formatTime(t.timeMin, h12)} — time to start.`,
               tag: key, // collapse duplicates at the OS level too
               icon: '/favicon.ico',
             })
@@ -417,14 +419,15 @@ function FocusSteps({ subtasks, onChange }: { subtasks: Subtask[]; onChange: (ne
 // pulsing dot, the clock, and a hairline. It quietly answers "where am I in my
 // day?" by separating what's already passed from what's still ahead.
 function NowLine({ min }: { min: number }) {
+  const hour12 = useHour12()
   return (
-    <div className="flex items-center gap-2 py-0.5 pl-1.5 pr-1" aria-label={`Now, ${formatTime(min)}`}>
+    <div className="flex items-center gap-2 py-0.5 pl-1.5 pr-1" aria-label={`Now, ${formatTime(min, hour12)}`}>
       <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
       </span>
       <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide tabular-nums text-emerald-600 dark:text-emerald-400">
-        {formatTime(min)}
+        {formatTime(min, hour12)}
       </span>
       <span className="h-px flex-1 rounded-full bg-gradient-to-r from-emerald-500/30 to-transparent" />
     </div>
@@ -434,6 +437,7 @@ function NowLine({ min }: { min: number }) {
 export default function Planner() {
   const mounted = useHydrated()
   const nowMin = useCurrentMin()
+  const hour12 = useHour12()
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
@@ -1015,7 +1019,7 @@ export default function Planner() {
   const copyTodayPlan = useCallback(async (ordered: Task[]) => {
     if (ordered.length === 0) return
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
-    const text = formatPlanText(ordered, formatDate())
+    const text = formatPlanText(ordered, formatDate(), isHour12())
     try {
       await navigator.clipboard.writeText(text)
       setCopied('ok')
@@ -1117,7 +1121,7 @@ export default function Planner() {
     if (others.length > 1) return `Overlaps ${others.length} other timed tasks`
     const other = todayActive.find(t => t.id === others[0])
     if (!other) return 'Overlaps another timed task'
-    const when = other.estimateMin ? formatTimeRange(other.timeMin!, other.estimateMin) : formatTime(other.timeMin!)
+    const when = other.estimateMin ? formatTimeRange(other.timeMin!, other.estimateMin, hour12) : formatTime(other.timeMin!, hour12)
     return `Overlaps “${stripTags(other.text)}” (${when})`
   }
   // Reminders watch today's still-to-do timed tasks: finishing, deleting, or
@@ -1440,6 +1444,18 @@ export default function Planner() {
       icon: <MoonIcon className="h-4 w-4" />,
       run: () => themeStore.set('dark'),
     },
+    {
+      id: 'time-format',
+      label: hour12 ? 'Use 24-hour time' : 'Use 12-hour time',
+      hint: hour12 ? '14:30' : '2:30 PM',
+      keywords: 'time format clock 24 hour military twelve twenty-four am pm',
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      run: () => timeFormatStore.set(hour12 ? '24' : '12'),
+    },
     ...(todayTasks.length > 0
       ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
       : []),
@@ -1741,7 +1757,7 @@ export default function Planner() {
             {remainingMin > 0 && (
               <span title="Roughly when you’d wrap up the remaining estimated tasks, working straight through from now">
                 {projectedFinish < 1440 ? (
-                  <> · finish around <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatTime(projectedFinish)}</span></>
+                  <> · finish around <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatTime(projectedFinish, hour12)}</span></>
                 ) : (
                   <> · runs past midnight</>
                 )}
@@ -1807,7 +1823,7 @@ export default function Planner() {
             )}
             {focusTask.timeMin != null && (
               <p className="mb-1 text-xs font-semibold tabular-nums text-zinc-400">
-                {focusTask.estimateMin ? formatTimeRange(focusTask.timeMin, focusTask.estimateMin) : formatTime(focusTask.timeMin)}
+                {focusTask.estimateMin ? formatTimeRange(focusTask.timeMin, focusTask.estimateMin, hour12) : formatTime(focusTask.timeMin, hour12)}
               </p>
             )}
             <p className="text-lg font-medium text-zinc-900 dark:text-white break-words">{stripTags(focusTask.text)}</p>
@@ -2076,7 +2092,7 @@ export default function Planner() {
             <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="tabular-nums">Planning at {formatTime(presetTime)}</span>
+            <span className="tabular-nums">Planning at {formatTime(presetTime, hour12)}</span>
             <button
               type="button"
               onClick={() => setPresetTime(null)}
@@ -2278,13 +2294,13 @@ export default function Planner() {
               pill; a lone time or estimate keeps its own pill. */}
           {parsed.timeMin != null && parsed.estimateMin && parsed.timeMin + parsed.estimateMin < 1440 ? (
             <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
-              {formatTimeRange(parsed.timeMin, parsed.estimateMin)}
+              {formatTimeRange(parsed.timeMin, parsed.estimateMin, hour12)}
             </span>
           ) : (
             <>
               {parsed.timeMin != null && (
                 <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
-                  {formatTime(parsed.timeMin)}
+                  {formatTime(parsed.timeMin, hour12)}
                 </span>
               )}
               {parsed.estimateMin && (

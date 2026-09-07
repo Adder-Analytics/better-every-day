@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useSyncExternalStore } from 'react'
 import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
 import ActivityCalendar from '@/components/ActivityCalendar'
@@ -58,6 +59,7 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 // the planner already remembers.
 export default function HistoryList() {
   const mounted = useHydrated()
+  const hour12 = useHour12()
   const [tasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
   const [dayNotes] = useState(() => (typeof window === 'undefined' ? {} : loadDayNotes()))
   const [query, setQuery] = useState('')
@@ -225,7 +227,7 @@ export default function HistoryList() {
                   </span>
                   {task.timeMin != null ? (
                     <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
-                      {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)}
+                      {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)}
                     </span>
                   ) : (
                     task.estimateMin && (
