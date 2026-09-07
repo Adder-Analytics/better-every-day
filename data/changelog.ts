@@ -678,6 +678,14 @@ export const changelog: ChangelogEntry[] = [
       'You can now give today a wrap-up time — the hour you want the day to wind down, whether that’s the end of work, screens off, or bed. A quiet line under the day reads the plan against it: how long is left until then, and, once tasks carry time estimates, whether the still-to-do work fits with time to spare or runs over. It pairs with the existing "finish around" projection — that guesses when you’ll finish, this is the time you’re aiming to be done by — and turns the two into an at-a-glance "1h 10m to spare" or "25m over". Set it from a small picker (a time field plus one-tap presets), change or clear it any time; it appears only when there’s still-to-do work and steps aside once the day is fully done. The time is kept per day in the browser under a new bed-daytarget key, separate from your tasks, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 85,
+    date: '2026-09-07',
+    title: 'Read the clock the way you do',
+    description:
+      'Times can now show on a 24-hour clock as well as the 12-hour one the app has always used — so "2:30 PM" reads as "14:30" for the much of the world that thinks in 24-hour time. A "12h / 24h" switch sits in the header beside the theme control, and it is also in the command menu (Cmd/Ctrl+K) as "Use 24-hour time". The choice applies everywhere a time appears — task rows and their blocks, the day timeline and its "now" line, the wrap-up and finish-around lines, Focus mode, the week, month, and history views, the printed sheet, a copied plan, and the reminder notifications. It is a display choice only: nothing about how tasks are stored changed, and it is kept per browser under a new bed-timeformat key. Times render in 12-hour on first paint and switch just after load if you prefer 24-hour, the same way the theme is applied, so there is no mismatch.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

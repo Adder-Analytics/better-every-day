@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { type Task, formatDate, formatTime, formatTimeRange, formatDuration, formatPastDayLabel } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { stripTags, extractTags } from '@/lib/tags'
 import { loadDayFocus } from '@/lib/dayfocus'
 import { loadDayNotes } from '@/lib/daynotes'
@@ -37,13 +38,14 @@ type Props = {
 // by default), the time or block leading, then the title with its tags and
 // estimate. A note and any steps sit quietly beneath.
 function PrintRow({ task }: { task: Task }) {
+  const hour12 = useHour12()
   const title = stripTags(task.text)
   const tags = extractTags(task.text)
   const timeLabel =
     task.timeMin != null
       ? task.estimateMin
-        ? formatTimeRange(task.timeMin, task.estimateMin)
-        : formatTime(task.timeMin)
+        ? formatTimeRange(task.timeMin, task.estimateMin, hour12)
+        : formatTime(task.timeMin, hour12)
       : null
   const steps = task.subtasks ?? []
   return (

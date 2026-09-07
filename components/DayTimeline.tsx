@@ -1,6 +1,7 @@
 'use client'
 
 import { formatTime, formatTimeRange } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 
 // A timed task as the timeline needs it — the day's spatial view reads only
@@ -51,6 +52,7 @@ export default function DayTimeline({
   // (e.g. in a read-only context), the gaps stay inert as before.
   onPlan?: (timeMin: number) => void
 }) {
+  const hour12 = useHour12()
   // Each task's true end; the day spans from the earliest start to the latest
   // end, always widened to include now so the marker sits on the bar.
   const ends = tasks.map(t => t.timeMin + (t.estimateMin ?? 0))
@@ -149,8 +151,8 @@ export default function DayTimeline({
               type="button"
               onClick={() => onPlan!(slot.startMin)}
               aria-hidden="false"
-              aria-label={`Plan a task at ${formatTime(slot.startMin)}`}
-              title={`Plan a task at ${formatTime(slot.startMin)}`}
+              aria-label={`Plan a task at ${formatTime(slot.startMin, hour12)}`}
+              title={`Plan a task at ${formatTime(slot.startMin, hour12)}`}
               className="group absolute inset-y-0 flex items-center justify-center rounded-md border border-dashed border-transparent text-zinc-400 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/5 hover:text-emerald-600 focus:outline-none focus-visible:border-emerald-500/70 focus-visible:bg-emerald-500/5 dark:text-zinc-600 dark:hover:text-emerald-400 dark:focus-visible:text-emerald-400"
               style={{ left: `${slot.left}%`, width: `${slot.width}%` }}
             >
@@ -159,7 +161,7 @@ export default function DayTimeline({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
                 <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-150 group-hover:max-w-[6rem] group-hover:opacity-100 group-focus-visible:max-w-[6rem] group-focus-visible:opacity-100">
-                  {formatTime(slot.startMin)}
+                  {formatTime(slot.startMin, hour12)}
                 </span>
               </span>
             </button>
@@ -177,7 +179,7 @@ export default function DayTimeline({
                 : overdue
                   ? 'bg-zinc-300 dark:bg-zinc-600'
                   : 'bg-zinc-400 dark:bg-zinc-500'
-            const label = `${task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)} · ${stripTags(task.text)}`
+            const label = `${task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)} · ${stripTags(task.text)}`
             return (
               <button
                 key={task.id}
@@ -217,7 +219,7 @@ export default function DayTimeline({
               className={`absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500 ${align}`}
               style={{ left: `${pct(h)}%` }}
             >
-              {formatTime(h % 1440)}
+              {formatTime(h % 1440, hour12)}
             </span>
           )
         })}

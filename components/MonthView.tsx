@@ -20,6 +20,7 @@ import {
   formatDue,
   PLANNER_VERSION,
 } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { extractTags, stripTags } from '@/lib/tags'
 import TagChip from '@/components/TagChip'
 
@@ -101,6 +102,7 @@ const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 export default function MonthView() {
   const mounted = useHydrated()
+  const hour12 = useHour12()
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
@@ -347,7 +349,7 @@ export default function MonthView() {
                     <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                       {task.timeMin != null && (
                         <span className="flex-shrink-0 text-xs font-medium tabular-nums text-zinc-400">
-                          {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)}
+                          {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)}
                         </span>
                       )}
                       <span className={`text-sm break-words ${done ? 'text-zinc-400 line-through dark:text-zinc-600' : 'text-zinc-700 dark:text-zinc-200'}`}>

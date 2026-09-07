@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { useHour12 } from '@/lib/timeformat'
 import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
@@ -353,10 +354,11 @@ export default function TaskItem({
   // "#tag" is added or removed just by editing the task.
   const tags = extractTags(task.text)
   const displayText = stripTags(task.text)
+  const hour12 = useHour12()
   // A timed task that also carries an estimate reads as a window ("9 – 11 AM")
   // rather than just its start; without one, it's simply the start time.
   const timeLabel =
-    task.timeMin == null ? '' : task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin) : formatTime(task.timeMin)
+    task.timeMin == null ? '' : task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)
   // The checklist shows whenever there are steps, or when one is being added.
   const showSubtasks = hasSubtasks || addingStep
   // Steps are editable in the same places a task is (not once it's finished).
