@@ -686,6 +686,14 @@ export const changelog: ChangelogEntry[] = [
       'Times can now show on a 24-hour clock as well as the 12-hour one the app has always used — so "2:30 PM" reads as "14:30" for the much of the world that thinks in 24-hour time. A "12h / 24h" switch sits in the header beside the theme control, and it is also in the command menu (Cmd/Ctrl+K) as "Use 24-hour time". The choice applies everywhere a time appears — task rows and their blocks, the day timeline and its "now" line, the wrap-up and finish-around lines, Focus mode, the week, month, and history views, the printed sheet, a copied plan, and the reminder notifications. It is a display choice only: nothing about how tasks are stored changed, and it is kept per browser under a new bed-timeformat key. Times render in 12-hour on first paint and switch just after load if you prefer 24-hour, the same way the theme is applied, so there is no mismatch.',
     type: 'feature',
   },
+  {
+    day: 86,
+    date: '2026-09-08',
+    title: 'See the task you’re in right now',
+    description:
+      'A timed task that carries a block of time — "Deep work 9–11am" — now reads as happening now while you’re inside it, with a live "40m left" and a quiet pulsing dot, instead of being flagged "late" the moment it started. It fills the gap between the "in 25m" hint on the next task coming up and the "25m late" on one whose time has passed: a block moves through "in 25m" before it starts, "40m left" while it runs, and "late" only once its estimated end has gone by (counted from the end, not the start). A bare time with no estimate has no duration, so it still goes straight from up-next to late at its moment, unchanged. It reads the time and estimate already on the task, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
