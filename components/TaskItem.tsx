@@ -246,6 +246,10 @@ type Props = {
   canMoveDown?: boolean
   // A live "in 25m" hint shown on the next timed task that's still ahead today.
   upNextLabel?: string
+  // A live "40m left" hint shown on the timed block you're currently inside — a
+  // task whose start has passed but whose estimated end hasn't, so it reads as
+  // happening now rather than late.
+  nowLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
   // A heads-up that this task's time or block overlaps another today; the string
@@ -291,6 +295,7 @@ export default function TaskItem({
   canMoveUp = false,
   canMoveDown = false,
   upNextLabel,
+  nowLabel,
   overdueLabel,
   conflictLabel,
   onFilterTag,
@@ -660,12 +665,26 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
+          {!editing && (upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
                 <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                   {upNextLabel}
+                </span>
+              )}
+
+              {/* The block you're inside right now — a live "40m left" with a
+                  quiet pulsing dot, so what you should be doing this moment reads
+                  at a glance. Sits between "in 25m" (not started) and "25m late"
+                  (its end has passed). */}
+              {nowLabel && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-sky-600 dark:text-sky-400">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75 motion-reduce:animate-none" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
+                  </span>
+                  {nowLabel}
                 </span>
               )}
 

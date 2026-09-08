@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
@@ -1978,6 +1978,24 @@ export default function Planner() {
           // The touch reorder actions mirror what drag and Shift+J/K already do,
           // so touch users aren't the only ones who can't reorder.
           const move = moveOptions(task.id)
+          // A timed task's live status splits into three: "in 25m" before it
+          // starts (nextUp), "40m left" while you're inside its block, and
+          // "25m late" once its end has passed. A block ends at start + estimate;
+          // a bare time (no estimate) has no "now" window and goes straight from
+          // up-next to late at its moment, as before.
+          const blockEnd = task.timeMin != null && task.estimateMin ? task.timeMin + task.estimateMin : null
+          const inBlock = blockEnd != null && task.timeMin! <= nowMin && nowMin < blockEnd
+          const nowLabel = inBlock ? formatTimeLeft(blockEnd! - nowMin) : undefined
+          const overdueLabel =
+            task.timeMin == null
+              ? undefined
+              : blockEnd != null
+                ? nowMin >= blockEnd
+                  ? formatOverdue(nowMin - blockEnd)
+                  : undefined
+                : task.timeMin < nowMin
+                  ? formatOverdue(nowMin - task.timeMin)
+                  : undefined
           return (
             <TaskItem
               key={task.id}
@@ -1987,7 +2005,8 @@ export default function Planner() {
               onFilterTag={setActiveTag}
               activeTag={activeTag}
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
-              overdueLabel={task.timeMin != null && task.timeMin < nowMin ? formatOverdue(nowMin - task.timeMin) : undefined}
+              nowLabel={nowLabel}
+              overdueLabel={overdueLabel}
               conflictLabel={conflictLabel(task.id)}
               onToggle={toggleTask}
               onDelete={deleteTask}

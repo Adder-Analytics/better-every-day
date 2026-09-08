@@ -257,6 +257,18 @@ export function formatOverdue(deltaMin: number): string {
   return m === 0 ? `${h}h late` : `${h}h ${m}m late`
 }
 
+// How much of a block is left, as a short phrase: "40m left", "1h left",
+// "1h 30m left". Used to mark the timed block you're currently inside — the
+// stretch between "in 25m" (not started) and "25m late" (its end has passed) —
+// so a task in progress reads as happening now, not overdue. Callers gate on a
+// positive delta (the block hasn't ended yet).
+export function formatTimeLeft(deltaMin: number): string {
+  if (deltaMin < 60) return `${deltaMin}m left`
+  const h = Math.floor(deltaMin / 60)
+  const m = deltaMin % 60
+  return m === 0 ? `${h}h left` : `${h}h ${m}m left`
+}
+
 // A time of day from minutes-since-midnight. On the 12-hour clock (the default):
 // "9 AM", "9:30 AM", "12 PM", "2:30 PM". On the 24-hour clock (hour12 = false):
 // "09:00", "14:30", "00:00". Used by the agenda time pill and the quick-add
