@@ -3,8 +3,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
 // The add box quietly understands a lot — a trailing "tomorrow" or "Friday"
-// schedules the task, "9am" or "noon" gives it a time, "9–11am" a whole block,
-// "30m" an estimate, "due Friday" a deadline, "every day" a routine, "#work" a
+// schedules the task, "9am", "noon", or "in 2 hours" gives it a time, "9–11am" a
+// whole block, "30m" an estimate, "due Friday" a deadline, "every day" a routine, "#work" a
 // tag, and a trailing "!" marks it important. All of it stacks. But none of it
 // was ever written down where you type, so the app's fastest path stayed hidden
 // unless you already knew the words. This is that reference, right under the box:
@@ -29,6 +29,7 @@ const GROUPS: Group[] = [
     tips: [
       { example: '9am', does: 'a time of day' },
       { example: 'noon', does: 'or say it in words' },
+      { example: 'in 2 hours', does: 'a time from now' },
       { example: '9–11am', does: 'a time block' },
       { example: '30m', does: 'how long it takes' },
     ],

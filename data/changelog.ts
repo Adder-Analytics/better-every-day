@@ -694,6 +694,14 @@ export const changelog: ChangelogEntry[] = [
       'A timed task that carries a block of time — "Deep work 9–11am" — now reads as happening now while you’re inside it, with a live "40m left" and a quiet pulsing dot, instead of being flagged "late" the moment it started. It fills the gap between the "in 25m" hint on the next task coming up and the "25m late" on one whose time has passed: a block moves through "in 25m" before it starts, "40m left" while it runs, and "late" only once its estimated end has gone by (counted from the end, not the start). A bare time with no estimate has no duration, so it still goes straight from up-next to late at its moment, unchanged. It reads the time and estimate already on the task, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 87,
+    date: '2026-09-09',
+    title: 'Schedule by how far off it is',
+    description:
+      'The add box now understands a relative time — "Call back in 30 min", "Leave in 2 hours", "in an hour", "in half an hour" — and turns it into a time of day: right now plus the offset, rounded to the nearest 5 minutes, previewed before you commit so the exact minute is no surprise. It sits alongside the clock times ("2pm") and named ones ("noon", "tonight") the box already read, and is distinct from the "in 3 days" that picks a future day (by its unit) and from a bare "30m" estimate (by the leading "in"). A phrase that would land past midnight is left in the title rather than dropped onto tomorrow. Because it resolves to an ordinary time, the task joins the day timeline and gets an in-tab reminder like any other timed task; nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
