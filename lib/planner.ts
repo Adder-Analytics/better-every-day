@@ -1069,6 +1069,50 @@ function parseTrailingNamedTime(text: string): { text: string; timeMin: number }
   return null
 }
 
+// Trailing relative near-term times: "in 30 min", "in 2 hours", "in an hour",
+// "in half an hour". People capture something soon-to-do by how far off it is
+// ("Call back in 30 min", "Leave in 2 hours") at least as readily as by the
+// clock, so quick-add turns the offset into a time of day the same way it reads
+// "2pm" — now plus the offset, rounded to the nearest 5 minutes. It's set apart
+// from "in N days" / "in N weeks" (which pick a future day) by its unit, and
+// from a bare "30m" estimate by the leading "in". `now` is passed in so the live
+// preview and the committed task read the same clock.
+const IN_MINUTES_RE = /\s+in\s+(\d{1,3})\s*(?:m|mins?|minutes?)\.?\s*$/i
+const IN_HOURS_RE = /\s+in\s+(\d{1,2})\s*(?:h|hrs?|hours?)\.?\s*$/i
+const IN_AN_HOUR_RE = /\s+in\s+an\s+hour\.?\s*$/i
+const IN_HALF_HOUR_RE = /\s+in\s+(?:half\s+an|a\s+half)\s+hour\.?\s*$/i
+
+// Resolve a trailing "in <duration>" to a time of day. Returns null when nothing
+// is recognized, when the count is out of range, when stripping would empty the
+// title, or when the result would spill past midnight — a phrase that can't land
+// today is left in the title so it's noticed rather than silently dropped onto
+// tomorrow.
+function parseTrailingRelativeTime(text: string, now: number): { text: string; timeMin: number } | null {
+  let re: RegExp | null = null
+  let delta: number | null = null
+  const mins = text.match(IN_MINUTES_RE)
+  if (mins) {
+    const n = Number(mins[1])
+    if (n >= 1 && n <= 600) { re = IN_MINUTES_RE; delta = n }
+  }
+  if (delta == null) {
+    const hrs = text.match(IN_HOURS_RE)
+    if (hrs) {
+      const n = Number(hrs[1])
+      if (n >= 1 && n <= 12) { re = IN_HOURS_RE; delta = n * 60 }
+    }
+  }
+  // Checked before "in an hour" so the "half" isn't mistaken for it.
+  if (delta == null && IN_HALF_HOUR_RE.test(text)) { re = IN_HALF_HOUR_RE; delta = 30 }
+  if (delta == null && IN_AN_HOUR_RE.test(text)) { re = IN_AN_HOUR_RE; delta = 60 }
+  if (re == null || delta == null) return null
+  const stripped = text.replace(re, '').trim()
+  if (!stripped) return null
+  const timeMin = Math.round((now + delta) / 5) * 5
+  if (timeMin >= 1440) return null
+  return { text: stripped, timeMin }
+}
+
 // A trailing importance flag: one or more "!" at the very end, set off from the
 // title by whitespace ("Submit report !", "Call the bank !!"). The leading \s is
 // the whole guard against prose — an ordinary exclamation ("Ship it!", "We did
@@ -1095,6 +1139,10 @@ const TRAILING_TAG_RE = /\s#[A-Za-z][\w-]{0,29}$/
 export function parseQuickAdd(input: string): QuickAdd {
   let text = input.trim()
   if (!text) return { text }
+
+  // The wall clock, read once so every relative phrase in this pass ("in 2
+  // hours") resolves against the same moment.
+  const now = currentMin()
 
   let repeat: RepeatRule | undefined
   let repeatEvery: number | undefined
@@ -1191,6 +1239,15 @@ export function parseQuickAdd(input: string): QuickAdd {
       if (time) {
         text = time.text
         timeMin = time.timeMin
+        continue
+      }
+      // A relative near-term time — "in 30 min", "in 2 hours" — resolves to a
+      // clock time now plus the offset. Tried before the estimate below so "in
+      // 30 min" reads as a time rather than a bare "30m" duration.
+      const relative = parseTrailingRelativeTime(text, now)
+      if (relative) {
+        text = relative.text
+        timeMin = relative.timeMin
         continue
       }
       // A named time — "noon", "tonight" — reads the same slot as a clock time.
