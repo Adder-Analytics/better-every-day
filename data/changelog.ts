@@ -702,6 +702,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now understands a relative time — "Call back in 30 min", "Leave in 2 hours", "in an hour", "in half an hour" — and turns it into a time of day: right now plus the offset, rounded to the nearest 5 minutes, previewed before you commit so the exact minute is no surprise. It sits alongside the clock times ("2pm") and named ones ("noon", "tonight") the box already read, and is distinct from the "in 3 days" that picks a future day (by its unit) and from a bare "30m" estimate (by the leading "in"). A phrase that would land past midnight is left in the title rather than dropped onto tomorrow. Because it resolves to an ordinary time, the task joins the day timeline and gets an in-tab reminder like any other timed task; nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 88,
+    date: '2026-09-10',
+    title: 'Tasks that repeat every year',
+    description:
+      'Routines can now recur yearly, alongside daily, weekdays, weekly, specific weekdays, monthly, and every-N-days — a home for the annual things a daily planner had nowhere to keep: a renewal, a checkup, an anniversary, taxes. A yearly task returns on the same month-and-day it was created (a Feb 29 anchor falls to Feb 28 in a non-leap year, so it still fires once a year); pick Yearly from the repeat menu, or type "yearly", "every year", or "annually" when adding ("Renew passport yearly"). The row names the cadence and reads the date it lands on in its tooltip, the Routines page names it too, and its streak counts by years. Stored data bumps to version 14 with the new repeat value; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

@@ -39,6 +39,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'weekdays') return 'Weekdays'
   if (task.repeat === 'weekly') return 'Weekly'
   if (task.repeat === 'monthly') return 'Monthly'
+  if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return 'Today'
