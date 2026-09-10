@@ -16,6 +16,7 @@ import {
   formatRepeatDays,
   formatInterval,
   monthlyDayLabel,
+  yearlyDateLabel,
   formatDayLabel,
   PLANNER_VERSION,
 } from '@/lib/planner'
@@ -34,9 +35,10 @@ function useHydrated(): boolean {
 // routine, or a handful of months for a monthly one. Enough to read the recent
 // rhythm without turning into a wall of dots.
 const RECENT_DUE = 14
-// How far the "next due" scan looks ahead before giving up. A year covers even a
-// monthly routine landing on a short-month edge.
-const LOOKAHEAD = 366
+// How far the "next due" scan looks ahead before giving up. Just past a full
+// leap year, so even a yearly routine (its next occurrence up to 366 days out)
+// and a monthly one landing on a short-month edge are always found.
+const LOOKAHEAD = 367
 // How far back the consistency strip scans to gather RECENT_DUE due days. Wide
 // enough that even a once-a-month routine fills its dots, bounded so the loop
 // always ends.
@@ -55,7 +57,7 @@ function todayState(task: Task, today: string): TodayState {
 // The unit a routine's streak counts in, so "5" reads as days, weeks, or months
 // to match its cadence — the same vocabulary the task row uses.
 function streakUnit(task: Task): string {
-  return task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
+  return task.repeat === 'yearly' ? 'year' : task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
 }
 
 // A short cadence label, mirroring the wording used on the task row, the repeat
@@ -70,6 +72,8 @@ function cadenceLabel(task: Task): string {
       return 'Weekly'
     case 'monthly':
       return `Monthly on ${monthlyDayLabel(task)}`
+    case 'yearly':
+      return `Yearly on ${yearlyDateLabel(task)}`
     case 'interval':
       return formatInterval(task.repeatEvery ?? 2)
     case 'days':

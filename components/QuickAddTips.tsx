@@ -41,6 +41,7 @@ const GROUPS: Group[] = [
       { example: 'every day', does: 'a daily routine' },
       { example: 'weekdays', does: 'Monday to Friday' },
       { example: 'every 3 days', does: 'a set cadence' },
+      { example: 'yearly', does: 'once a year' },
     ],
   },
   {
