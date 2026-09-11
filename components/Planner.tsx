@@ -8,7 +8,7 @@ import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
-import { extractTags, stripTags, tagColor } from '@/lib/tags'
+import { extractTags, stripTags, tagColor, hasTag } from '@/lib/tags'
 import TaskItem from '@/components/TaskItem'
 import TagChip from '@/components/TagChip'
 import Confetti from '@/components/Confetti'
@@ -691,7 +691,14 @@ export default function Planner() {
   // time, date, or recurrence is honored as typed, so the preset never overrides
   // what the words already say.
   const buildTask = (line: string, preset?: number): Task => {
-    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(line)
+    const parsed = parseQuickAdd(line)
+    const { date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parsed
+    // Add-in-context: while the day is filtered to a tag, a task added here joins
+    // that context automatically, unless the line already carries it. The tag is
+    // appended to the stored text (where tags live), after any schedule phrase
+    // parseQuickAdd already read, so it never changes how the line was parsed.
+    const text =
+      activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
     if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
     if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
@@ -1272,6 +1279,11 @@ export default function Planner() {
   // Tags recognized in a single-line entry, previewed as chips so a "#work"
   // typed inline is seen before it's added.
   const previewTags = extractTags(newText)
+
+  // The tag a new task will pick up from the active filter (add-in-context),
+  // shown as a hint by the add box and in the preview so it's never a surprise.
+  // Null when nothing is filtered or the line already carries that tag.
+  const autoTag = activeTag && !previewTags.includes(activeTag) ? activeTag : null
 
   // The tags you've already used, most-used first — offered under the add box so
   // a tag can be reused in a tap instead of retyped from memory (and spelled the
@@ -2123,6 +2135,26 @@ export default function Planner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
+          </span>
+        </div>
+      )}
+
+      {/* Add-in-context — while the day is filtered to a tag, a task added here
+          joins that context automatically, so working inside #work doesn't mean
+          retyping #work on every line. A quiet hint says so; the line's own tag
+          still wins, so nothing is forced. Held out of a brain dump's preview
+          (the count takes over) but the tag is still applied per line. */}
+      {autoTag && addLineCount < 2 && (
+        <div className="flex items-center px-1 pt-1">
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
+            <svg aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+            </svg>
+            <span>New tasks join</span>
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 font-medium ${tagColor(autoTag)}`}>
+              #{autoTag}
+            </span>
           </span>
         </div>
       )}
