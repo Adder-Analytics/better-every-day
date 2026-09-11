@@ -710,6 +710,14 @@ export const changelog: ChangelogEntry[] = [
       'Routines can now recur yearly, alongside daily, weekdays, weekly, specific weekdays, monthly, and every-N-days — a home for the annual things a daily planner had nowhere to keep: a renewal, a checkup, an anniversary, taxes. A yearly task returns on the same month-and-day it was created (a Feb 29 anchor falls to Feb 28 in a non-leap year, so it still fires once a year); pick Yearly from the repeat menu, or type "yearly", "every year", or "annually" when adding ("Renew passport yearly"). The row names the cadence and reads the date it lands on in its tooltip, the Routines page names it too, and its streak counts by years. Stored data bumps to version 14 with the new repeat value; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 89,
+    date: '2026-09-11',
+    title: 'Add tasks straight into a tag',
+    description:
+      'While the day is filtered to a tag, new tasks you add now join that tag automatically — so working inside #work doesn\'t mean retyping #work on every line. A quiet "New tasks join #work" hint sits by the add box while a filter is on, and the tag is appended to each added task (a pasted brain dump gets it per line too). It only applies while a filter is active, and a #tag typed into the line still wins, so nothing is forced. Tags are still read from the task text, so nothing about how data is stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
