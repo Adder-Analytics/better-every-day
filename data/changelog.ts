@@ -718,6 +718,14 @@ export const changelog: ChangelogEntry[] = [
       'While the day is filtered to a tag, new tasks you add now join that tag automatically — so working inside #work doesn\'t mean retyping #work on every line. A quiet "New tasks join #work" hint sits by the add box while a filter is on, and the tag is appended to each added task (a pasted brain dump gets it per line too). It only applies while a filter is active, and a #tag typed into the line still wins, so nothing is forced. Tags are still read from the task text, so nothing about how data is stored changed.',
     type: 'feature',
   },
+  {
+    day: 90,
+    date: '2026-09-12',
+    title: 'Pause a routine',
+    description:
+      'A routine can now be paused from the Routines page — a break taken without deleting the task or losing its streak. A paused routine steps out of every day, count, timeline, reminder, and the week and month views until you resume it; its history and streak stand, and resuming brings it back on its next due day with the break bridged (its paused days count as rest days, not misses), so a season off or a trip never breaks a run. The Routines page marks a paused one and offers Resume; a count in the header notes how many are paused. Stored data bumps to version 15 with one added optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

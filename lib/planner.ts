@@ -56,6 +56,14 @@ export type Task = {
   // each day, the chip counts down ("due Fri" → "due tomorrow" → "overdue") on
   // its own. Cleared to undefined when removed.
   dueDate?: string
+  // A routine paused indefinitely, from this date (YYYY-MM-DD) forward: a break
+  // taken without deleting the task or losing its streak — a season off, a trip.
+  // While set, the routine isn't due on this date or any later one, so it steps
+  // out of every day, count, and view; dates before it are untouched, so its
+  // history and streak stand. Resuming closes the pause: its due days over the
+  // paused span become rest days (skips), so the streak bridges across the break
+  // rather than reading the missed days as broken. Only meaningful on a routine.
+  pausedSince?: string
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
@@ -69,10 +77,11 @@ export type Task = {
 // (every-N-days routines) — a new repeat value and field old data never used.
 // v13: added an optional `dueDate` (a deadline, separate from the task's day).
 // v14: added the 'yearly' repeat rule (a new repeat value old data never used).
+// v15: added an optional `pausedSince` (a routine paused indefinitely).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v14 alike.
-export const PLANNER_VERSION = 14
+// loadPlanner reads v1–v15 alike.
+export const PLANNER_VERSION = 15
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -220,7 +229,8 @@ function isTask(value: unknown): value is Task {
     (t.priority === undefined || typeof t.priority === 'boolean') &&
     (t.subtasks === undefined || (Array.isArray(t.subtasks) && t.subtasks.every(isSubtask))) &&
     (t.someday === undefined || typeof t.someday === 'boolean') &&
-    (t.dueDate === undefined || typeof t.dueDate === 'string')
+    (t.dueDate === undefined || typeof t.dueDate === 'string') &&
+    (t.pausedSince === undefined || typeof t.pausedSince === 'string')
   )
 }
 
@@ -354,6 +364,10 @@ function daysBetween(fromStr: string, toStr: string): number {
 // never shows before the day it was created; after that it follows its cadence.
 export function isDueOn(task: Task, dateStr: string): boolean {
   if (!task.repeat) return false
+  // A paused routine isn't due on the pause date or any day after it, so it
+  // steps out of every list, count, and view until it's resumed. Days before
+  // the pause are untouched — its history and streak stand.
+  if (task.pausedSince && dateStr >= task.pausedSince) return false
   if (dateStr < task.createdDate) return false
   if (task.repeat === 'daily') return true
   // monthly: recurs on the same day-of-month it was created on. Months shorter
@@ -399,6 +413,14 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
 // nor missed — it bridges the streak instead of breaking it.
 export function isSkippedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.skips ?? []).includes(dateStr)
+}
+
+// Whether a repeating task is paused on the given date — set to a break and this
+// date falls on or after it. A paused routine steps out of that day entirely
+// (isDueOn already returns false for it); this is the direct check, for a view
+// that wants to name the paused state rather than just treat the day as empty.
+export function isPausedOn(task: Task, dateStr: string): boolean {
+  return !!task.repeat && !!task.pausedSince && dateStr >= task.pausedSince
 }
 
 // Short weekday names, keyed by day-of-week (0 = Sun … 6 = Sat).
@@ -533,10 +555,10 @@ export function loadPlanner(): PlannerData {
     // v1 (pre-notes), v2 (notes), v3 (routines), v4 (estimates), v5 (time of
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
-    // (every-N-days routines), v13 (task deadlines) and v14 (yearly routines)
-    // only add optional fields (or a repeat value old data never used), so every
-    // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // (every-N-days routines), v13 (task deadlines), v14 (yearly routines) and
+    // v15 (paused routines) only add optional fields (or a repeat value old data
+    // never used), so every version's tasks load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
