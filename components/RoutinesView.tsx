@@ -11,6 +11,7 @@ import {
   isDueOn,
   isCompletedOn,
   isSkippedOn,
+  isPausedOn,
   routineStreak,
   bestRoutineStreak,
   formatRepeatDays,
@@ -18,6 +19,7 @@ import {
   monthlyDayLabel,
   yearlyDateLabel,
   formatDayLabel,
+  formatPastDayLabel,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -44,14 +46,20 @@ const LOOKAHEAD = 367
 // always ends.
 const LOOKBACK = 800
 
-// How a routine stands today: due and waiting, already done, taken as a rest
-// day, or simply not scheduled for today.
-type TodayState = 'due' | 'done' | 'resting' | 'off'
+// How a routine stands today: paused on a break, due and waiting, already done,
+// taken as a rest day, or simply not scheduled for today.
+type TodayState = 'due' | 'done' | 'resting' | 'off' | 'paused'
 
 function todayState(task: Task, today: string): TodayState {
+  if (isPausedOn(task, today)) return 'paused'
   if (isSkippedOn(task, today)) return 'resting'
   if (isDueOn(task, today)) return isCompletedOn(task, today) ? 'done' : 'due'
   return 'off'
+}
+
+// A YYYY-MM-DD string from a local Date, for walking a paused span day by day.
+function isoLocal(dt: Date): string {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
 }
 
 // The unit a routine's streak counts in, so "5" reads as days, weeks, or months
@@ -135,7 +143,7 @@ type RoutineRow = {
 // Actionable first (a routine waiting on you today), then done, resting, and
 // finally the ones not due today; within a group, the longer streak leads, ties
 // broken by title so the order is stable.
-const STATE_RANK: Record<TodayState, number> = { due: 0, done: 1, resting: 2, off: 3 }
+const STATE_RANK: Record<TodayState, number> = { due: 0, done: 1, resting: 2, off: 3, paused: 4 }
 
 function FlameIcon({ className }: { className?: string }) {
   return (
@@ -150,6 +158,14 @@ function CheckIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  )
+}
+
+function PauseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
     </svg>
   )
 }
@@ -232,6 +248,44 @@ export default function RoutinesView() {
     )
   }
 
+  // Pause a routine indefinitely, from today forward: it steps out of every day,
+  // count, and view until it's resumed, and its streak is held rather than
+  // broken. Clears any rest day taken today, so a paused routine is never also
+  // "resting". Only a routine is ever paused.
+  const pauseRoutine = (id: string) => {
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id || !t.repeat) return t
+        const skips = (t.skips ?? []).filter(s => s !== today)
+        return { ...t, pausedSince: today, skips: skips.length ? skips : undefined }
+      })
+    )
+  }
+
+  // End a pause: the routine returns on its next due day. The break's own due
+  // days become rest days (skips), so the streak bridges the gap instead of
+  // reading the paused days as missed once they're due again.
+  const resumePause = (id: string) => {
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id || !t.pausedSince) return t
+        // Materialize the due days across [pausedSince, today) as rest days.
+        // Today itself returns to normal cadence, so it's left out of the span.
+        const bridged: string[] = []
+        const [y, m, d] = t.pausedSince.split('-').map(Number)
+        const cursor = new Date(y, m - 1, d)
+        let date = isoLocal(cursor)
+        while (date < today) {
+          if (isDueOn({ ...t, pausedSince: undefined }, date)) bridged.push(date)
+          cursor.setDate(cursor.getDate() + 1)
+          date = isoLocal(cursor)
+        }
+        const skips = [...new Set([...(t.skips ?? []), ...bridged])]
+        return { ...t, pausedSince: undefined, skips: skips.length ? skips : undefined }
+      })
+    )
+  }
+
   const rows: RoutineRow[] = tasks
     .filter(t => t.repeat)
     .map(task => ({
@@ -251,6 +305,7 @@ export default function RoutinesView() {
 
   const dueCount = rows.filter(r => r.state === 'due').length
   const doneCount = rows.filter(r => r.state === 'done').length
+  const pausedCount = rows.filter(r => r.state === 'paused').length
 
   if (!mounted) {
     return (
@@ -292,13 +347,15 @@ export default function RoutinesView() {
     <div className="space-y-3">
       <p className="px-1 text-xs leading-relaxed text-zinc-400">
         Every routine you’re keeping, in one place. Check off today’s due ones here, and see each
-        one’s streak and recent rhythm at a glance.
-        {(dueCount > 0 || doneCount > 0) && (
+        one’s streak and recent rhythm at a glance. Pause one you’re taking a break from — it steps
+        out of your days until you resume, and its streak is kept.
+        {(dueCount > 0 || doneCount > 0 || pausedCount > 0) && (
           <>
             {' '}
             <span className="text-zinc-500 dark:text-zinc-300">
               {dueCount > 0 ? `${dueCount} due today` : 'all caught up'}
               {doneCount > 0 && ` · ${doneCount} done`}
+              {pausedCount > 0 && ` · ${pausedCount} paused`}
             </span>
             .
           </>
@@ -311,6 +368,7 @@ export default function RoutinesView() {
         const unit = streakUnit(task)
         const done = state === 'done'
         const resting = state === 'resting'
+        const paused = state === 'paused'
         const interactive = state === 'due' || state === 'done'
 
         return (
@@ -345,14 +403,18 @@ export default function RoutinesView() {
                 </button>
               ) : (
                 <span
-                  title={resting ? 'Resting today' : 'Not due today'}
+                  title={paused ? 'Paused' : resting ? 'Resting today' : 'Not due today'}
                   className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center`}
                 >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      resting ? 'bg-amber-300 dark:bg-amber-500/70' : 'bg-zinc-200 dark:bg-zinc-700'
-                    }`}
-                  />
+                  {paused ? (
+                    <PauseIcon className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-500" />
+                  ) : (
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        resting ? 'bg-amber-300 dark:bg-amber-500/70' : 'bg-zinc-200 dark:bg-zinc-700'
+                      }`}
+                    />
+                  )}
                 </span>
               )}
 
@@ -393,7 +455,12 @@ export default function RoutinesView() {
                       best {best}
                     </span>
                   )}
-                  {state !== 'due' && next && (
+                  {paused && task.pausedSince && (
+                    <span title={`Paused since ${formatPastDayLabel(task.pausedSince)} — its streak is kept`}>
+                      paused since {formatPastDayLabel(task.pausedSince)}
+                    </span>
+                  )}
+                  {!paused && state !== 'due' && next && (
                     <span title={`Next due ${formatDayLabel(next)}`}>
                       next {formatDayLabel(next)}
                     </span>
@@ -416,9 +483,10 @@ export default function RoutinesView() {
                 )}
               </div>
 
-              {/* Today's standing — a quiet pill, plus the one action a non-due
-                  state offers (resuming a rest day). */}
-              <div className="flex-shrink-0 pt-0.5">
+              {/* Today's standing — a quiet pill, plus the actions a state
+                  offers: resuming a rest day or a pause, or pausing a routine
+                  you're taking a break from. */}
+              <div className="flex flex-shrink-0 items-center gap-1.5 pt-0.5">
                 {state === 'due' && (
                   <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Due</span>
                 )}
@@ -436,6 +504,27 @@ export default function RoutinesView() {
                   >
                     <ResumeIcon className="h-3.5 w-3.5" />
                     Resume
+                  </button>
+                )}
+                {paused ? (
+                  <button
+                    type="button"
+                    onClick={() => resumePause(task.id)}
+                    title="Resume this routine — it returns on its next due day, streak intact"
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                  >
+                    <ResumeIcon className="h-3.5 w-3.5" />
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => pauseRoutine(task.id)}
+                    title="Pause this routine — it steps out of your days until you resume, and its streak is kept"
+                    className="inline-flex items-center justify-center rounded-lg p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <PauseIcon className="h-3.5 w-3.5" />
+                    <span className="sr-only">Pause this routine</span>
                   </button>
                 )}
               </div>
