@@ -40,7 +40,13 @@ export default function WeekActivity({ tasks }: { tasks: Task[] }) {
     <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
       <div className="flex items-center justify-between mb-2.5 px-0.5">
         <div className="flex min-w-0 items-center gap-1.5">
-          <p className="text-xs font-medium text-zinc-400">This week</p>
+          <Link
+            href="/review"
+            title="Open the weekly review"
+            className="text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            This week
+          </Link>
           {streak >= 2 && (
             <span
               title={`${streak}-day streak — you’ve completed a task ${streak} days in a row`}
