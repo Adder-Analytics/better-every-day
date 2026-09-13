@@ -726,6 +726,14 @@ export const changelog: ChangelogEntry[] = [
       'A routine can now be paused from the Routines page — a break taken without deleting the task or losing its streak. A paused routine steps out of every day, count, timeline, reminder, and the week and month views until you resume it; its history and streak stand, and resuming brings it back on its next due day with the break bridged (its paused days count as rest days, not misses), so a season off or a trip never breaks a run. The Routines page marks a paused one and offers Resume; a count in the header notes how many are paused. Stored data bumps to version 15 with one added optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 91,
+    date: '2026-09-13',
+    title: 'A weekly review',
+    description:
+      'A new page (reached from the "This week" strip, or "Review the week" in the command palette) that looks back at the week rather than a single day: tasks done, active days, and busiest day; a plain up/down comparison against the same stretch of last week; a Sunday–Saturday bar strip; and, for each routine due that week, how many of its days you kept ("5 of 7") with its current streak. It also notes what is still open and will carry into next week, and gives each week its own reflection note. Step back through past weeks with the arrows. Everything is derived from the completion history the planner already keeps; the reflection notes are stored under their own key (bed-weeknotes), so no task data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
