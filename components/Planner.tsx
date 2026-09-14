@@ -468,6 +468,11 @@ export default function Planner() {
   const [suggestDismissed, setSuggestDismissed] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  // When set, focus mode leads with this task instead of the queue's top — the
+  // one you chose to work on now ("Focus on this"). The header and command-menu
+  // entry points clear it so they still start at the top; a stale id while out
+  // of focus is harmless, since it only reorders the queue (never its length).
+  const [focusStartId, setFocusStartId] = useState<string | null>(null)
   // Whether today's finished tasks are shown or folded into a "Completed"
   // summary. They still sink below what's left, exactly as before; this only
   // lets a busy day tuck them away so the remaining work stays front and
@@ -880,6 +885,15 @@ export default function Planner() {
 
   const doToday = (id: string) => scheduleTask(id, todayStr())
 
+  // Enter focus mode on a specific task rather than whatever leads the queue —
+  // "I want to work on this one now." The keyboard selection is dropped so it
+  // doesn't linger behind the focus view.
+  const startFocusOn = (id: string) => {
+    setSelectedId(null)
+    setFocusStartId(id)
+    setFocusMode(true)
+  }
+
   // Park a task in the Someday list, or take it back out onto today. Someday
   // tasks are anchored to today's date so they never linger in a past or future
   // section if the flag is ever cleared some other way. Stored as undefined when
@@ -1250,7 +1264,15 @@ export default function Planner() {
   // Focus mode shows only the single next thing to do — your active today
   // tasks come first, then anything carried over — so the rest can wait. It
   // follows the filter, so focusing while sliced to a tag steps through that tag.
-  const focusQueue = [...vTodayActive, ...vCarryovers]
+  // If a specific task was chosen ("Focus on this"), it leads the queue; the
+  // rest follow in their normal order. Should that task leave the queue — it's
+  // completed, rescheduled, or filtered out — the lead falls away and focus
+  // resumes from the top, so nothing gets stuck on a task that's no longer there.
+  const baseFocusQueue = [...vTodayActive, ...vCarryovers]
+  const focusLead = focusStartId ? baseFocusQueue.find(t => t.id === focusStartId) : undefined
+  const focusQueue = focusLead
+    ? [focusLead, ...baseFocusQueue.filter(t => t.id !== focusStartId)]
+    : baseFocusQueue
   const focusTask = focusQueue[0]
   const focusRemaining = Math.max(0, focusQueue.length - 1)
   // Only truly "in focus" when there's something to focus on; this guarantees
@@ -1412,7 +1434,7 @@ export default function Planner() {
     ...(inFocus
       ? [{ id: 'focus-exit', label: 'Exit focus mode', keywords: 'focus', icon: <TargetIcon className="h-4 w-4" />, run: () => setFocusMode(false) }]
       : focusQueue.length > 0
-        ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => { setSelectedId(null); setFocusMode(true) } }]
+        ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => { setSelectedId(null); setFocusStartId(null); setFocusMode(true) } }]
         : []),
     ...(carryovers.length > 0
       ? [{
@@ -1700,7 +1722,7 @@ export default function Planner() {
           )}
           {!inFocus && focusQueue.length > 0 && (
             <button
-              onClick={() => { setSelectedId(null); setFocusMode(true) }}
+              onClick={() => { setSelectedId(null); setFocusStartId(null); setFocusMode(true) }}
               className="flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
               title="Focus on one task at a time"
             >
@@ -1949,6 +1971,7 @@ export default function Planner() {
                   onSetSubtasks={setSubtasks}
                   onSetSomeday={setSomeday}
                   onDuplicate={duplicateTask}
+                  onFocus={startFocusOn}
                 />
               ))}
             </div>
@@ -2043,6 +2066,7 @@ export default function Planner() {
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
               onDuplicate={duplicateTask}
+              onFocus={startFocusOn}
               onSkip={skipRoutine}
               onMove={reorderSelected}
               canMoveUp={move.up}

@@ -204,6 +204,17 @@ function StepsIcon({ className }: { className?: string }) {
   )
 }
 
+// Concentric circles — the same target the header "Focus" button and the
+// command menu use, so "Focus on this" reads as the same feature.
+function FocusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
 // Hover-revealed action icons: hidden until the row is hovered or focused
 // with the keyboard. On touch screens (no hover) they're removed entirely —
 // the ellipsis menu carries those actions instead.
@@ -236,6 +247,10 @@ type Props = {
   onSetSomeday?: (id: string, someday: boolean) => void
   // Copy this task into a fresh one placed right below it, carrying its details.
   onDuplicate?: (id: string) => void
+  // Enter focus mode with this task leading, instead of the queue's top — so you
+  // can concentrate on the one you choose. Given only for tasks in the focus
+  // queue (today's still-to-do and carryovers); absent means no focus action.
+  onFocus?: (id: string) => void
   // Take a rest day: skip this routine for today. Given only for a routine's
   // today instance; it steps out of today's list without breaking its streak.
   onSkip?: (id: string) => void
@@ -292,6 +307,7 @@ export default function TaskItem({
   onSetSubtasks,
   onSetSomeday,
   onDuplicate,
+  onFocus,
   onSkip,
   onMove,
   canMoveUp = false,
@@ -352,6 +368,8 @@ export default function TaskItem({
   const canSubtask = !!onSetSubtasks
   const canSomeday = !!onSetSomeday
   const canDuplicate = !!onDuplicate
+  // Focusing a specific task only makes sense while it's still open.
+  const canFocus = !!onFocus && !task.done
   // A rest day only makes sense on a routine that's still open today.
   const canSkip = !!onSkip && !!task.repeat && !task.done
   const { done: subDone, total: subTotal } = subtaskProgress(task)
@@ -814,6 +832,17 @@ export default function TaskItem({
               }`}
             >
               <div className="flex min-w-0 items-center gap-0.5 overflow-hidden">
+                {canFocus && !editingNote && (
+                  <button
+                    onClick={() => onFocus!(task.id)}
+                    aria-label="Focus on this task"
+                    title="Focus on this task"
+                    className={clusterAction}
+                  >
+                    <FocusIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 {canPrioritize && !task.priority && !task.done && !editingNote && (
                   <button
                     onClick={() => onSetPriority!(task.id, true)}
@@ -922,7 +951,7 @@ export default function TaskItem({
 
             {/* Touch screens have no hover, so the actions above live behind
                 one always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canSkip) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canFocus || canSkip) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -982,6 +1011,7 @@ export default function TaskItem({
         >
           {(
             [
+              canFocus && { label: 'Focus on this', icon: <FocusIcon className="w-3.5 h-3.5" />, run: () => onFocus!(task.id) },
               canPrioritize && {
                 label: task.priority ? 'Remove star' : 'Star as important',
                 icon: task.priority ? <StarIcon className="w-3.5 h-3.5" /> : <StarOutlineIcon className="w-3.5 h-3.5" />,
