@@ -734,6 +734,14 @@ export const changelog: ChangelogEntry[] = [
       'A new page (reached from the "This week" strip, or "Review the week" in the command palette) that looks back at the week rather than a single day: tasks done, active days, and busiest day; a plain up/down comparison against the same stretch of last week; a Sunday–Saturday bar strip; and, for each routine due that week, how many of its days you kept ("5 of 7") with its current streak. It also notes what is still open and will carry into next week, and gives each week its own reflection note. Step back through past weeks with the arrows. Everything is derived from the completion history the planner already keeps; the reflection notes are stored under their own key (bed-weeknotes), so no task data changed.',
     type: 'feature',
   },
+  {
+    day: 92,
+    date: '2026-09-14',
+    title: 'Focus on the task you pick',
+    description:
+      'Focus mode always started with whatever led the list — the earliest timed task, or a starred one — so working on a different task first meant checking off or reordering everything ahead of it. A new "Focus on this" action, on any of today’s still-to-do tasks and carryovers (the hover icons on a mouse, the ellipsis menu on touch), enters focus mode with that task front and center instead. The rest of the queue follows in its usual order, and once the chosen task is finished or rescheduled away, focus carries on from the top as before. Entering focus from the header or the command menu still starts at the top. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
