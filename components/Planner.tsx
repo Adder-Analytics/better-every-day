@@ -45,14 +45,24 @@ function repeatContext(task: Task): string {
   return 'Today'
 }
 
-// Heroicons calendar (a due day) and circular-arrows (a recurrence), sized for
-// the quick-add preview line.
-function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat'; className?: string }) {
-  return kind === 'repeat' ? (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
-    </svg>
-  ) : (
+// Heroicons calendar (a due day), circular-arrows (a recurrence), and bookmark
+// (a Someday capture, with no day of its own), sized for the quick-add preview.
+function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat' | 'someday'; className?: string }) {
+  if (kind === 'repeat') {
+    return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
+      </svg>
+    )
+  }
+  if (kind === 'someday') {
+    return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+      </svg>
+    )
+  }
+  return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
     </svg>
@@ -705,7 +715,7 @@ export default function Planner() {
   // what the words already say.
   const buildTask = (line: string, preset?: number): Task => {
     const parsed = parseQuickAdd(line)
-    const { date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parsed
+    const { date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
     // Add-in-context: while the day is filtered to a tag, a task added here joins
     // that context automatically, unless the line already carries it. The tag is
     // appended to the stored text (where tags live), after any schedule phrase
@@ -713,7 +723,9 @@ export default function Planner() {
     const text =
       activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
     if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
-    if (!date && addFor === 'someday') return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
+    // Someday, either from a typed "someday" (saidSomeday, which already implies
+    // no day was read) or the toggle — a real day typed on the line wins over both.
+    if (!date && (saidSomeday || addFor === 'someday')) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     const day = date ?? (addFor === 'tomorrow' ? tomorrowStr() : todayStr())
     const finalTime = timeMin ?? (!date && addFor === 'today' ? preset : undefined)
     return { ...newTask(text, day), estimateMin, timeMin: finalTime, dueDate, priority }

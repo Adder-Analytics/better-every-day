@@ -22,6 +22,7 @@ const GROUPS: Group[] = [
       { example: 'Friday', does: 'the next Friday' },
       { example: 'Aug 20', does: 'a calendar date' },
       { example: 'in 3 days', does: 'a few days out' },
+      { example: 'someday', does: 'keep it, no day yet' },
     ],
   },
   {
