@@ -742,6 +742,14 @@ export const changelog: ChangelogEntry[] = [
       'Focus mode always started with whatever led the list — the earliest timed task, or a starred one — so working on a different task first meant checking off or reordering everything ahead of it. A new "Focus on this" action, on any of today’s still-to-do tasks and carryovers (the hover icons on a mouse, the ellipsis menu on touch), enters focus mode with that task front and center instead. The rest of the queue follows in its usual order, and once the chosen task is finished or rescheduled away, focus carries on from the top as before. Entering focus from the header or the command menu still starts at the top. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 93,
+    date: '2026-09-15',
+    title: 'Type “someday” to capture it',
+    description:
+      'Quick-add now reads a trailing "someday" (or "one day") and parks the task in the Someday list — so an idea you want to keep without committing to a day is captured in one line, without reaching for the Today/Tomorrow/Someday toggle. "Learn guitar someday", "Read that book one day". The recognized capture shows in the add preview before you commit, and it stacks with the rest of quick-add, so "Repaint the fence someday #home" keeps the tag. A real day or recurrence typed alongside it wins, since a task with a day to sit on isn’t a backlog item, and a bare "someday" stays its own literal task. It reuses the existing someday flag, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

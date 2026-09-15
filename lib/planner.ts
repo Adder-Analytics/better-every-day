@@ -804,7 +804,7 @@ export function formatPlanText(tasks: Task[], heading: string, hour12 = true): s
 // is recognized, and never the ambiguous word "today", so it can't quietly
 // rewrite a real title like "Plan the week" or "What did I get done today".
 
-export type QuickAddSchedule = { kind: 'date' | 'repeat'; label: string }
+export type QuickAddSchedule = { kind: 'date' | 'repeat' | 'someday'; label: string }
 
 export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
@@ -815,6 +815,7 @@ export type QuickAdd = {
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
   priority?: boolean // starred important, read from a trailing "!" flag
+  someday?: boolean // parked in the Someday list, read from a trailing "someday"
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -1165,6 +1166,15 @@ function parseTrailingRelativeTime(text: string, now: number): { text: string; t
 // stays its own task.
 const TRAILING_PRIORITY_RE = /\s+!+$/
 
+// A trailing "someday" (or "some day" / "one day") parks the task in the Someday
+// list — captured without committing it to a day. It's the words people already
+// reach for ("Learn guitar someday", "Read that book one day"), so quick-add
+// reads them the same way it reads "tomorrow", and the Today/Tomorrow/Someday
+// toggle no longer needs a trip. Peeled only when a non-empty title remains, so a
+// bare "someday" stays its own literal task; a day or recurrence typed alongside
+// it wins, since a task with a real day isn't a someday task.
+const TRAILING_SOMEDAY_RE = /\s+(?:some\s?day|one\s?day)\.?\s*$/i
+
 // A single trailing hashtag, matched the same way tags.ts recognizes one (a
 // leading letter, then up to 30 word characters or hyphens). Tags live inline in
 // the task text, so a natural entry often ends with one — "Standup 10am #work".
@@ -1196,6 +1206,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let timeMin: number | undefined
   let estimateMin: number | undefined
   let priority: boolean | undefined
+  let someday: boolean | undefined
   // Hashtags peeled off the end, newest first, so a schedule phrase sitting
   // behind them can be read. Reattached after the loop in their original order.
   const trailingTags: string[] = []
@@ -1222,6 +1233,18 @@ export function parseQuickAdd(input: string): QuickAdd {
       const stripped = text.replace(TRAILING_PRIORITY_RE, '').trim()
       if (stripped && stripped !== text) {
         priority = true
+        text = stripped
+        continue
+      }
+    }
+    // A trailing "someday" parks the task in the backlog. Peeled here, alongside
+    // the other flags, so a schedule phrase written in front of it is still read
+    // in a later pass — though a real day and a "someday" together is a
+    // contradiction the return resolves in the day's favor.
+    if (!someday) {
+      const stripped = text.replace(TRAILING_SOMEDAY_RE, '').trim()
+      if (stripped && stripped !== text) {
+        someday = true
         text = stripped
         continue
       }
@@ -1317,13 +1340,19 @@ export function parseQuickAdd(input: string): QuickAdd {
   // drive the tag filter — only the schedule phrase between them was removed.
   if (trailingTags.length > 0) text = `${text} ${trailingTags.join(' ')}`.trim()
 
+  // A real day or recurrence wins over "someday" — a task with a day to sit on
+  // isn't a backlog item — so the someday flag only stands when neither was read.
+  const isSomeday = !!someday && !repeat && !date
+
   const schedule: QuickAddSchedule | undefined = repeat
     ? { kind: 'repeat', label: repeatLabel }
     : date
       ? { kind: 'date', label: formatDayLabel(date) }
-      : undefined
+      : isSomeday
+        ? { kind: 'someday', label: 'Someday' }
+        : undefined
 
-  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, schedule }
+  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------
