@@ -138,6 +138,23 @@ export function nextWeekdayStr(dow: number): string {
   return addDaysStr(delta)
 }
 
+// The date a "this weekend" / "next weekend" phrase lands on: Saturday, the day
+// the weekend opens. Unlike a bare weekday name, a weekend is a span you can
+// already be inside — so "this weekend" resolves to today when it's Saturday or
+// Sunday, and otherwise to the coming Saturday. "next weekend" (next = true)
+// always steps a full week past this weekend's Saturday, so it stays distinct.
+export function weekendStr(next = false): string {
+  const dow = new Date().getDay() // 0 = Sun … 6 = Sat
+  // The Saturday that opens the weekend we're in or heading toward: today if
+  // it's Saturday, yesterday if it's Sunday (the same weekend), else the days
+  // ahead to the coming Saturday.
+  const toThisSat = dow === 0 ? -1 : 6 - dow
+  // "this weekend" lands on today when it's already the weekend, otherwise the
+  // coming Saturday; "next weekend" is always a week past this weekend's Saturday.
+  const offset = next ? toThisSat + 7 : dow === 0 ? 0 : toThisSat
+  return addDaysStr(offset)
+}
+
 // A friendly heading for a scheduled day: "Today"/"Tomorrow", a weekday name
 // within the coming week ("Saturday"), or "Mon, Jul 3" further out. Parsed
 // from parts so the weekday is correct in every timezone.
@@ -863,6 +880,12 @@ const IN_DAYS_RE = /\s+in\s+(\d{1,3})\s+days?\.?\s*$/i
 const IN_WEEKS_RE = /\s+in\s+(\d{1,2})\s+weeks?\.?\s*$/i
 const WEEKDAY_RE =
   /\s+(?:(?:on|next|this)\s+)?(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\.?\s*$/i
+// A trailing "weekend": "this weekend", "next weekend", "on the weekend", or a
+// bare "weekend". A leading "next" points to the following week's weekend; the
+// rest mean the one we're in or heading toward. Read like a weekday name, it
+// lands the task on Saturday (see weekendStr). Tried before WEEKDAY_RE so the
+// whole word is claimed here rather than left to a partial weekday match.
+const WEEKEND_RE = /\s+(?:(this|next)\s+|on\s+(?:the\s+)?)?weekend\.?\s*$/i
 
 // The three-letter prefix of a month name keys its month (0 = Jan … 11 = Dec),
 // so "Aug", "August", and "Sept" all resolve the same way. The alternation
@@ -901,10 +924,10 @@ function nextDateOnMonthDay(month0: number, day: number): string | null {
   return null
 }
 
-// Strip a trailing day phrase ("tomorrow", "friday", "in 3 days", "next week",
-// "in 2 weeks", "Aug 20", "20 August") and resolve it to an absolute date.
-// Returns null when nothing is recognized, or when stripping would empty the
-// title (so "friday" or "August" typed alone stays a literal task).
+// Strip a trailing day phrase ("tomorrow", "friday", "this weekend", "in 3
+// days", "next week", "in 2 weeks", "Aug 20", "20 August") and resolve it to an
+// absolute date. Returns null when nothing is recognized, or when stripping
+// would empty the title (so "friday" or "August" typed alone stays a literal task).
 function parseTrailingDate(text: string): { text: string; date: string } | null {
   const tomorrow = text.replace(TOMORROW_RE, '').trim()
   if (tomorrow && tomorrow !== text) return { text: tomorrow, date: addDaysStr(1) }
@@ -940,6 +963,14 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
     const stripped = text.replace(DAY_MONTH_RE, '').trim()
     const date = nextDateOnMonthDay(MONTH3[dayMonth[2].slice(0, 3).toLowerCase()], Number(dayMonth[1]))
     if (stripped && date) return { text: stripped, date }
+  }
+
+  // "this weekend" / "next weekend" — checked before a weekday name so the word
+  // "weekend" is read whole rather than clipped at a stray weekday prefix.
+  const weekend = text.match(WEEKEND_RE)
+  if (weekend) {
+    const stripped = text.replace(WEEKEND_RE, '').trim()
+    if (stripped) return { text: stripped, date: weekendStr((weekend[1] ?? '').toLowerCase() === 'next') }
   }
 
   const weekday = text.match(WEEKDAY_RE)

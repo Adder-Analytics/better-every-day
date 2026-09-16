@@ -20,6 +20,7 @@ const GROUPS: Group[] = [
     tips: [
       { example: 'tomorrow', does: 'schedules it for tomorrow' },
       { example: 'Friday', does: 'the next Friday' },
+      { example: 'this weekend', does: 'the coming Saturday' },
       { example: 'Aug 20', does: 'a calendar date' },
       { example: 'in 3 days', does: 'a few days out' },
       { example: 'someday', does: 'keep it, no day yet' },
