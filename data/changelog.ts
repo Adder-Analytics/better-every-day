@@ -750,6 +750,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add now reads a trailing "someday" (or "one day") and parks the task in the Someday list — so an idea you want to keep without committing to a day is captured in one line, without reaching for the Today/Tomorrow/Someday toggle. "Learn guitar someday", "Read that book one day". The recognized capture shows in the add preview before you commit, and it stacks with the rest of quick-add, so "Repaint the fence someday #home" keeps the tag. A real day or recurrence typed alongside it wins, since a task with a day to sit on isn’t a backlog item, and a bare "someday" stays its own literal task. It reuses the existing someday flag, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 94,
+    date: '2026-09-16',
+    title: 'Say “this weekend” when you add a task',
+    description:
+      'Quick-add now recognizes a trailing "this weekend", "next weekend", "on the weekend", or a bare "weekend", alongside the weekday names and "next week" it already read. It schedules the task for Saturday, the day the weekend opens: "this weekend" is the one you’re in or heading toward (today when it already is Saturday or Sunday, otherwise the coming Saturday), and "next weekend" is a full week past that. The resolved day shows in the add preview before you commit, and it stacks with the rest of quick-add — "Fix the gutter this weekend #home 30m" keeps the tag and estimate, and "Submit taxes due weekend" reads the weekend as a deadline. A bare "weekend" and a phrase like "the weekend party" stay literal text. It resolves to an ordinary date, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
