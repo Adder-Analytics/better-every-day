@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
+import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
@@ -93,6 +94,16 @@ function ClockIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+// A target dot — time focused on the task, echoing the Focus feature's aim.
+function FocusDotIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
     </svg>
   )
 }
@@ -269,6 +280,10 @@ type Props = {
   nowLabel?: string
   // A live "25m late" hint shown on a timed task whose moment has passed unfinished.
   overdueLabel?: string
+  // Seconds of focused time logged on this task today (from the Focus timer). A
+  // quiet "focused 25m" chip when it's a minute or more — the time actually spent,
+  // beside the estimate it was planned with. 0 or absent shows nothing.
+  focusedSec?: number
   // A heads-up that this task's time or block overlaps another today; the string
   // is the tooltip naming the clash, the pill itself just reads "overlaps".
   conflictLabel?: string
@@ -315,6 +330,7 @@ export default function TaskItem({
   upNextLabel,
   nowLabel,
   overdueLabel,
+  focusedSec = 0,
   conflictLabel,
   onFilterTag,
   activeTag,
@@ -687,7 +703,7 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || hasSubtasks || tags.length > 0) && (
+          {!editing && (upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0) && (
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
@@ -787,6 +803,27 @@ export default function TaskItem({
                     {formatDuration(task.estimateMin)}
                   </span>
                 )
+              )}
+
+              {/* Time actually focused on this task today, from the Focus timer —
+                  a quiet counterpart to the estimate. Emerald once it has met or
+                  passed the estimate; otherwise the same muted tone as the rest. */}
+              {focusedSec >= 60 && (
+                <span
+                  title={
+                    task.estimateMin
+                      ? `Focused ${formatFocus(focusedSec)} today of ${formatDuration(task.estimateMin)} planned`
+                      : `Focused ${formatFocus(focusedSec)} today`
+                  }
+                  className={`inline-flex items-center gap-1 text-[10px] font-medium tabular-nums ${
+                    task.estimateMin && focusedSec >= task.estimateMin * 60
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-zinc-400 dark:text-zinc-500'
+                  } ${task.done ? 'opacity-60' : ''}`}
+                >
+                  <FocusDotIcon className="w-3 h-3" />
+                  {formatFocus(focusedSec)}
+                </span>
               )}
 
               {/* Steps progress — turns emerald once every step is checked. */}

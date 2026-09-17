@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
+import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
@@ -460,6 +461,16 @@ export default function Planner() {
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
+  // The day's focus record — seconds of focused time per task, per day, kept
+  // apart from task data under its own key (like the day note). Written by the
+  // Focus timer as it runs; read here to show a task its time spent and the day
+  // its total, against the estimates it was planned with.
+  const [focusLog, setFocusLog] = useState<FocusLog>(() =>
+    typeof window === 'undefined' ? {} : loadFocusLog()
+  )
+  const logFocus = useCallback((taskId: string, deltaSec: number) => {
+    setFocusLog(prev => addFocusSeconds(prev, taskId, deltaSec))
+  }, [])
   const [newText, setNewText] = useState('')
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
   // A start time picked from an open slot on the timeline. When set, the next
@@ -1273,6 +1284,9 @@ export default function Planner() {
   // (midnight) it stops guessing a time and says so plainly.
   const remainingMin = plannedMin - doneMin
   const projectedFinish = nowMin + remainingMin
+  // Seconds of focused work logged across today — the day's actual time on task,
+  // shown beside the plan's estimates so the two can be read against each other.
+  const focusedTodaySec = daySeconds(focusLog, today)
   // Focus mode shows only the single next thing to do — your active today
   // tasks come first, then anything carried over — so the rest can wait. It
   // follows the filter, so focusing while sliced to a tag steps through that tag.
@@ -1810,6 +1824,11 @@ export default function Planner() {
           <span className="tabular-nums">
             About <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatDuration(plannedMin)}</span> planned today
             {doneMin > 0 && <> · {formatDuration(doneMin)} done</>}
+            {focusedTodaySec >= 60 && (
+              <span title="Time actually spent in Focus mode today, across all tasks">
+                {' '}· <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatFocus(focusedTodaySec)}</span> focused
+              </span>
+            )}
             {remainingMin > 0 && (
               <span title="Roughly when you’d wrap up the remaining estimated tasks, working straight through from now">
                 {projectedFinish < 1440 ? (
@@ -1896,7 +1915,12 @@ export default function Planner() {
             )}
             {/* A focus session timer — work this task in a block of time. Keyed to
                 the task so switching focus starts a fresh session. */}
-            <FocusTimer key={focusTask.id} estimateMin={focusTask.estimateMin} />
+            <FocusTimer
+              key={focusTask.id}
+              estimateMin={focusTask.estimateMin}
+              focusedSec={focusSeconds(focusLog, focusTask.id)}
+              onElapsed={delta => logFocus(focusTask.id, delta)}
+            />
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
             <span className="tabular-nums">
@@ -1967,6 +1991,7 @@ export default function Planner() {
                   key={task.id}
                   task={task}
                   carryover
+                  focusedSec={focusSeconds(focusLog, task.id)}
                   highlight={task.id === revealId}
                   onFilterTag={setActiveTag}
                   activeTag={activeTag}
@@ -2064,6 +2089,7 @@ export default function Planner() {
               upNextLabel={task.id === nextUp?.id ? formatStartsIn(task.timeMin! - nowMin) : undefined}
               nowLabel={nowLabel}
               overdueLabel={overdueLabel}
+              focusedSec={focusSeconds(focusLog, task.id)}
               conflictLabel={conflictLabel(task.id)}
               onToggle={toggleTask}
               onDelete={deleteTask}
@@ -2148,6 +2174,7 @@ export default function Planner() {
                 task={task}
                 selected={task.id === selectedId}
                 highlight={task.id === revealId}
+                focusedSec={focusSeconds(focusLog, task.id)}
                 onFilterTag={setActiveTag}
                 activeTag={activeTag}
                 onToggle={toggleTask}

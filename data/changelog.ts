@@ -758,6 +758,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add now recognizes a trailing "this weekend", "next weekend", "on the weekend", or a bare "weekend", alongside the weekday names and "next week" it already read. It schedules the task for Saturday, the day the weekend opens: "this weekend" is the one you’re in or heading toward (today when it already is Saturday or Sunday, otherwise the coming Saturday), and "next weekend" is a full week past that. The resolved day shows in the add preview before you commit, and it stacks with the rest of quick-add — "Fix the gutter this weekend #home 30m" keeps the tag and estimate, and "Submit taxes due weekend" reads the weekend as a deadline. A bare "weekend" and a phrase like "the weekend party" stay literal text. It resolves to an ordinary date, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 95,
+    date: '2026-09-17',
+    title: 'See the time you actually focus',
+    description:
+      'The Focus timer now keeps a record of the time it spends running on each task, so the plan’s estimates can be read against the time actually spent. While you work, a running "focused today" tally sits under the timer beside the task’s estimate. Back in the list, a task shows a quiet "focused 25m" chip once a minute is logged — emerald when it meets or passes its estimate — and the day’s time summary adds a "focused" total across the day. Time counts only while the timer runs: a pause stops it, and a reset still credits the work already done. It is kept per day in the browser under a new bed-focuslog key, separate from your tasks, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

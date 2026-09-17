@@ -1,12 +1,16 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { formatFocus } from '@/lib/focuslog'
 
 // A focus session timer for the one task in Focus mode — a quiet way to work in
 // a block of time instead of an open-ended stretch. It counts down, shows the
-// time left in a ring, and settles into "Time's up" when the block ends. The
-// session lives only in memory: it resets when the focused task changes and
-// starts fresh on reload, so nothing is stored and no data shape changes.
+// time left in a ring, and settles into "Time's up" when the block ends.
+//
+// The countdown itself lives only in memory (it resets when the focused task
+// changes and starts fresh on reload), but the time actually spent running is
+// reported to the caller via `onElapsed`, which persists it as the day's focus
+// record — so the block you worked reads back against the task's estimate later.
 
 // Common block lengths, in minutes. A task's own estimate joins these when it's
 // set, so the timer defaults to how long you thought the task would take.
@@ -60,7 +64,18 @@ function Ring({ fraction, children, done }: { fraction: number; children: React.
 
 // The caller keys this by task id, so switching the focused task remounts it —
 // a fresh session, seeded from the new task's estimate — with no reset effect.
-export default function FocusTimer({ estimateMin }: { estimateMin?: number }) {
+// `focusedSec` seeds the running "focused today" total with what this task has
+// already banked earlier in the day; `onElapsed` reports each span of time the
+// timer spent running so the caller can persist it.
+export default function FocusTimer({
+  estimateMin,
+  focusedSec = 0,
+  onElapsed,
+}: {
+  estimateMin?: number
+  focusedSec?: number
+  onElapsed?: (deltaSec: number) => void
+}) {
   // The block length in minutes, seeded from the task's estimate (clamped to a
   // sane range) or the default.
   const initialMin = estimateMin && estimateMin >= 1 && estimateMin <= 180 ? estimateMin : DEFAULT_MIN
@@ -71,9 +86,24 @@ export default function FocusTimer({ estimateMin }: { estimateMin?: number }) {
   // on return instead of drifting by the missed ticks.
   const endRef = useRef<number | null>(null)
 
+  // Time actually spent running this task, in seconds. `accumSec` banks the
+  // finished spans (seeded from what the day already holds for this task);
+  // `spanSec` is the live length of the span in progress, shown while running.
+  const [accumSec, setAccumSec] = useState(focusedSec)
+  const [spanSec, setSpanSec] = useState(0)
+  // The moment the current running span began, so its length is wall-clock true
+  // through a backgrounded tab, and can be flushed when the span ends.
+  const runStartRef = useRef<number | null>(null)
+  const onElapsedRef = useRef(onElapsed)
+  useEffect(() => {
+    onElapsedRef.current = onElapsed
+  })
+
   useEffect(() => {
     if (!running) return
+    runStartRef.current = Date.now()
     const tick = () => {
+      if (runStartRef.current != null) setSpanSec(Math.round((Date.now() - runStartRef.current) / 1000))
       if (endRef.current == null) return
       const left = Math.max(0, Math.round((endRef.current - Date.now()) / 1000))
       setRemaining(left)
@@ -91,8 +121,25 @@ export default function FocusTimer({ estimateMin }: { estimateMin?: number }) {
     }
     const id = setInterval(tick, 250)
     tick()
-    return () => clearInterval(id)
+    // Ending the span — a pause, the block finishing, a switch of task, or
+    // leaving focus — banks the time it ran and reports it once. Counting actual
+    // running time means a reset mid-block still credits the work already done.
+    return () => {
+      clearInterval(id)
+      if (runStartRef.current != null) {
+        const delta = Math.round((Date.now() - runStartRef.current) / 1000)
+        runStartRef.current = null
+        setSpanSec(0)
+        if (delta > 0) {
+          setAccumSec(a => a + delta)
+          onElapsedRef.current?.(delta)
+        }
+      }
+    }
   }, [running])
+
+  // What the "focused today" line reads: the banked spans plus the one in flight.
+  const focusedTotal = accumSec + (running ? spanSec : 0)
 
   const total = durationMin * 60
   const done = remaining === 0
@@ -195,7 +242,29 @@ export default function FocusTimer({ estimateMin }: { estimateMin?: number }) {
           </button>
         )}
       </div>
+
+      {/* A quiet running tally of the time actually spent on this task today —
+          the counterpart to its estimate, and what the day's focus record keeps.
+          Shown once at least a few seconds have been worked. */}
+      {focusedTotal >= 5 && (
+        <p className="flex items-center gap-1.5 text-xs text-zinc-400 tabular-nums">
+          <ClockIcon className="h-3.5 w-3.5" />
+          <span>
+            <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatFocus(focusedTotal)}</span> focused today
+            {estimateMin ? <span className="text-zinc-400"> · {formatFocus(estimateMin * 60)} planned</span> : null}
+          </span>
+        </p>
+      )}
     </div>
+  )
+}
+
+// Heroicons "clock" — the focus tally, matching the estimate clock used elsewhere.
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
   )
 }
 
