@@ -16,5 +16,15 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
       { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
+    // Let the installed app receive shared text, so a link or note handed to it
+    // from another app's share sheet becomes a new task. A GET target hands the
+    // shared title/text/url to the home page as query params, which the planner
+    // reads on load and drops into the add box for a look before it's added —
+    // capture stays on this device, like everything else here.
+    share_target: {
+      action: '/',
+      method: 'GET',
+      params: { title: 'title', text: 'text', url: 'url' },
+    },
   }
 }

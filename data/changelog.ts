@@ -766,6 +766,14 @@ export const changelog: ChangelogEntry[] = [
       'The Focus timer now keeps a record of the time it spends running on each task, so the plan’s estimates can be read against the time actually spent. While you work, a running "focused today" tally sits under the timer beside the task’s estimate. Back in the list, a task shows a quiet "focused 25m" chip once a minute is logged — emerald when it meets or passes its estimate — and the day’s time summary adds a "focused" total across the day. Time counts only while the timer runs: a pause stops it, and a reset still credits the work already done. It is kept per day in the browser under a new bed-focuslog key, separate from your tasks, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 96,
+    date: '2026-09-18',
+    title: 'Share something straight into your day',
+    description:
+      'The installed app is now a share target, so text or a link handed to it from another app’s share sheet becomes a task. The shared title, text, and page URL are folded into one line (overlapping pieces are dropped) and dropped into the add box, focused and ready, rather than added outright — so it can be edited or given a schedule phrase ("tomorrow", "9am") before it’s committed. The same works for any link that opens the app with title, text, or url query params, so a shortcut or bookmarklet can capture into it too. The params are stripped from the URL after they’re read, and, like everything else here, the capture stays on your device.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

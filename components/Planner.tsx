@@ -33,6 +33,26 @@ const emptySubscribe = () => () => {}
 // How long a deleted task can be taken back before the deletion is final.
 const UNDO_WINDOW_MS = 8000
 
+// Fold a shared payload (title / text / url, as sent by the Web Share Target or
+// any link that opens the app with those query params) into a single draft line
+// for the add box. The pieces often overlap — a shared page hands both a title
+// and its url, a note hands only text — so each part is kept only when it adds
+// something the others don't: a title, then text that isn't just the title, then
+// a url not already sitting in the text. Newlines collapse to spaces so a shared
+// blob stays one task (the add box would split lines into separate ones), and
+// the result is trimmed. Returns '' when there's nothing worth capturing, so the
+// caller can tell a real share from a bare visit.
+export function composeSharedTask(params: URLSearchParams): string {
+  const title = (params.get('title') ?? '').trim()
+  const text = (params.get('text') ?? '').trim()
+  const url = (params.get('url') ?? '').trim()
+  const parts: string[] = []
+  if (title) parts.push(title)
+  if (text && text !== title) parts.push(text)
+  if (url && !parts.some(p => p.includes(url))) parts.push(url)
+  return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
 // A short label for a routine's cadence, used as its context in task search.
 // Mirrors the wording the repeat menu and task row already use.
 function repeatContext(task: Task): string {
@@ -471,7 +491,15 @@ export default function Planner() {
   const logFocus = useCallback((taskId: string, deltaSec: number) => {
     setFocusLog(prev => addFocusSeconds(prev, taskId, deltaSec))
   }, [])
-  const [newText, setNewText] = useState('')
+  // Seeded from anything shared into the app on this load — the Web Share
+  // Target, or any link that opens it with title/text/url params (see
+  // composeSharedTask). A plain visit has none, so this is just ''. Read at init
+  // so the box is already filled when it first renders (the mount effect below
+  // only cleans the URL and focuses); guarded for the server, where there's no
+  // window and this is '' anyway.
+  const [newText, setNewText] = useState<string>(() =>
+    typeof window === 'undefined' ? '' : composeSharedTask(new URLSearchParams(window.location.search))
+  )
   const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
   // A start time picked from an open slot on the timeline. When set, the next
   // task added (without its own time) lands at this minute of today; a chip by
@@ -610,6 +638,22 @@ export default function Planner() {
 
   useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+
+  // Content shared into the app — from another app's share sheet (the installed
+  // PWA's share target) or any link that opens it with title/text/url params —
+  // is seeded into the add box by the newText initializer above, so it's ready
+  // to edit or give a schedule phrase before it's committed rather than added
+  // outright. Here we strip those params from the URL, so a reload doesn't
+  // re-fill the box, and bring the focused box into view. Runs once on mount; a
+  // plain visit (no such params) does nothing.
+  useEffect(() => {
+    if (!composeSharedTask(new URLSearchParams(window.location.search))) return
+    window.history.replaceState(null, '', window.location.pathname)
+    setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 60)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
