@@ -774,6 +774,14 @@ export const changelog: ChangelogEntry[] = [
       'The installed app is now a share target, so text or a link handed to it from another app’s share sheet becomes a task. The shared title, text, and page URL are folded into one line (overlapping pieces are dropped) and dropped into the add box, focused and ready, rather than added outright — so it can be edited or given a schedule phrase ("tomorrow", "9am") before it’s committed. The same works for any link that opens the app with title, text, or url query params, so a shortcut or bookmarklet can capture into it too. The params are stripped from the URL after they’re read, and, like everything else here, the capture stays on your device.',
     type: 'feature',
   },
+  {
+    day: 97,
+    date: '2026-09-19',
+    title: 'Log something you already did',
+    description:
+      'The add box now has a "Log as already done" action beside it: type what you did and it goes straight into today\'s finished list instead of the to-do list. It\'s for the work that wasn\'t on the plan but still counts, so the done count, the completed-task history, and streaks reflect what actually happened without the add-then-check two-step. The line is parsed the same way a normal add is — its tags, time of day, estimate, and "!" are kept — but any schedule it named (tomorrow, someday, or a repeat) is dropped, since a logged task has already happened and belongs to today. Cmd/Ctrl+Enter in the add box does the same, and a pasted multi-line list logs each line at once. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

@@ -801,6 +801,33 @@ export default function Planner() {
     setPresetTime(null)
   }
 
+  // Log something you already did — capture a task straight into today's
+  // finished list. It's for the work that wasn't on the plan but still counts:
+  // each line becomes one completed task, so the done count, history, and
+  // streaks stay honest without the add-then-check two-step. A logged item has
+  // already happened, so any schedule the line named (tomorrow, someday, a
+  // repeat) is dropped and it's anchored to today as done; its tags, time,
+  // estimate, and "!" are kept, since those still describe what got done.
+  const logDone = () => {
+    const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) return
+    const today = todayStr()
+    const created = lines.map(line => {
+      const t = buildTask(line)
+      return {
+        ...newTask(t.text, today),
+        done: true,
+        completedDate: today,
+        timeMin: t.timeMin,
+        estimateMin: t.estimateMin,
+        priority: t.priority,
+      }
+    })
+    setTasks(prev => [...prev, ...created])
+    setNewText('')
+    setPresetTime(null)
+  }
+
   const toggleTask = (id: string) => {
     const today = todayStr()
     setTasks(prev =>
@@ -2304,6 +2331,14 @@ export default function Planner() {
               )
               return
             }
+            // Cmd/Ctrl+Enter logs the line(s) straight into today as already
+            // done — the keyboard accelerator for the "Log as done" button
+            // below. Checked before plain Enter so the modifier wins.
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              logDone()
+              return
+            }
             // Plain Enter adds; Shift+Enter drops to a new line for the next task.
             // With a suggestion highlighted, Enter takes it into the box instead,
             // so the common type-and-add flow is unchanged when none is picked.
@@ -2336,6 +2371,26 @@ export default function Planner() {
           Add
         </button>
       </div>
+
+      {/* Log as already done — capture work that wasn't on the plan straight
+          into today's finished list, so the done count, history, and streaks
+          reflect what actually happened. Shown only once there's something to
+          log; a real, tappable button, so it never hides behind a keystroke. */}
+      {newText.trim() && (
+        <div className="px-1">
+          <button
+            type="button"
+            onClick={logDone}
+            title={`Add ${addLineCount >= 2 ? 'these' : 'this'} straight to today's done list (${isMac ? '⌘' : 'Ctrl'}+Enter)`}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            {addLineCount >= 2 ? `Log ${addLineCount} as already done` : 'Log as already done'}
+          </button>
+        </div>
+      )}
 
       {/* Reuse a task — titles you've entered before, matched against what
           you're typing, so a task you add often is one tap to bring back instead
