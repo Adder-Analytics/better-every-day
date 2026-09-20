@@ -782,6 +782,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now has a "Log as already done" action beside it: type what you did and it goes straight into today\'s finished list instead of the to-do list. It\'s for the work that wasn\'t on the plan but still counts, so the done count, the completed-task history, and streaks reflect what actually happened without the add-then-check two-step. The line is parsed the same way a normal add is — its tags, time of day, estimate, and "!" are kept — but any schedule it named (tomorrow, someday, or a repeat) is dropped, since a logged task has already happened and belongs to today. Cmd/Ctrl+Enter in the add box does the same, and a pasted multi-line list logs each line at once. Nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 98,
+    date: '2026-09-20',
+    title: 'The add box keeps an unsent task',
+    description:
+      'Whatever you have typed in the add box but not yet added is now kept, so a reload or a trip to another page and back no longer loses it — including a pasted or multi-line brain dump and the Today/Tomorrow/Someday it was being written for. The draft is stored in the browser under a new bed-draft key, separate from your tasks, and cleared the moment the task is added or logged; a task shared into the app still takes precedence on that load. Nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
