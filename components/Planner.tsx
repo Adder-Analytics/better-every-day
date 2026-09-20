@@ -10,6 +10,7 @@ import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, tagColor, hasTag } from '@/lib/tags'
+import { loadDraft, saveDraft } from '@/lib/draft'
 import TaskItem from '@/components/TaskItem'
 import TagChip from '@/components/TagChip'
 import Confetti from '@/components/Confetti'
@@ -497,10 +498,21 @@ export default function Planner() {
   // so the box is already filled when it first renders (the mount effect below
   // only cleans the URL and focuses); guarded for the server, where there's no
   // window and this is '' anyway.
-  const [newText, setNewText] = useState<string>(() =>
-    typeof window === 'undefined' ? '' : composeSharedTask(new URLSearchParams(window.location.search))
-  )
-  const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>('today')
+  const [newText, setNewText] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    // A live share (from the PWA share target or a title/text/url link) is the
+    // intent for this load, so it wins; otherwise restore whatever unsent draft
+    // was left in the box, so a reload or a page trip doesn't lose it.
+    const shared = composeSharedTask(new URLSearchParams(window.location.search))
+    return shared || loadDraft()?.text || ''
+  })
+  const [addFor, setAddFor] = useState<'today' | 'tomorrow' | 'someday'>(() => {
+    if (typeof window === 'undefined') return 'today'
+    // A shared capture is always a fresh today task; only a restored draft
+    // brings back the Today/Tomorrow/Someday it was being written for.
+    if (composeSharedTask(new URLSearchParams(window.location.search))) return 'today'
+    return loadDraft()?.for ?? 'today'
+  })
   // A start time picked from an open slot on the timeline. When set, the next
   // task added (without its own time) lands at this minute of today; a chip by
   // the add box shows it and clears it. Held to today, since it comes from
@@ -751,12 +763,24 @@ export default function Planner() {
 
   // Grow the add box to fit a multi-line brain dump, then shrink back once it's
   // sent — so it reads as a single-line input until you actually stack lines.
+  // `mounted` is a dependency too, so a multi-line draft restored on load is
+  // sized on the first render the textarea actually exists (the text itself
+  // doesn't change across the hydration flip, so newText alone wouldn't).
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 176)}px`
-  }, [newText])
+  }, [newText, mounted])
+
+  // Mirror the add box's unsent contents to storage as they change, so a reload
+  // or a trip to another page and back doesn't lose a half-typed task. An add or
+  // log empties the box, and saveDraft clears the stored draft when it's blank,
+  // so nothing lingers once the task is captured.
+  useEffect(() => {
+    if (!mounted) return
+    saveDraft(newText, addFor)
+  }, [newText, addFor, mounted])
 
   // Build one task from a single line of the add box, honoring both the line's
   // own trailing schedule phrase and the Today/Tomorrow/Someday toggle. The
