@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -85,6 +85,18 @@ function CalendarIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  )
+}
+
+// A clock whose ring opens to a forward arrow — "advance to later". Distinct
+// from the plain estimate clock: this is the Snooze action ("push it to later").
+function SnoozeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 4.5V9h-4.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.75V12l3 1.75" />
     </svg>
   )
 }
@@ -245,6 +257,12 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
   onSchedule?: (id: string, date: string) => void
+  // Push this task to a later slot today (or tomorrow morning) in one tap — for
+  // when you can't get to it now but don't want to lose it. `day` is 'today' or
+  // 'tomorrow' and `timeMin` the time of day it lands on; the parent resolves the
+  // day to a date. Given only for today's and carried-over unfinished tasks,
+  // where a same-day defer makes sense.
+  onSnooze?: (id: string, day: 'today' | 'tomorrow', timeMin: number) => void
   // Set or clear this task's deadline (YYYY-MM-DD, or undefined to remove it).
   // Offered in the schedule menu, alongside the day the task sits on.
   onSetDue?: (id: string, dueDate: string | undefined) => void
@@ -314,6 +332,7 @@ export default function TaskItem({
   onEdit,
   onEditNote,
   onSchedule,
+  onSnooze,
   onSetDue,
   onSetRepeat,
   onSetEstimate,
@@ -354,7 +373,7 @@ export default function TaskItem({
   // an empty list ready to type into; it collapses again if left empty.
   const [addingStep, setAddingStep] = useState(false)
   // Only one popover per task is open at a time, so a single value tracks them.
-  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'estimate' | 'actions'>(null)
+  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'snooze' | 'estimate' | 'actions'>(null)
   // A brief, satisfying acknowledgment the moment a task is checked off: the
   // tick strokes in and the circle pops. Played only on the false→true toggle
   // the user just made — not on every render, and not when an already-finished
@@ -377,6 +396,10 @@ export default function TaskItem({
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
   const canSchedule = !!onSchedule
+  // Snoozing to "later today" only makes sense for an unfinished, one-off task
+  // that sits on today or earlier (a carryover) — not a routine (it repeats), a
+  // Someday task (it has no day), or one already scheduled for a future day.
+  const canSnooze = !!onSnooze && !task.done && !task.repeat && !task.someday && task.createdDate <= todayStr()
   const canSetDue = !!onSetDue
   const canEstimate = !!onSetEstimate
   const canSetTime = !!onSetTime
@@ -917,6 +940,19 @@ export default function TaskItem({
                   </button>
                 )}
 
+                {canSnooze && !editingNote && (
+                  <button
+                    onClick={() => setMenu(m => (m === 'snooze' ? null : 'snooze'))}
+                    aria-label="Snooze to later"
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'snooze'}
+                    title="Snooze to later"
+                    className={menu === 'snooze' ? clusterActionOn : clusterAction}
+                  >
+                    <SnoozeIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
                 {canEstimate && !task.estimateMin && !task.done && !editingNote && (
                   <button
                     onClick={() => setMenu(m => (m === 'estimate' ? null : 'estimate'))}
@@ -1058,6 +1094,7 @@ export default function TaskItem({
               canNote && { label: task.note ? 'Edit note' : 'Add note', icon: <NoteIcon className="w-3.5 h-3.5" />, run: startNote },
               canSubtask && { label: hasSubtasks ? 'Add step' : 'Break into steps', icon: <StepsIcon className="w-3.5 h-3.5" />, run: () => setAddingStep(true) },
               canSchedule && { label: 'Schedule', icon: <CalendarIcon className="w-3.5 h-3.5" />, run: () => setMenu('schedule') },
+              canSnooze && { label: 'Snooze', icon: <SnoozeIcon className="w-3.5 h-3.5" />, run: () => setMenu('snooze') },
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
               canDuplicate && { label: 'Duplicate', icon: <DuplicateIcon className="w-3.5 h-3.5" />, run: () => onDuplicate!(task.id) },
@@ -1295,6 +1332,28 @@ export default function TaskItem({
               Clear due date
             </button>
           )}
+        </div>
+      )}
+
+      {menu === 'snooze' && (
+        <div
+          role="menu"
+          className="absolute right-3 top-12 z-30 w-48 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          {/* Time-aware "later" slots: each names when it lands, so a tap is a
+              decision, not a guess. Options already in the past for today drop
+              out (see snoozeOptions), leaving "Tomorrow morning" as the floor. */}
+          {snoozeOptions(currentMin()).map(opt => (
+            <button
+              key={opt.key}
+              role="menuitem"
+              onClick={() => { onSnooze!(task.id, opt.day, opt.timeMin); setMenu(null) }}
+              className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <span>{opt.label}</span>
+              <span className="tabular-nums text-[11px] text-zinc-400">{formatTime(opt.timeMin, hour12)}</span>
+            </button>
+          ))}
         </div>
       )}
 

@@ -267,6 +267,35 @@ export function currentMin(): number {
   return d.getHours() * 60 + d.getMinutes()
 }
 
+// A quick "later" slot for snoozing a task you can't get to now: it names a
+// relative day and the time of day the task lands on. `day` is resolved against
+// the real calendar by the caller (which owns today/tomorrow), so this stays a
+// pure function of the clock and needs no Date.
+export type SnoozeOption = { key: string; label: string; day: 'today' | 'tomorrow'; timeMin: number }
+
+// Sensible "push it to later" targets given the time of day right now
+// (`nowMin`, minutes since local midnight). "In an hour" is relative; the rest
+// are fixed slots. Only options still comfortably ahead of now are returned —
+// "this afternoon" drops once it's the afternoon, "this evening" once it's
+// evening — so the list never offers a time that's already passed. "Tomorrow
+// morning" is always last, as the catch-all when nothing fits today. The caller
+// gates the whole action to today's unfinished, non-repeating tasks, so this
+// only ever runs when a same-day defer makes sense.
+export function snoozeOptions(nowMin: number): SnoozeOption[] {
+  const AFTERNOON = 14 * 60 // 2:00 PM
+  const EVENING = 18 * 60 // 6:00 PM
+  const TOMORROW_MORNING = 9 * 60 // 9:00 AM
+  const out: SnoozeOption[] = []
+  // Round "in an hour" to the next quarter-hour so it lands on a tidy time, and
+  // only offer it while it still falls today with a little of the evening left.
+  const inHour = Math.ceil((nowMin + 60) / 15) * 15
+  if (inHour <= 22 * 60 + 30) out.push({ key: 'hour', label: 'In an hour', day: 'today', timeMin: inHour })
+  if (nowMin < AFTERNOON - 30) out.push({ key: 'afternoon', label: 'This afternoon', day: 'today', timeMin: AFTERNOON })
+  if (nowMin < EVENING - 30) out.push({ key: 'evening', label: 'This evening', day: 'today', timeMin: EVENING })
+  out.push({ key: 'tomorrow', label: 'Tomorrow morning', day: 'tomorrow', timeMin: TOMORROW_MORNING })
+  return out
+}
+
 // How far ahead a time is, as a short phrase: "in 25m", "in 1h", "in 2h 30m".
 // Only the future is described; callers gate on a positive delta. Used by the
 // live agenda to label the next timed task that's coming up.

@@ -790,6 +790,14 @@ export const changelog: ChangelogEntry[] = [
       'Whatever you have typed in the add box but not yet added is now kept, so a reload or a trip to another page and back no longer loses it — including a pasted or multi-line brain dump and the Today/Tomorrow/Someday it was being written for. The draft is stored in the browser under a new bed-draft key, separate from your tasks, and cleared the moment the task is added or logged; a task shared into the app still takes precedence on that load. Nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 99,
+    date: '2026-09-21',
+    title: 'Snooze a task to later today',
+    description:
+      'A task you can\'t get to right now can be pushed to a later slot in one tap, without opening the date and time pickers. A "Snooze" action on today\'s and carried-over tasks offers time-aware options — "In an hour", "This afternoon", "This evening", and "Tomorrow morning" — each showing the time it will land on. Options already past for today drop out as the day goes on, leaving "Tomorrow morning" as the fallback. Choosing one gives the task that time of day (so it slots into the agenda and timeline) and, for a carryover, pulls it onto today; the row flashes where it moved to. It reuses the existing day-and-time fields, so nothing about how tasks are stored changed. Reachable both from the hover actions and, on touch, from the task menu.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
