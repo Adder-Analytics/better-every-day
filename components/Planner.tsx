@@ -1003,6 +1003,23 @@ export default function Planner() {
 
   const doToday = (id: string) => scheduleTask(id, todayStr())
 
+  // Push a task to a later slot in one step — "in an hour", this afternoon or
+  // evening, or tomorrow morning — for when you can't get to it now but don't
+  // want to lose it or open the date and time pickers. It reschedules the task
+  // to the target day and stamps the time in a single update (pulling a carried-
+  // over task onto the chosen day the way scheduling does), then flashes the row
+  // so it's clear where it slid to.
+  const snoozeTask = (id: string, day: 'today' | 'tomorrow', timeMin: number) => {
+    const date = day === 'tomorrow' ? tomorrowStr() : todayStr()
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date, timeMin, someday: undefined } : t)))
+    setRevealId(id)
+    setTimeout(() => {
+      document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }, 60)
+    if (revealTimer.current) clearTimeout(revealTimer.current)
+    revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+  }
+
   // Enter focus mode on a specific task rather than whatever leads the queue —
   // "I want to work on this one now." The keyboard selection is dropped so it
   // doesn't linger behind the focus view.
@@ -2094,6 +2111,7 @@ export default function Planner() {
                   onDelete={deleteTask}
                   onDoToday={doToday}
                   onSchedule={scheduleTask}
+                  onSnooze={snoozeTask}
                   onSetDue={setDueDate}
                   onEdit={editTask}
                   onEditNote={editNote}
@@ -2191,6 +2209,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onSnooze={snoozeTask}
               onSetDue={setDueDate}
               onSetRepeat={setRepeat}
               onSetEstimate={setEstimate}
