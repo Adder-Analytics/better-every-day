@@ -20,6 +20,8 @@ import {
   yearlyDateLabel,
   formatDayLabel,
   formatPastDayLabel,
+  formatRepeatUntil,
+  formatRepeatUntilFull,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -366,6 +368,10 @@ export default function RoutinesView() {
         const tags = extractTags(task.text)
         const title = stripTags(task.text)
         const unit = streakUnit(task)
+        // A planned end, if one is set: "until Sep 30" while it's still running,
+        // "ended Sep 30" once its last due day has passed.
+        const endLabel = formatRepeatUntil(task)
+        const endFull = formatRepeatUntilFull(task)
         const done = state === 'done'
         const resting = state === 'resting'
         const paused = state === 'paused'
@@ -464,6 +470,9 @@ export default function RoutinesView() {
                     <span title={`Next due ${formatDayLabel(next)}`}>
                       next {formatDayLabel(next)}
                     </span>
+                  )}
+                  {endLabel && (
+                    <span title={endFull}>{endLabel}</span>
                   )}
                 </div>
 
