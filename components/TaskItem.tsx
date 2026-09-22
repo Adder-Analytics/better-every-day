@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -267,6 +267,9 @@ type Props = {
   // Offered in the schedule menu, alongside the day the task sits on.
   onSetDue?: (id: string, dueDate: string | undefined) => void
   onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number) => void
+  // Set or clear a routine's planned end date (the last day it's due). Offered
+  // in the repeat menu, alongside the cadence, once the task repeats.
+  onSetRepeatUntil?: (id: string, repeatUntil: string | undefined) => void
   onSetEstimate?: (id: string, estimateMin: number | undefined) => void
   onSetTime?: (id: string, timeMin: number | undefined) => void
   onSetPriority?: (id: string, priority: boolean) => void
@@ -335,6 +338,7 @@ export default function TaskItem({
   onSnooze,
   onSetDue,
   onSetRepeat,
+  onSetRepeatUntil,
   onSetEstimate,
   onSetTime,
   onSetPriority,
@@ -530,6 +534,10 @@ export default function TaskItem({
       : task.repeat === 'yearly'
         ? `Repeats yearly on ${yearlyDateLabel(task)}`
         : `Repeats ${repeatLabel.toLowerCase()}`
+  // A routine's planned end, if one is set: "until Sep 30" on the row, spelled
+  // out in the tooltip. Empty for a one-off or an open-ended routine.
+  const repeatUntilLabel = formatRepeatUntil(task)
+  const repeatUntilFull = formatRepeatUntilFull(task)
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -796,11 +804,11 @@ export default function TaskItem({
 
               {task.repeat && (
                 <span
-                  title={repeatTitle}
+                  title={repeatUntilFull ? `${repeatTitle} — ${repeatUntilFull.toLowerCase()}` : repeatTitle}
                   className={`inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 ${task.done ? 'opacity-60' : ''}`}
                 >
                   <RepeatIcon className="w-3 h-3" />
-                  <span>{repeatLabel}</span>
+                  <span>{repeatUntilLabel ? `${repeatLabel} · ${repeatUntilLabel}` : repeatLabel}</span>
                 </span>
               )}
 
@@ -1225,6 +1233,35 @@ export default function TaskItem({
               </button>
             </div>
           </div>
+
+          {/* A planned end — the last day the routine is due, for a finite habit
+              like a medication course or a 30-day challenge. Floored at today;
+              after it, the routine steps out of every day and view, its streak
+              intact. Only offered once the task actually repeats. */}
+          {task.repeat && onSetRepeatUntil && (
+            <>
+              <label className="mt-1 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                Ends on
+                <input
+                  type="date"
+                  min={today}
+                  key={task.repeatUntil ?? 'none'}
+                  defaultValue={task.repeatUntil ?? ''}
+                  onChange={e => { onSetRepeatUntil(task.id, e.target.value || undefined); setMenu(null) }}
+                  className="w-[6.5rem] rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:text-zinc-300 focus:outline-none"
+                />
+              </label>
+              {task.repeatUntil && (
+                <button
+                  role="menuitem"
+                  onClick={() => { onSetRepeatUntil(task.id, undefined); setMenu(null) }}
+                  className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                >
+                  No end date
+                </button>
+              )}
+            </>
+          )}
 
           {task.repeat && (
             <button

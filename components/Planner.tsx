@@ -915,10 +915,20 @@ export default function Planner() {
               repeatDays: repeat === 'days' ? repeatDays : undefined,
               repeatEvery: repeat === 'interval' ? repeatEvery : undefined,
               completions: repeat ? (t.completions ?? []) : undefined,
+              // A one-off carries no end date; changing cadence keeps any end set.
+              repeatUntil: repeat ? t.repeatUntil : undefined,
             }
           : t
       )
     )
+  }
+
+  // Set or clear a routine's planned end date — the last day it's due. Stored as
+  // undefined when cleared so a routine with no end carries no field, keeping the
+  // saved shape clean. Only meaningful on a routine; a one-off has no cadence to
+  // end.
+  const setRepeatUntil = (id: string, repeatUntil: string | undefined) => {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, repeatUntil } : t)))
   }
 
   const setEstimate = (id: string, estimateMin: number | undefined) => {
@@ -2212,6 +2222,7 @@ export default function Planner() {
               onSnooze={snoozeTask}
               onSetDue={setDueDate}
               onSetRepeat={setRepeat}
+              onSetRepeatUntil={setRepeatUntil}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
               onSetPriority={setPriority}
@@ -2296,6 +2307,7 @@ export default function Planner() {
                 onEdit={editTask}
                 onEditNote={editNote}
                 onSetRepeat={setRepeat}
+                onSetRepeatUntil={setRepeatUntil}
               />
             ))}
         </div>

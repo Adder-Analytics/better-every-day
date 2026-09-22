@@ -798,6 +798,14 @@ export const changelog: ChangelogEntry[] = [
       'A task you can\'t get to right now can be pushed to a later slot in one tap, without opening the date and time pickers. A "Snooze" action on today\'s and carried-over tasks offers time-aware options — "In an hour", "This afternoon", "This evening", and "Tomorrow morning" — each showing the time it will land on. Options already past for today drop out as the day goes on, leaving "Tomorrow morning" as the fallback. Choosing one gives the task that time of day (so it slots into the agenda and timeline) and, for a carryover, pulls it onto today; the row flashes where it moved to. It reuses the existing day-and-time fields, so nothing about how tasks are stored changed. Reachable both from the hover actions and, on touch, from the task menu.',
     type: 'feature',
   },
+  {
+    day: 100,
+    date: '2026-09-22',
+    title: 'Give a routine an end date',
+    description:
+      'A repeating task can now be set to stop on a chosen day — a planned end, for the finite habits a daily planner had nowhere to keep: a medication course, a 30-day challenge, watering a neighbour’s plants until they’re back. Set it under "Ends on" in the repeat menu (and clear it with "No end date"); the row reads "until Sep 30", turning to "ended Sep 30" once past. After the end date the routine steps out of every day, count, timeline, reminder, and the week and month views — its history and streak stand, since they only ever read the days it was due. It differs from pausing (a break you resume): this is a fixed end. Stored data bumps to version 16 with one added optional field; existing tasks are untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
