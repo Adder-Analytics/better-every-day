@@ -45,6 +45,16 @@ export default function Page() {
               </svg>
               <span>Routines</span>
             </Link>
+            <Link
+              href="/tags"
+              title="Your tasks, grouped by #tag"
+              className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5l-3.9 19.5m-2.1-19.5l-3.9 19.5" />
+              </svg>
+              <span>Tags</span>
+            </Link>
             <TimeFormatToggle />
             <ThemeToggle />
           </div>

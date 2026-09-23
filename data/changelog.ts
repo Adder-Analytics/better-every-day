@@ -806,6 +806,14 @@ export const changelog: ChangelogEntry[] = [
       'A repeating task can now be set to stop on a chosen day — a planned end, for the finite habits a daily planner had nowhere to keep: a medication course, a 30-day challenge, watering a neighbour’s plants until they’re back. Set it under "Ends on" in the repeat menu (and clear it with "No end date"); the row reads "until Sep 30", turning to "ended Sep 30" once past. After the end date the routine steps out of every day, count, timeline, reminder, and the week and month views — its history and streak stand, since they only ever read the days it was due. It differs from pausing (a break you resume): this is a fixed end. Stored data bumps to version 16 with one added optional field; existing tasks are untouched.',
     type: 'feature',
   },
+  {
+    day: 101,
+    date: '2026-09-23',
+    title: 'See a #tag across every day',
+    description:
+      'A new Tags page (in the header) gathers your #tags into lists. Until now a tag only sliced today; now each one shows everything still on it in one place — today\'s tasks, the days ahead, the Someday shelf, and any routines that carry it — so a context like #work or #errands reads as a project you can see whole. Busiest lists lead, and within each, what\'s on today\'s plate sits above the days to come and your standing routines. You can check off a task that\'s due now (an open one-off, or a routine due today) right from the list, exactly as the home page records it; a day-ahead or Someday task is shown for planning and completed on its own day. Anything with no tag collects in a quiet "No tag" list at the end. Tags still live inline in a task\'s text, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
