@@ -1,6 +1,6 @@
 'use client'
 
-import { tagColor } from '@/lib/tags'
+import { resolveTagClasses, useTagColors } from '@/lib/tagcolors'
 
 // One tag, as a small tinted pill reading "#work". Clickable (a filter toggle)
 // when `onClick` is given, otherwise a static label — same shape either way so a
@@ -18,7 +18,8 @@ export default function TagChip({
   active?: boolean
   dimmed?: boolean
 }) {
-  const base = `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tagColor(tag)} ${
+  const tagColors = useTagColors()
+  const base = `inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${resolveTagClasses(tag, tagColors)} ${
     active ? 'ring-1 ring-inset ring-current/60' : ''
   } ${dimmed ? 'opacity-60' : ''}`
 
