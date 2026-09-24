@@ -9,7 +9,8 @@ import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds,
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
 import { type Theme, themeStore } from '@/lib/theme'
-import { extractTags, stripTags, tagColor, hasTag } from '@/lib/tags'
+import { extractTags, stripTags, hasTag } from '@/lib/tags'
+import { resolveTagClasses, useTagColors } from '@/lib/tagcolors'
 import { loadDraft, saveDraft } from '@/lib/draft'
 import TaskItem from '@/components/TaskItem'
 import TagChip from '@/components/TagChip'
@@ -588,6 +589,9 @@ export default function Planner() {
   // The live theme preference, so the palette can flag the active one and set
   // the others. Shared with the header switcher via the same store.
   const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get, () => 'system' as Theme)
+  // The saved per-tag colors, read once here so every chip the planner draws can
+  // resolve its tint without a hook of its own; empty until just after hydration.
+  const tagColors = useTagColors()
 
   const armUndoTimer = useCallback(() => {
     if (undoTimer.current) clearTimeout(undoTimer.current)
@@ -1758,7 +1762,7 @@ export default function Planner() {
         <div className="flex items-center justify-between gap-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex-shrink-0 text-xs text-zinc-400">Filtered by</span>
-            <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${tagColor(activeTag)}`}>
+            <span className={`flex-shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${resolveTagClasses(activeTag, tagColors)}`}>
               #{activeTag}
             </span>
             <span className="flex-shrink-0 text-xs tabular-nums text-zinc-400">
@@ -2144,7 +2148,7 @@ export default function Planner() {
       {activeTag && filterCount === 0 && (
         <div className="text-center py-14">
           <p className="text-zinc-600 dark:text-zinc-300 font-medium">
-            No tasks tagged <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-sm ${tagColor(activeTag)}`}>#{activeTag}</span>
+            No tasks tagged <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-sm ${resolveTagClasses(activeTag, tagColors)}`}>#{activeTag}</span>
           </p>
           <button
             type="button"
@@ -2350,7 +2354,7 @@ export default function Planner() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
             </svg>
             <span>New tasks join</span>
-            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 font-medium ${tagColor(autoTag)}`}>
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 font-medium ${resolveTagClasses(autoTag, tagColors)}`}>
               #{autoTag}
             </span>
           </span>
@@ -2516,7 +2520,7 @@ export default function Planner() {
               onClick={() => addTagToDraft(tag)}
               title={`Add #${tag} to this task`}
               aria-label={`Add tag ${tag}`}
-              className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pl-1 pr-1.5 text-[10px] font-medium transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${tagColor(tag)}`}
+              className={`inline-flex items-center gap-0.5 rounded-full py-0.5 pl-1 pr-1.5 text-[10px] font-medium transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${resolveTagClasses(tag, tagColors)}`}
             >
               <svg aria-hidden="true" className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

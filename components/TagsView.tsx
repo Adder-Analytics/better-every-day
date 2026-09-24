@@ -17,7 +17,8 @@ import {
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
-import { extractTags, stripTags, tagColor } from '@/lib/tags'
+import { extractTags, stripTags } from '@/lib/tags'
+import { resolveTagClasses, useTagColors, tagColorStore, TAG_COLOR_OPTIONS, type TagColorKey } from '@/lib/tagcolors'
 
 const emptySubscribe = () => () => {}
 
@@ -110,6 +111,14 @@ function CheckIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
     </svg>
   )
 }
@@ -246,7 +255,7 @@ export default function TagsView() {
         <span className="font-medium text-zinc-700 dark:text-zinc-200">{totalOpen}</span>{' '}
         {totalOpen === 1 ? 'task' : 'tasks'} open across{' '}
         <span className="font-medium text-zinc-700 dark:text-zinc-200">{tagCount}</span>{' '}
-        {tagCount === 1 ? 'tag' : 'tags'}.
+        {tagCount === 1 ? 'tag' : 'tags'}. Tap a tag to give it a color.
       </p>
 
       {groups.map(group => (
@@ -272,6 +281,104 @@ export default function TagsView() {
   )
 }
 
+// The tag's chip, made a button that opens a small color picker. Tapping a
+// swatch tints the tag everywhere it appears — here, on every task row, in the
+// filter bar, the week and month views. "Auto" clears the choice back to the
+// hashed default. Opens on tap (so it works by touch), closes on an outside
+// click or Escape, matching the app's other little menus.
+function TagColorPicker({ tag }: { tag: string }) {
+  const map = useTagColors()
+  const current = map[tag.toLowerCase()]
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const choose = (key: TagColorKey | null) => {
+    tagColorStore.set(tag, key)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={`Set a color for #${tag}`}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${resolveTagClasses(
+          tag,
+          map
+        )}`}
+      >
+        #{tag}
+        <ChevronIcon className="h-3 w-3 opacity-60" />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-20 mt-1.5 w-56 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 shadow-lg shadow-zinc-900/10 dark:shadow-black/40"
+        >
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+            Color for #{tag}
+          </p>
+          <div className="grid grid-cols-6 gap-1.5">
+            {TAG_COLOR_OPTIONS.map(opt => {
+              const active = current === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={() => choose(opt.key)}
+                  title={opt.label}
+                  className={`flex h-7 w-7 items-center justify-center rounded-full ${opt.dot} text-white transition-transform duration-100 ease-out hover:scale-110 active:scale-95 ${
+                    active ? 'ring-2 ring-offset-2 ring-zinc-400 ring-offset-white dark:ring-zinc-500 dark:ring-offset-zinc-900' : ''
+                  }`}
+                >
+                  {active && <CheckIcon className="h-3.5 w-3.5" />}
+                  <span className="sr-only">{opt.label}</span>
+                </button>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={!current}
+            onClick={() => choose(null)}
+            className={`mt-2.5 flex w-full items-center justify-between border-t border-zinc-100 dark:border-zinc-800 pt-2.5 text-xs transition-colors ${
+              !current
+                ? 'font-medium text-zinc-700 dark:text-zinc-200'
+                : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+            }`}
+          >
+            <span>Auto (default)</span>
+            {!current && <CheckIcon className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // One tag's card: its chip and count, then its tasks. With no `tag` it renders
 // the quiet "No tag" catch-all for open tasks that carry no context at all.
 function TagSection({
@@ -291,9 +398,7 @@ function TagSection({
     <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
         {tag ? (
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-sm font-medium ${tagColor(tag)}`}>
-            #{tag}
-          </span>
+          <TagColorPicker tag={tag} />
         ) : (
           <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">No tag</span>
         )}

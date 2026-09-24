@@ -1,6 +1,6 @@
 'use client'
 
-import { tagColor } from '@/lib/tags'
+import { resolveTagClasses, useTagColors } from '@/lib/tagcolors'
 
 // A glanceable row of the tags in play, each a tap-to-filter toggle with how
 // many tasks carry it. Tags live inline in task text, so until now the only way
@@ -27,6 +27,8 @@ export default function TagBar({
   // chips and the list read, so the two always agree.
   onSelect: (tag: string | null) => void
 }) {
+  const tagColors = useTagColors()
+
   if (tags.length < 2) return null
 
   return (
@@ -63,8 +65,9 @@ export default function TagBar({
             onClick={() => onSelect(active ? null : tag)}
             aria-pressed={active}
             title={active ? `Clear #${tag} filter` : `Show only #${tag}`}
-            className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${tagColor(
-              tag
+            className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${resolveTagClasses(
+              tag,
+              tagColors
             )} transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${
               active ? 'ring-2 ring-inset ring-current/50' : ''
             }`}

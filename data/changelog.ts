@@ -814,6 +814,14 @@ export const changelog: ChangelogEntry[] = [
       'A new Tags page (in the header) gathers your #tags into lists. Until now a tag only sliced today; now each one shows everything still on it in one place — today\'s tasks, the days ahead, the Someday shelf, and any routines that carry it — so a context like #work or #errands reads as a project you can see whole. Busiest lists lead, and within each, what\'s on today\'s plate sits above the days to come and your standing routines. You can check off a task that\'s due now (an open one-off, or a routine due today) right from the list, exactly as the home page records it; a day-ahead or Someday task is shown for planning and completed on its own day. Anything with no tag collects in a quiet "No tag" list at the end. Tags still live inline in a task\'s text, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 102,
+    date: '2026-09-24',
+    title: 'Choose a color for a tag',
+    description:
+      'A tag can now be given a color you pick, instead of the one hashed from its name. On the Tags page, tap a tag\'s chip to open a small swatch picker — eleven colors, or "Auto" to go back to the default — and the choice tints that tag everywhere it appears: on every task row, in the filter bar, and in the week and month views. A tag you never touch keeps its hashed default, so nothing changes until you choose one. The colors live in their own bed-tagcolors key, separate from your tasks, so a task export or import doesn\'t carry them and the stored task shape is untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
