@@ -822,6 +822,14 @@ export const changelog: ChangelogEntry[] = [
       'A tag can now be given a color you pick, instead of the one hashed from its name. On the Tags page, tap a tag\'s chip to open a small swatch picker — eleven colors, or "Auto" to go back to the default — and the choice tints that tag everywhere it appears: on every task row, in the filter bar, and in the week and month views. A tag you never touch keeps its hashed default, so nothing changes until you choose one. The colors live in their own bed-tagcolors key, separate from your tasks, so a task export or import doesn\'t carry them and the stored task shape is untouched.',
     type: 'feature',
   },
+  {
+    day: 103,
+    date: '2026-09-25',
+    title: 'Save a set of tasks as a list',
+    description:
+      'A "Lists" button by the add box (and a "Quick lists" entry in the command menu) opens a small manager for saved sets of tasks — a weekly-review checklist, a trip\'s packing list, the tasks a new project always needs. Name a set once, then add the whole thing to your day in one tap; each saved list also gets its own "Add … to today" command. You can build a list from scratch (a name plus one task per line) or save today\'s remaining tasks as a list, and edit or remove any list later. A list\'s lines run through the same quick-add parsing the add box uses, so a line can still carry a #tag, a time, an estimate, a "!", or a day like "tomorrow" — and a repeat phrase makes a routine. Lists differ from routines (a task that recurs on its own) and from reusing a single past task: they\'re a set you add together, on demand. They live in their own bed-lists key, separate from your tasks, so a task export or import doesn\'t carry them and the stored task shape is untouched.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
