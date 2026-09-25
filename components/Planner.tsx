@@ -29,6 +29,8 @@ import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
 import QuickAddTips from '@/components/QuickAddTips'
 import DayComplete from '@/components/DayComplete'
+import QuickLists, { openQuickLists } from '@/components/QuickLists'
+import { useLists } from '@/lib/lists'
 
 const emptySubscribe = () => () => {}
 
@@ -275,6 +277,15 @@ function ClipboardIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+    </svg>
+  )
+}
+
+// Heroicons "queue-list" — a saved quick list, a set of tasks added in one tap.
+function ListsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75Zm0 5.25h.008v.008H3.75V12Zm0 5.25h.008v.008H3.75v-.008Z" />
     </svg>
   )
 }
@@ -568,6 +579,10 @@ export default function Planner() {
   // on run) is confirmed. Null when idle.
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A brief note that a quick list's tasks landed on today, so adding a whole
+  // list gets the same acknowledgement a single add's appearing row does.
+  const [listAdded, setListAdded] = useState<number | null>(null)
+  const listAddedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
@@ -592,6 +607,9 @@ export default function Planner() {
   // The saved per-tag colors, read once here so every chip the planner draws can
   // resolve its tint without a hook of its own; empty until just after hydration.
   const tagColors = useTagColors()
+  // Saved quick lists, read here so the command menu can offer each one directly
+  // ("Add … to today"); empty until just after hydration, like the other stores.
+  const lists = useLists()
 
   const armUndoTimer = useCallback(() => {
     if (undoTimer.current) clearTimeout(undoTimer.current)
@@ -654,6 +672,7 @@ export default function Planner() {
 
   useEffect(() => () => { if (revealTimer.current) clearTimeout(revealTimer.current) }, [])
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current) }, [])
+  useEffect(() => () => { if (listAddedTimer.current) clearTimeout(listAddedTimer.current) }, [])
 
   // Content shared into the app — from another app's share sheet (the installed
   // PWA's share target) or any link that opens it with title/text/url params —
@@ -854,6 +873,28 @@ export default function Planner() {
     setTasks(prev => [...prev, ...created])
     setNewText('')
     setPresetTime(null)
+  }
+
+  // Drop a saved quick list onto the day. Each line is parsed the same way the
+  // add box parses one, so a line's #tag, time, estimate, "!", or an explicit
+  // day ("tomorrow", "someday", a date) is honored and a repeat phrase makes a
+  // routine. Unlike a typed add, a list lands on today by default and never
+  // inherits the current add-target toggle or an active tag filter — a list is
+  // its own thing, added the same way whatever the day's slice happens to be, so
+  // "Add to today" always means today. A short toast confirms the batch.
+  const buildListTask = (line: string): Task => {
+    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
+    if (!date && saidSomeday) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
+    return { ...newTask(text, date ?? todayStr()), estimateMin, timeMin, dueDate, priority }
+  }
+  const applyList = (items: string[]) => {
+    const created = items.map(buildListTask)
+    if (created.length === 0) return
+    setTasks(prev => [...prev, ...created])
+    setListAdded(created.length)
+    if (listAddedTimer.current) clearTimeout(listAddedTimer.current)
+    listAddedTimer.current = setTimeout(() => setListAdded(null), 2600)
   }
 
   const toggleTask = (id: string) => {
@@ -1663,6 +1704,15 @@ export default function Planner() {
     ...(tasks.length > 0
       ? [{ id: 'export', label: 'Export a backup', keywords: 'download save data json', icon: <DownloadIcon className="h-4 w-4" />, run: exportBackup }]
       : []),
+    { id: 'lists', label: 'Quick lists', keywords: 'lists templates checklist set batch reuse group collection saved add several', icon: <ListsIcon className="h-4 w-4" />, run: openQuickLists },
+    ...lists.map(list => ({
+      id: `list-${list.id}`,
+      label: `Add “${list.name}” to today`,
+      hint: `${list.items.length} ${list.items.length === 1 ? 'task' : 'tasks'}`,
+      keywords: `list quick add ${list.name}`,
+      icon: <ListsIcon className="h-4 w-4" />,
+      run: () => applyList(list.items),
+    })),
     { id: 'shortcuts', label: 'Keyboard shortcuts', hint: '?', keywords: 'keys help hotkeys cheatsheet', icon: <ShortcutsIcon className="h-4 w-4" />, run: openShortcutsHelp },
     { id: 'week', label: 'Plan the week ahead', keywords: 'week upcoming plan ahead schedule seven days', icon: <CalendarDaysIcon className="h-4 w-4" />, run: () => router.push('/week') },
     { id: 'month', label: 'Open the month ahead', keywords: 'month calendar ahead schedule deadlines grid overview', icon: <CalendarMonthIcon className="h-4 w-4" />, run: () => router.push('/month') },
@@ -1687,6 +1737,7 @@ export default function Planner() {
     <Confetti active={showConfetti} />
     <CommandPalette commands={commands} tasks={taskResults} />
     <ShortcutsHelp />
+    <QuickLists onApply={applyList} todayTexts={todayActive.map(t => t.text)} />
 
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
@@ -1734,6 +1785,25 @@ export default function Planner() {
           )}
           <span className="text-xs font-medium text-white dark:text-zinc-900">
             {copied === 'ok' ? 'Copied today’s plan' : 'Couldn’t copy — try again'}
+          </span>
+        </div>
+      </div>
+    )}
+
+    {/* Quick-list confirmation — a brief note that a saved list's tasks landed
+        on the day. Shares the bottom-center home; held back while an undo or a
+        copy toast is up, since those are more time-sensitive. */}
+    {listAdded !== null && deleted.length === 0 && !copied && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-2 pl-3.5 pr-4 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          <svg className="w-4 h-4 flex-shrink-0 text-emerald-400 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          <span className="text-xs font-medium text-white dark:text-zinc-900">
+            Added {listAdded} {listAdded === 1 ? 'task' : 'tasks'}
           </span>
         </div>
       </div>
@@ -2606,7 +2676,7 @@ export default function Planner() {
         </div>
       )}
 
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-wrap items-center justify-between gap-y-2 px-1">
         <div className="inline-flex rounded-full bg-zinc-100 dark:bg-zinc-800/80 p-0.5 text-xs font-medium">
           {(['today', 'tomorrow', 'someday'] as const).map(when => (
             <button
@@ -2623,6 +2693,16 @@ export default function Planner() {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={openQuickLists}
+          title="Save a set of tasks and add it in one tap"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+        >
+          <ListsIcon className="h-3.5 w-3.5" />
+          <span>Lists</span>
+        </button>
         <button
           type="button"
           onClick={openCommandPalette}
@@ -2635,6 +2715,7 @@ export default function Planner() {
             {modLabel}
           </kbd>
         </button>
+        </div>
       </div>
 
       {/* What the add box understands — a tappable reference to the trailing
