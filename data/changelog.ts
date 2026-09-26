@@ -830,6 +830,14 @@ export const changelog: ChangelogEntry[] = [
       'A "Lists" button by the add box (and a "Quick lists" entry in the command menu) opens a small manager for saved sets of tasks — a weekly-review checklist, a trip\'s packing list, the tasks a new project always needs. Name a set once, then add the whole thing to your day in one tap; each saved list also gets its own "Add … to today" command. You can build a list from scratch (a name plus one task per line) or save today\'s remaining tasks as a list, and edit or remove any list later. A list\'s lines run through the same quick-add parsing the add box uses, so a line can still carry a #tag, a time, an estimate, a "!", or a day like "tomorrow" — and a repeat phrase makes a routine. Lists differ from routines (a task that recurs on its own) and from reusing a single past task: they\'re a set you add together, on demand. They live in their own bed-lists key, separate from your tasks, so a task export or import doesn\'t carry them and the stored task shape is untouched.',
     type: 'feature',
   },
+  {
+    day: 104,
+    date: '2026-09-26',
+    title: 'See when you finished each task',
+    description:
+      'Checking a task off now records the time of day you finished it, not just the date. On the History page each completed task shows a quiet "done at" time, and each day is ordered by when things were actually finished — where a task carries no recorded finish time, its planned time of day still orders it, so a day reads chronologically either way. It applies to one-off tasks and to routines (each day a routine is done keeps its own finish time). The times are stored alongside the existing completion record, so streaks, counts, and the activity calendar are unchanged; tasks finished before this update simply carry no time. The stored shape adds two optional fields (planner version 16 to 17), and older saved data loads unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

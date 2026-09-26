@@ -22,6 +22,12 @@ export type Task = {
   done: boolean
   createdDate: string // YYYY-MM-DD, local time
   completedDate?: string
+  // The local time of day a one-off task was finished, as minutes since midnight
+  // (0–1439) — so a look-back can read when it actually happened, not just which
+  // day. Set when the task is checked off, cleared when it's un-checked. Purely a
+  // record; nothing schedules or sorts the live day by it. Absent on tasks
+  // finished before this was tracked, so an old completion simply carries no time.
+  completedAt?: number
   note?: string // optional free-text detail the user attaches to a task
   // A repeating task ("routine") reappears each day it's due instead of
   // carrying over. It isn't completed once-and-for-all; instead each day it's
@@ -35,6 +41,13 @@ export type Task = {
   // read when `repeat === 'interval'`, ignored by every other cadence.
   repeatEvery?: number
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
+  // The local time of day (minutes since midnight, 0–1439) a routine was
+  // completed on a given date, keyed by that date. The per-day counterpart of a
+  // one-off's completedAt — it rides alongside `completions` (which stays the sole
+  // source of truth for streaks, counts, and history) purely so a look-back can
+  // read when a routine was done that day. A date drops out when its completion
+  // is undone or the day is skipped; a date with no entry simply carries no time.
+  completionTimes?: Record<string, number>
   // Rest days: dates (YYYY-MM-DD) this routine was deliberately skipped. A
   // skipped due day steps out of that day's list and counts as neither done nor
   // missed — it bridges the streak rather than breaking it. Only meaningful on a
@@ -87,10 +100,12 @@ export type Task = {
 // v14: added the 'yearly' repeat rule (a new repeat value old data never used).
 // v15: added an optional `pausedSince` (a routine paused indefinitely).
 // v16: added an optional `repeatUntil` (a routine's planned end date).
+// v17: added an optional `completedAt` (a one-off's completion time of day) and
+// an optional `completionTimes` map (a routine's completion time per date).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v16 alike.
-export const PLANNER_VERSION = 16
+// loadPlanner reads v1–v17 alike.
+export const PLANNER_VERSION = 17
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -225,6 +240,16 @@ function isWeekdaySet(value: unknown): value is number[] {
   return Array.isArray(value) && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6)
 }
 
+// A routine's completion-time map: an object of date → minute-of-day, each a
+// valid time (0–1439). A stray or malformed entry drops the whole map rather
+// than risking a bad value reaching the UI, since it's only presentational.
+function isCompletionTimes(value: unknown): value is Record<string, number> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  return Object.values(value).every(
+    v => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 1439
+  )
+}
+
 function isSubtask(value: unknown): value is Subtask {
   if (typeof value !== 'object' || value === null) return false
   const s = value as Record<string, unknown>
@@ -239,6 +264,9 @@ function isTask(value: unknown): value is Task {
     typeof t.text === 'string' &&
     typeof t.done === 'boolean' &&
     typeof t.createdDate === 'string' &&
+    (t.completedAt === undefined ||
+      (typeof t.completedAt === 'number' && Number.isInteger(t.completedAt) && t.completedAt >= 0 && t.completedAt <= 1439)) &&
+    (t.completionTimes === undefined || isCompletionTimes(t.completionTimes)) &&
     (t.note === undefined || typeof t.note === 'string') &&
     (t.repeat === undefined || isRepeatRule(t.repeat)) &&
     (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
@@ -469,6 +497,19 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.completions ?? []).includes(dateStr)
 }
 
+// The local time of day (minutes since midnight) a task was completed on a given
+// date, or null when none was recorded. A routine reads its per-date map; a
+// one-off reads its single completedAt, but only for the day it was finished, so
+// the same field never leaks onto another date. Purely a record for the look-back
+// — tasks finished before completion times were tracked simply return null.
+export function completionMinuteOn(task: Task, dateStr: string): number | null {
+  if (task.repeat) {
+    const min = task.completionTimes?.[dateStr]
+    return typeof min === 'number' ? min : null
+  }
+  return task.completedDate === dateStr && typeof task.completedAt === 'number' ? task.completedAt : null
+}
+
 // Whether a repeating task was taken as a rest day (skipped) on the given date.
 // A skipped due day is held out of that day's list and treated as neither done
 // nor missed — it bridges the streak instead of breaking it.
@@ -643,10 +684,10 @@ export function loadPlanner(): PlannerData {
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
-    // v15 (paused routines) and v16 (routine end dates) only add optional fields
-    // (or a repeat value old data never used), so every version's tasks load
-    // cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    // v15 (paused routines), v16 (routine end dates) and v17 (completion times)
+    // only add optional fields (or a repeat value old data never used), so every
+    // version's tasks load cleanly into the current shape.
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -815,8 +856,10 @@ export type HistoryDay = { date: string; items: Task[] }
 // Everything completed in the last `days` days, grouped by day, newest first.
 // Days with nothing done are skipped. A one-off lands on its completedDate; a
 // routine appears on every day in its completion log, so the same task can
-// show up under several days. Within a day, timed tasks lead chronologically —
-// the order the day itself ran in.
+// show up under several days. Within a day, tasks read in the order they were
+// finished: the recorded completion time leads, and where none was tracked the
+// planned time of day stands in, so a day still reads chronologically. Anything
+// with neither trails, in the order it was added.
 export function historyByDay(tasks: Task[], days = COMPLETED_RETENTION_DAYS): HistoryDay[] {
   const today = todayStr()
   const cutoff = daysAgoStr(days - 1)
@@ -834,16 +877,22 @@ export function historyByDay(tasks: Task[], days = COMPLETED_RETENTION_DAYS): Hi
       add(t.completedDate, t)
     }
   }
-  const byTime = (a: Task, b: Task) => {
-    if (a.timeMin == null && b.timeMin == null) return 0
-    if (a.timeMin == null) return 1
-    if (b.timeMin == null) return -1
-    return a.timeMin - b.timeMin
+  // The minute a task belongs at within its day: when it was actually finished
+  // if that was recorded, else its planned time of day, else nothing (sorted
+  // last). Order-by-completion makes the look-back read as the day truly ran.
+  const dayMinute = (t: Task, date: string): number | null => completionMinuteOn(t, date) ?? t.timeMin ?? null
+  const byMinute = (date: string) => (a: Task, b: Task) => {
+    const am = dayMinute(a, date)
+    const bm = dayMinute(b, date)
+    if (am == null && bm == null) return 0
+    if (am == null) return 1
+    if (bm == null) return -1
+    return am - bm
   }
   return [...byDate.keys()]
     .sort()
     .reverse()
-    .map(date => ({ date, items: byDate.get(date)!.sort(byTime) }))
+    .map(date => ({ date, items: byDate.get(date)!.sort(byMinute(date)) }))
 }
 
 export function newTask(text: string, date: string = todayStr()): Task {

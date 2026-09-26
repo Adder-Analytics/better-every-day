@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useSyncExternalStore } from 'react'
-import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, routineStreak, bestRoutineStreak } from '@/lib/planner'
+import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
@@ -210,7 +210,13 @@ export default function HistoryList() {
             )}
             <ul className="mt-2 space-y-1.5">
               {/* A routine can appear under several days, so keys pair date + id. */}
-              {day.items.map(task => (
+              {day.items.map(task => {
+                // The minute this task was actually finished, if it was recorded.
+                // When present it leads the row as a quiet "done at" stamp — the
+                // most honest read for a look-back; the planned time or estimate
+                // stands in only where no completion time was tracked.
+                const doneAt = completionMinuteOn(task, day.date)
+                return (
                 <li key={`${day.date}-${task.id}`} className="flex items-center gap-2.5 px-1 min-w-0">
                   <svg
                     aria-hidden="true"
@@ -225,7 +231,14 @@ export default function HistoryList() {
                   <span className="min-w-0 truncate text-sm text-zinc-700 dark:text-zinc-300">
                     <Highlighted text={stripTags(task.text)} query={query} />
                   </span>
-                  {task.timeMin != null ? (
+                  {doneAt != null ? (
+                    <span
+                      title={`Finished at ${formatTime(doneAt, hour12)}`}
+                      className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500"
+                    >
+                      {formatTime(doneAt, hour12)}
+                    </span>
+                  ) : task.timeMin != null ? (
                     <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-zinc-400 dark:text-zinc-500">
                       {task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)}
                     </span>
@@ -249,7 +262,8 @@ export default function HistoryList() {
                     </svg>
                   )}
                 </li>
-              ))}
+                )
+              })}
             </ul>
           </li>
         ))}

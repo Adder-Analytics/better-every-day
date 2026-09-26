@@ -865,6 +865,9 @@ export default function Planner() {
         ...newTask(t.text, today),
         done: true,
         completedDate: today,
+        // No completedAt: a logged item already happened at some earlier, unknown
+        // moment, so "now" would misstate it — and it must not override a time the
+        // line itself named. The look-back reads its planned time, if any, as before.
         timeMin: t.timeMin,
         estimateMin: t.estimateMin,
         priority: t.priority,
@@ -899,18 +902,25 @@ export default function Planner() {
 
   const toggleTask = (id: string) => {
     const today = todayStr()
+    const now = currentMin()
     setTasks(prev =>
       prev.map(t => {
         if (t.id !== id) return t
-        // A routine records completion per day, so it returns fresh tomorrow.
+        // A routine records completion per day, so it returns fresh tomorrow. The
+        // time of day it was finished rides alongside in completionTimes, keyed by
+        // today, and drops out again when the completion is undone.
         if (t.repeat) {
           const done = (t.completions ?? []).includes(today)
           const completions = done
             ? (t.completions ?? []).filter(c => c !== today)
             : [...(t.completions ?? []), today]
-          return { ...t, completions }
+          const times = { ...(t.completionTimes ?? {}) }
+          if (done) delete times[today]
+          else times[today] = now
+          return { ...t, completions, completionTimes: Object.keys(times).length ? times : undefined }
         }
-        return { ...t, done: !t.done, completedDate: t.done ? undefined : today }
+        // A one-off records the minute it was checked off, cleared when unchecked.
+        return { ...t, done: !t.done, completedDate: t.done ? undefined : today, completedAt: t.done ? undefined : now }
       })
     )
   }
@@ -926,7 +936,9 @@ export default function Planner() {
         if (t.id !== id || !t.repeat) return t
         const skips = [...new Set([...(t.skips ?? []), today])]
         const completions = (t.completions ?? []).filter(c => c !== today)
-        return { ...t, skips, completions }
+        const times = { ...(t.completionTimes ?? {}) }
+        delete times[today]
+        return { ...t, skips, completions, completionTimes: Object.keys(times).length ? times : undefined }
       })
     )
   }
@@ -960,6 +972,11 @@ export default function Planner() {
               repeatDays: repeat === 'days' ? repeatDays : undefined,
               repeatEvery: repeat === 'interval' ? repeatEvery : undefined,
               completions: repeat ? (t.completions ?? []) : undefined,
+              // Completion times follow the same split: a routine keeps its
+              // per-date map, a one-off its single completedAt — the other clears,
+              // so the shape never carries a field the task's kind can't use.
+              completionTimes: repeat ? t.completionTimes : undefined,
+              completedAt: repeat ? undefined : t.completedAt,
               // A one-off carries no end date; changing cadence keeps any end set.
               repeatUntil: repeat ? t.repeatUntil : undefined,
             }
@@ -1033,7 +1050,9 @@ export default function Planner() {
         id: newId,
         done: false,
         completedDate: undefined,
+        completedAt: undefined,
         completions: src.repeat ? [] : undefined,
+        completionTimes: undefined,
         subtasks: src.subtasks?.map((s, i) => ({ ...s, id: `s${stamp}${i}`, done: false })),
       }
       const next = [...prev]
