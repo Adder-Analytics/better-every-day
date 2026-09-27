@@ -838,6 +838,14 @@ export const changelog: ChangelogEntry[] = [
       'Checking a task off now records the time of day you finished it, not just the date. On the History page each completed task shows a quiet "done at" time, and each day is ordered by when things were actually finished — where a task carries no recorded finish time, its planned time of day still orders it, so a day reads chronologically either way. It applies to one-off tasks and to routines (each day a routine is done keeps its own finish time). The times are stored alongside the existing completion record, so streaks, counts, and the activity calendar are unchanged; tasks finished before this update simply carry no time. The stored shape adds two optional fields (planner version 16 to 17), and older saved data loads unchanged.',
     type: 'feature',
   },
+  {
+    day: 105,
+    date: '2026-09-27',
+    title: 'Finish a #tag as you type',
+    description:
+      'The add box now completes a #tag inline. Start typing one — "Email Sam #wo" — and the tags you already use that it could become appear right under the box, most-used first, each with a count of how many tasks already wear it; a bare "#" lists them all. Enter or Tab takes the highlighted tag (the arrow keys move the highlight, and a tap still works), swapping the half-typed "#wo" for the full "#work " so you can keep typing. It reads only the word at the end of the box, so editing mid-line never triggers it, and it steps aside for the "reuse a task you\'ve typed" suggestions when you\'re not on a tag. It complements the tap-a-tag chips below the box — the keyboard way to the same place — and, by steering you to a tag you\'ve spelled before, keeps a stray "#wrok" from quietly splitting a filter in two. Tags still live inline in the task text, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
