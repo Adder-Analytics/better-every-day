@@ -1600,16 +1600,63 @@ export default function Planner() {
           .map(([text]) => text)
           .slice(0, 6)
       : []
-  const showTaskSuggestions = addFocused && !suggestDismissed && taskSuggestions.length > 0
+  // Inline #tag completion — while the box's last token is a tag being typed
+  // ("Email Sam #wo"), offer the tags you already use that it could become, in
+  // the flow of typing. It's the keyboard counterpart to the tap-a-chip row
+  // below: a tag finishes without lifting your hands or misspelling it into a
+  // new, split filter. Keys off the end of the text (a bare "#" offers them
+  // all), so editing mid-line never triggers it; the boundary rule matches how
+  // tags are read everywhere else, so "email#x" is left alone.
+  const tagTokenMatch = newText.match(/(?:^|\s)#([a-zA-Z][\w-]*)?$/)
+  const tagPartial = tagTokenMatch ? (tagTokenMatch[1] ?? '').toLowerCase() : null
+  const tagCompletions =
+    tagPartial != null
+      ? (() => {
+          // Tags used earlier in the same draft drop out — you can't tag a task
+          // twice — while the partial itself stays a candidate to complete.
+          const used = new Set(extractTags(newText.slice(0, newText.length - tagPartial.length - 1)))
+          return [...tagUse.entries()]
+            .map(([tag]) => tag)
+            .filter(tag => tag.startsWith(tagPartial) && tag !== tagPartial && !used.has(tag))
+            // Most-used first, then alphabetical — the same order as the chips.
+            .sort((a, b) => tagUse.get(b)! - tagUse.get(a)! || a.localeCompare(b))
+            .slice(0, 6)
+        })()
+      : []
+
+  // The two inline sources are mutually exclusive: a tag being typed takes the
+  // dropdown, otherwise past task titles do. Both share the highlight and the
+  // keyboard handling below, so only one list is ever open.
+  const suggestMode: 'tag' | 'task' | null =
+    tagCompletions.length > 0 ? 'tag' : taskSuggestions.length > 0 ? 'task' : null
+  const suggestItems = suggestMode === 'tag' ? tagCompletions : suggestMode === 'task' ? taskSuggestions : []
+  const showSuggestions = addFocused && !suggestDismissed && suggestItems.length > 0
   // The highlighted row, clamped to what's actually shown so a shrinking list
   // never points past its end.
-  const activeSuggest = suggestIndex >= 0 && suggestIndex < taskSuggestions.length ? suggestIndex : -1
+  const activeSuggest = suggestIndex >= 0 && suggestIndex < suggestItems.length ? suggestIndex : -1
 
   // Drop a picked suggestion into the box (with a trailing space to keep typing)
   // rather than adding it outright, so any time or estimate can still be tacked
   // on and the quick-add preview confirms it before it's committed.
   const applyTaskSuggestion = (text: string) => {
     setNewText(`${text} `)
+    setSuggestIndex(-1)
+    setSuggestDismissed(true)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const end = el.value.length
+      el.setSelectionRange(end, end)
+    })
+  }
+
+  // Swap the "#partial" being typed for a chosen tag, with a trailing space so
+  // typing continues cleanly — the text before the token is left untouched, so
+  // it completes a tag anywhere in the line, not just a lone one.
+  const applyTagCompletion = (tag: string) => {
+    const base = newText.slice(0, newText.length - (tagPartial ?? '').length - 1)
+    setNewText(`${base}#${tag} `)
     setSuggestIndex(-1)
     setSuggestDismissed(true)
     requestAnimationFrame(() => {
@@ -2461,22 +2508,30 @@ export default function Planner() {
           rows={1}
           aria-label="Add a task"
           role="combobox"
-          aria-expanded={showTaskSuggestions}
-          aria-controls="task-suggestions"
+          aria-expanded={showSuggestions}
+          aria-controls={suggestMode === 'tag' ? 'tag-suggestions' : 'task-suggestions'}
           aria-autocomplete="list"
-          aria-activedescendant={activeSuggest >= 0 ? `task-suggestion-${activeSuggest}` : undefined}
+          aria-activedescendant={activeSuggest >= 0 ? `${suggestMode}-suggestion-${activeSuggest}` : undefined}
           onChange={e => { setNewText(e.target.value); setSuggestIndex(-1); setSuggestDismissed(false) }}
           onFocus={() => setAddFocused(true)}
           onBlur={() => setAddFocused(false)}
           onKeyDown={e => {
             // While the suggestion list is open, the arrow keys move the
             // highlight (wrapping around) instead of the text cursor.
-            if (showTaskSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            if (showSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
               e.preventDefault()
-              const n = taskSuggestions.length
+              const n = suggestItems.length
               setSuggestIndex(i =>
                 e.key === 'ArrowDown' ? (i + 1 >= n ? 0 : i + 1) : (i - 1 < 0 ? n - 1 : i - 1)
               )
+              return
+            }
+            // Tab completes a tag — the familiar autocomplete key — taking the
+            // highlighted match, or the first when none is picked. Only in tag
+            // mode, so Tab still moves focus normally the rest of the time.
+            if (e.key === 'Tab' && !e.shiftKey && showSuggestions && suggestMode === 'tag') {
+              e.preventDefault()
+              applyTagCompletion(suggestItems[activeSuggest >= 0 ? activeSuggest : 0])
               return
             }
             // Cmd/Ctrl+Enter logs the line(s) straight into today as already
@@ -2492,13 +2547,15 @@ export default function Planner() {
             // so the common type-and-add flow is unchanged when none is picked.
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              if (activeSuggest >= 0) applyTaskSuggestion(taskSuggestions[activeSuggest])
-              else addTask()
+              if (activeSuggest >= 0) {
+                if (suggestMode === 'tag') applyTagCompletion(suggestItems[activeSuggest])
+                else applyTaskSuggestion(suggestItems[activeSuggest])
+              } else addTask()
               return
             }
             // Escape closes the suggestions first if they're open, then clears.
             if (e.key === 'Escape') {
-              if (showTaskSuggestions) { setSuggestDismissed(true); setSuggestIndex(-1) }
+              if (showSuggestions) { setSuggestDismissed(true); setSuggestIndex(-1) }
               else setNewText('')
             }
           }}
@@ -2547,7 +2604,7 @@ export default function Planner() {
           move the highlight and Escape dismisses. Touch-friendly — the
           mousedown-preventDefault keeps the box focused so the list doesn't
           vanish from under the tap. */}
-      {showTaskSuggestions && (
+      {showSuggestions && suggestMode === 'task' && (
         <ul
           id="task-suggestions"
           role="listbox"
@@ -2588,6 +2645,46 @@ export default function Planner() {
         </ul>
       )}
 
+      {/* Complete a #tag — the tags you already use that match what's being
+          typed, offered inline so a tag finishes in the flow of a sentence
+          (Enter or Tab takes the highlighted one; a tap works too). The count
+          reads how many tasks already wear it, a nudge toward the tag you mean
+          rather than a fresh, near-duplicate one. Shares the highlight and keys
+          with the task list above; the mousedown-preventDefault keeps the box
+          focused so a tap doesn't close it first. */}
+      {showSuggestions && suggestMode === 'tag' && (
+        <ul
+          id="tag-suggestions"
+          role="listbox"
+          aria-label="Matching tags"
+          className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm"
+        >
+          {suggestItems.map((tag, i) => (
+            <li key={tag} role="option" id={`tag-suggestion-${i}`} aria-selected={i === activeSuggest}>
+              <button
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onMouseEnter={() => setSuggestIndex(i)}
+                onClick={() => applyTagCompletion(tag)}
+                title={`Add #${tag}`}
+                className={`flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors ${
+                  i === activeSuggest
+                    ? 'bg-zinc-100 dark:bg-zinc-800'
+                    : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
+                }`}
+              >
+                <span className={`inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${resolveTagClasses(tag, tagColors)}`}>
+                  #{tag}
+                </span>
+                <span className="min-w-0 truncate text-xs tabular-nums text-zinc-400">
+                  {tagUse.get(tag)} {tagUse.get(tag) === 1 ? 'task' : 'tasks'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {/* Reuse a tag — the tags you already use, one tap to drop into the box.
           Only while composing a single line (a brain dump appends to the wrong
           line), and never on a first-ever task, since there's nothing to
@@ -2595,7 +2692,7 @@ export default function Planner() {
           don't stack. Kept touch-friendly: a plain tap, no hover needed. The
           mousedown-preventDefault keeps the box focused so the row doesn't
           vanish out from under the tap. */}
-      {addFocused && !showTaskSuggestions && addLineCount < 2 && tagSuggestions.length > 0 && (
+      {addFocused && !showSuggestions && addLineCount < 2 && tagSuggestions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-1">
           <svg aria-hidden="true" className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
