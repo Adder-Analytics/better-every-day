@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
+import { hasLink, splitLinks, linkHostname } from '@/lib/links'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
 import TagChip from '@/components/TagChip'
@@ -174,6 +175,15 @@ function NoteIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h10M4 18h7" />
+    </svg>
+  )
+}
+
+// An arrow leaving a box — a link in a task's title, opening in a new tab.
+function ExternalLinkIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
     </svg>
   )
 }
@@ -707,7 +717,32 @@ export default function TaskItem({
                   task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
                 } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
               >
-                {displayText}
+                {hasLink(displayText)
+                  ? splitLinks(displayText).map((seg, i) =>
+                      seg.link ? (
+                        // A URL in the title becomes a compact chip showing just
+                        // the host, so a long link doesn't crowd out the task and
+                        // it stays tappable on touch. Opens in a new tab; its own
+                        // click and dblclick are swallowed so following it never
+                        // selects or edits the task.
+                        <a
+                          key={i}
+                          href={seg.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={seg.href}
+                          onClick={e => e.stopPropagation()}
+                          onDoubleClick={e => e.stopPropagation()}
+                          className={`mx-0.5 inline-flex max-w-full items-center gap-0.5 rounded-full bg-zinc-100 px-1.5 py-px align-middle text-[11px] font-medium text-zinc-500 no-underline transition-colors hover:text-emerald-600 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-emerald-400 ${task.done ? 'opacity-60' : ''}`}
+                        >
+                          <ExternalLinkIcon className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{linkHostname(seg.href)}</span>
+                        </a>
+                      ) : (
+                        <Fragment key={i}>{seg.text}</Fragment>
+                      )
+                    )
+                  : displayText}
               </span>
             )}
 

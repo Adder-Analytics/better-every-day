@@ -846,6 +846,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now completes a #tag inline. Start typing one — "Email Sam #wo" — and the tags you already use that it could become appear right under the box, most-used first, each with a count of how many tasks already wear it; a bare "#" lists them all. Enter or Tab takes the highlighted tag (the arrow keys move the highlight, and a tap still works), swapping the half-typed "#wo" for the full "#work " so you can keep typing. It reads only the word at the end of the box, so editing mid-line never triggers it, and it steps aside for the "reuse a task you\'ve typed" suggestions when you\'re not on a tag. It complements the tap-a-tag chips below the box — the keyboard way to the same place — and, by steering you to a tag you\'ve spelled before, keeps a stray "#wrok" from quietly splitting a filter in two. Tags still live inline in the task text, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 106,
+    date: '2026-09-28',
+    title: 'Tap a link in a task',
+    description:
+      'A URL written into a task\'s title is now a link you can tap, not dead text you have to retype or copy out. It shows as a small chip with just the site\'s host — "github.com", "youtu.be" — so a long link no longer crowds the task off the row, and it opens in a new tab. Bare "www." links are recognized too, and trailing punctuation ("see example.com.") stays out of the link. This matches how task notes already turn URLs into links; the two now share the same link-reading code. Links in a title stay part of the task text, so nothing about how tasks are stored changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
