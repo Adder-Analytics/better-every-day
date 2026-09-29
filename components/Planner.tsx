@@ -29,6 +29,7 @@ import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
 import QuickAddTips from '@/components/QuickAddTips'
 import DayComplete from '@/components/DayComplete'
+import DaySpread from '@/components/DaySpread'
 import QuickLists, { openQuickLists } from '@/components/QuickLists'
 import { useLists } from '@/lib/lists'
 
@@ -2103,6 +2104,11 @@ export default function Planner() {
           </span>
         </p>
       )}
+
+      {/* Where that planned time goes — the "about Xh planned" figure broken
+          down by tag into one slim stacked bar. Shown only when it adds signal
+          (two or more tag buckets carry time); quiet otherwise. */}
+      {plannedMin > 0 && !inFocus && <DaySpread tasks={todayTasks} />}
 
       {/* A wrap-up time for today — set the hour the day should wind down and a
           quiet line reads the plan against it: how long is left, and (once tasks
