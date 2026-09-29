@@ -62,3 +62,26 @@ export function tagColor(tag: string): string {
   for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0
   return TAG_PALETTE[h % TAG_PALETTE.length]
 }
+
+// Solid swatches parallel to TAG_PALETTE — same order, so the same tag lands on
+// the same hue as its tinted chip. For the places a tag needs a filled block
+// rather than a pill (the "where your day goes" bar). bg-*-500 reads on both
+// themes; full class strings so Tailwind's scanner keeps every one.
+const TAG_DOT_PALETTE = [
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-emerald-500',
+  'bg-teal-500',
+  'bg-sky-500',
+  'bg-indigo-500',
+  'bg-violet-500',
+  'bg-fuchsia-500',
+]
+
+// The solid swatch for a tag's hashed default color — the fill counterpart to
+// tagColor, hashed identically so a tag's block matches its chip's hue.
+export function tagDot(tag: string): string {
+  let h = 0
+  for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0
+  return TAG_DOT_PALETTE[h % TAG_DOT_PALETTE.length]
+}

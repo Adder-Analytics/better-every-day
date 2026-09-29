@@ -854,6 +854,14 @@ export const changelog: ChangelogEntry[] = [
       'A URL written into a task\'s title is now a link you can tap, not dead text you have to retype or copy out. It shows as a small chip with just the site\'s host — "github.com", "youtu.be" — so a long link no longer crowds the task off the row, and it opens in a new tab. Bare "www." links are recognized too, and trailing punctuation ("see example.com.") stays out of the link. This matches how task notes already turn URLs into links; the two now share the same link-reading code. Links in a title stay part of the task text, so nothing about how tasks are stored changed.',
     type: 'feature',
   },
+  {
+    day: 107,
+    date: '2026-09-29',
+    title: 'See where your day’s time goes',
+    description:
+      'The "about Xh planned today" line now breaks down by tag. Under it sits a slim stacked bar and a short legend: each estimated task\'s time is counted under its first #tag — or an "untagged" bucket — so the plan reads as "2h 45m of #work, 1h of #health, 25m of #personal" instead of one lump sum. Each segment uses the tag\'s own color (the one you chose, or its usual hashed tint), and the segments add up to the same total as the line above. It appears only when it says something the total doesn\'t — two or more buckets carrying time — and stays hidden otherwise, so a day with no estimates or a single context sees no change. It reads the tags already inline in your task text and needs no new stored data.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

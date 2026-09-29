@@ -14,7 +14,7 @@
 // choice across tabs.
 
 import { useSyncExternalStore } from 'react'
-import { tagColor } from '@/lib/tags'
+import { tagColor, tagDot } from '@/lib/tags'
 
 export type TagColorKey =
   | 'rose'
@@ -49,6 +49,7 @@ export const TAG_COLOR_OPTIONS: { key: TagColorKey; label: string; chip: string;
 ]
 
 const CHIP_BY_KEY = new Map(TAG_COLOR_OPTIONS.map(o => [o.key, o.chip]))
+const DOT_BY_KEY = new Map(TAG_COLOR_OPTIONS.map(o => [o.key, o.dot]))
 
 export function isTagColorKey(v: unknown): v is TagColorKey {
   return typeof v === 'string' && CHIP_BY_KEY.has(v as TagColorKey)
@@ -135,6 +136,15 @@ export function resolveTagClasses(tag: string, map: Record<string, TagColorKey>)
   const key = map[tag.toLowerCase()]
   const chip = key ? CHIP_BY_KEY.get(key) : undefined
   return chip ?? tagColor(tag)
+}
+
+// The solid swatch for a tag — the chosen color's fill if one is set, else the
+// hashed default. The fill counterpart to resolveTagClasses, for a tag drawn as
+// a block rather than a pill (the "where your day goes" bar).
+export function resolveTagDot(tag: string, map: Record<string, TagColorKey>): string {
+  const key = map[tag.toLowerCase()]
+  const dot = key ? DOT_BY_KEY.get(key) : undefined
+  return dot ?? tagDot(tag)
 }
 
 // The render-time hook: an empty map on the server and the first client paint,
