@@ -584,6 +584,10 @@ export default function Planner() {
   // list gets the same acknowledgement a single add's appearing row does.
   const [listAdded, setListAdded] = useState<number | null>(null)
   const listAddedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The task just swiped to tomorrow, with the day (and Someday flag) it came
+  // from, held for the undo window so a stray swipe is one tap from undone.
+  const [moved, setMoved] = useState<{ id: string; text: string; from: string; someday?: boolean } | null>(null)
+  const movedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
@@ -638,6 +642,7 @@ export default function Planner() {
   }, [deleted, armUndoTimer])
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
+  useEffect(() => () => { if (movedTimer.current) clearTimeout(movedTimer.current) }, [])
 
   // Jump to a task found in search: leave focus mode (so the full list is on
   // screen), scroll the row into view, and flash it so the eye lands on it.
@@ -1077,6 +1082,23 @@ export default function Planner() {
   }
 
   const doToday = (id: string) => scheduleTask(id, todayStr())
+
+  // A task swiped aside on a touch screen goes to tomorrow, with an undo toast.
+  const moveToTomorrow = (id: string) => {
+    const t = tasks.find(x => x.id === id)
+    if (!t) return
+    scheduleTask(id, tomorrowStr())
+    setMoved({ id, text: t.text, from: t.createdDate, someday: t.someday })
+    if (movedTimer.current) clearTimeout(movedTimer.current)
+    movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
+  }
+
+  const undoMove = () => {
+    if (!moved) return
+    setTasks(prev => prev.map(t => (t.id === moved.id ? { ...t, createdDate: moved.from, someday: moved.someday } : t)))
+    setMoved(null)
+    if (movedTimer.current) clearTimeout(movedTimer.current)
+  }
 
   // Push a task to a later slot in one step — "in an hour", this afternoon or
   // evening, or tomorrow morning — for when you can't get to it now but don't
@@ -1860,7 +1882,30 @@ export default function Planner() {
     {/* Quick-list confirmation — a brief note that a saved list's tasks landed
         on the day. Shares the bottom-center home; held back while an undo or a
         copy toast is up, since those are more time-sensitive. */}
-    {listAdded !== null && deleted.length === 0 && !copied && (
+    {/* Swipe-to-tomorrow confirmation, with the way back. Same home as the
+        others; a delete's undo takes precedence while both are live. */}
+    {moved && deleted.length === 0 && !copied && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-1.5 pl-4 pr-1.5 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          <span className="min-w-0 truncate text-xs text-zinc-400 dark:text-zinc-500">
+            Moved{' '}
+            <span className="font-medium text-white dark:text-zinc-900">“{stripTags(moved.text)}”</span>
+            {' '}to tomorrow
+          </span>
+          <button
+            onClick={undoMove}
+            className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    )}
+
+    {listAdded !== null && deleted.length === 0 && !copied && !moved && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2267,6 +2312,7 @@ export default function Planner() {
                   onDelete={deleteTask}
                   onDoToday={doToday}
                   onSchedule={scheduleTask}
+                  onTomorrow={moveToTomorrow}
                   onSnooze={snoozeTask}
                   onSetDue={setDueDate}
                   onEdit={editTask}
@@ -2365,6 +2411,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onTomorrow={moveToTomorrow}
               onSnooze={snoozeTask}
               onSetDue={setDueDate}
               onSetRepeat={setRepeat}
@@ -2863,6 +2910,7 @@ export default function Planner() {
               onEdit={editTask}
               onEditNote={editNote}
               onSchedule={scheduleTask}
+              onTomorrow={moveToTomorrow}
               onSetDue={setDueDate}
               onSetEstimate={setEstimate}
               onSetTime={setTime}
@@ -2899,6 +2947,7 @@ export default function Planner() {
               onDelete={deleteTask}
               onDoToday={doToday}
               onSchedule={scheduleTask}
+              onTomorrow={moveToTomorrow}
               onSetDue={setDueDate}
               onEdit={editTask}
               onEditNote={editNote}
