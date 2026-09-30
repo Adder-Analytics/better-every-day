@@ -130,6 +130,15 @@ function CheckIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons "arrow-uturn-right" — the swipe-left backdrop's "to tomorrow" mark.
+function LaterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3" />
+    </svg>
+  )
+}
+
 // Heroicons "star" — solid marks an important (starred) task, outline is the
 // action to star one.
 function StarIcon({ className }: { className?: string }) {
@@ -267,6 +276,9 @@ type Props = {
   onEdit?: (id: string, text: string) => void
   onEditNote?: (id: string, note: string) => void
   onSchedule?: (id: string, date: string) => void
+  // Moves a one-off task to tomorrow — what a leftward swipe does on a touch
+  // screen. Kept separate from onSchedule so the parent can offer an undo.
+  onTomorrow?: (id: string) => void
   // Push this task to a later slot today (or tomorrow morning) in one tap — for
   // when you can't get to it now but don't want to lose it. `day` is 'today' or
   // 'tomorrow' and `timeMin` the time of day it lands on; the parent resolves the
@@ -345,6 +357,7 @@ export default function TaskItem({
   onEdit,
   onEditNote,
   onSchedule,
+  onTomorrow,
   onSnooze,
   onSetDue,
   onSetRepeat,
@@ -406,6 +419,15 @@ export default function TaskItem({
   const editInputRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
   const rowRef = useRef<HTMLDivElement>(null)
+  // Touch swipes: right does the row's main action (check off, or "Do today"
+  // on a carried-over or Someday task), left moves a one-off to tomorrow. Only
+  // touch pointers swipe — a mouse keeps drag-to-reorder and text selection —
+  // and every swipe has a tap equivalent, so nothing depends on the gesture.
+  const [swipeDx, setSwipeDx] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const [swipeArmed, setSwipeArmed] = useState(false)
+  const swipeRef = useRef<{ id: number; x: number; y: number; axis: 'x' | null; width: number; armed: boolean; dx: number } | null>(null)
+  const swallowClick = useRef(false)
   const draggable = !!onDragStart
   const canNote = !!onEditNote
   const canRepeat = !!onSetRepeat
@@ -427,6 +449,11 @@ export default function TaskItem({
   const canSkip = !!onSkip && !!task.repeat && !task.done
   const { done: subDone, total: subTotal } = subtaskProgress(task)
   const hasSubtasks = subTotal > 0
+  const tomorrow = addDaysStr(1)
+  const canSwipeRight = carryover ? !!onDoToday : true
+  // Only toward tomorrow: a task already set for a later day isn't pulled earlier.
+  const canSwipeLeft = !!onTomorrow && !task.done && !task.repeat && (!!task.someday || task.createdDate < tomorrow)
+  const swipeRightLabel = carryover ? 'Today' : task.done ? 'Undo' : 'Done'
   // Tags are read from the task's own text: chips to show, and a clean title
   // (hashtags stripped) to display. Editing still works on the raw text, so a
   // "#tag" is added or removed just by editing the task.
@@ -604,7 +631,88 @@ export default function TaskItem({
     setEditingNote(false)
   }
 
+  // How far a swipe must travel to act: a third of the row, within sane bounds.
+  const swipeThreshold = (width: number) => Math.min(120, Math.max(72, width * 0.33))
+
+  const onSwipeDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'touch' || editing || editingNote || menu || confirmDelete) return
+    if ((e.target as HTMLElement).closest('input, textarea, select, [data-no-swipe]')) return
+    swipeRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, axis: null, width: e.currentTarget.offsetWidth, armed: false, dx: 0 }
+  }
+
+  const onSwipeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const s = swipeRef.current
+    if (!s || s.id !== e.pointerId) return
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (!s.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+      // Mostly vertical: it's a scroll, so let the page have it.
+      if (Math.abs(dy) >= Math.abs(dx)) { swipeRef.current = null; return }
+      s.axis = 'x'
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setSwiping(true)
+    }
+    const allowed = dx > 0 ? canSwipeRight : canSwipeLeft
+    // A direction with no action gives a little, then stops, so it reads as
+    // "nothing here" rather than broken.
+    const next = allowed ? Math.max(-s.width, Math.min(s.width, dx)) : Math.max(-16, Math.min(16, dx / 4))
+    const armed = allowed && Math.abs(next) >= swipeThreshold(s.width)
+    if (armed !== s.armed) {
+      s.armed = armed
+      setSwipeArmed(armed)
+      if (armed) navigator.vibrate?.(8)
+    }
+    s.dx = next
+    setSwipeDx(next)
+  }
+
+  const onSwipeEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const s = swipeRef.current
+    if (!s || s.id !== e.pointerId) return
+    swipeRef.current = null
+    if (s.axis !== 'x') return
+    swallowClick.current = true
+    setTimeout(() => { swallowClick.current = false }, 60)
+    setSwiping(false)
+    setSwipeArmed(false)
+    setSwipeDx(0)
+    if (!s.armed || e.type === 'pointercancel') return
+    if (s.dx > 0) {
+      if (carryover) onDoToday?.(task.id)
+      else onToggle(task.id)
+    } else {
+      onTomorrow?.(task.id)
+    }
+  }
+
   return (
+    <div className="relative">
+      {/* What a swipe will do, revealed under the row as it slides aside. */}
+      {swipeDx !== 0 && (
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 flex items-center rounded-2xl px-5 text-xs font-semibold ${
+            swipeDx > 0
+              ? `justify-start ${task.done && !carryover ? 'bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300' : 'bg-emerald-500 text-white dark:bg-emerald-600'}`
+              : 'justify-end bg-sky-500 text-white dark:bg-sky-600'
+          }`}
+        >
+          {(swipeDx > 0 ? canSwipeRight : canSwipeLeft) && (
+            <span
+              className={`flex items-center gap-1.5 transition-[opacity,transform] duration-150 ${
+                swipeArmed ? 'scale-100 opacity-100' : 'scale-90 opacity-60'
+              }`}
+            >
+              {swipeDx > 0 ? (
+                carryover ? <ArrowDownIcon className="h-4 w-4" /> : <CheckIcon className="h-4 w-4" />
+              ) : null}
+              {swipeDx > 0 ? swipeRightLabel : 'Tomorrow'}
+              {swipeDx < 0 && <LaterIcon className="h-4 w-4" />}
+            </span>
+          )}
+        </div>
+      )}
     <div
       ref={rowRef}
       id={`task-${task.id}`}
@@ -613,6 +721,20 @@ export default function TaskItem({
       onDragOver={draggable ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver!(task.id) } : undefined}
       onDrop={draggable ? (e) => { e.preventDefault(); onDrop!(task.id) } : undefined}
       onDragEnd={draggable ? () => onDragEnd!() : undefined}
+      onPointerDown={onSwipeDown}
+      onPointerMove={onSwipeMove}
+      onPointerUp={onSwipeEnd}
+      onPointerCancel={onSwipeEnd}
+      // A swipe ends in a click on whatever it started over; swallow that one
+      // so letting go never also ticks the box or opens a menu.
+      onClickCapture={e => {
+        if (swallowClick.current) { swallowClick.current = false; e.preventDefault(); e.stopPropagation() }
+      }}
+      onPointerDownCapture={() => { swallowClick.current = false }}
+      style={{
+        touchAction: 'pan-y pinch-zoom',
+        ...(swipeDx !== 0 || swiping ? { transform: `translateX(${swipeDx}px)`, transition: swiping ? 'none' : undefined } : {}),
+      }}
       className={`group relative rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
         isDragging
           ? 'opacity-40 scale-[0.98] border-zinc-200 dark:border-zinc-800'
@@ -1467,6 +1589,7 @@ export default function TaskItem({
       )}
 
       {showSubtasks && (
+        <div data-no-swipe>
         <SubtaskList
           subtasks={task.subtasks ?? []}
           editable={subtasksEditable}
@@ -1474,6 +1597,7 @@ export default function TaskItem({
           autoFocusAdd={addingStep}
           onDismissEmpty={() => setAddingStep(false)}
         />
+        </div>
       )}
 
       {editingNote ? (
@@ -1499,6 +1623,7 @@ export default function TaskItem({
           />
         )
       )}
+    </div>
     </div>
   )
 }

@@ -862,6 +862,14 @@ export const changelog: ChangelogEntry[] = [
       'The "about Xh planned today" line now breaks down by tag. Under it sits a slim stacked bar and a short legend: each estimated task\'s time is counted under its first #tag — or an "untagged" bucket — so the plan reads as "2h 45m of #work, 1h of #health, 25m of #personal" instead of one lump sum. Each segment uses the tag\'s own color (the one you chose, or its usual hashed tint), and the segments add up to the same total as the line above. It appears only when it says something the total doesn\'t — two or more buckets carrying time — and stays hidden otherwise, so a day with no estimates or a single context sees no change. It reads the tags already inline in your task text and needs no new stored data.',
     type: 'feature',
   },
+  {
+    day: 108,
+    date: '2026-09-30',
+    title: 'Swipe a task on a touch screen',
+    description:
+      'On a phone or tablet, a task row can now be swiped sideways. Swipe right to check it off (or to un-check a finished one); on a carried-over or Someday task, swiping right does what its "Do today" button does. Swipe left to move a one-off task to tomorrow, with an "Undo" in the toast that follows for a few seconds. The row slides with your finger over a colored strip naming the action, and only acts once it has travelled about a third of the way; letting go short of that puts it back. Vertical scrolling is unaffected, swipes that start on a step checklist or an input are ignored, and a mouse keeps drag-to-reorder as before. Routines, finished tasks, and tasks already set for a later day can\'t be swiped left. Every swipe has a tap equivalent, so nothing needs the gesture.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
