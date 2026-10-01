@@ -870,6 +870,14 @@ export const changelog: ChangelogEntry[] = [
       'On a phone or tablet, a task row can now be swiped sideways. Swipe right to check it off (or to un-check a finished one); on a carried-over or Someday task, swiping right does what its "Do today" button does. Swipe left to move a one-off task to tomorrow, with an "Undo" in the toast that follows for a few seconds. The row slides with your finger over a colored strip naming the action, and only acts once it has travelled about a third of the way; letting go short of that puts it back. Vertical scrolling is unaffected, swipes that start on a step checklist or an input are ignored, and a mouse keeps drag-to-reorder as before. Routines, finished tasks, and tasks already set for a later day can\'t be swiped left. Every swipe has a tap equivalent, so nothing needs the gesture.',
     type: 'feature',
   },
+  {
+    day: 109,
+    date: '2026-10-01',
+    title: 'A tidier header',
+    description:
+      'The header on the main page is now two rows: the name with the 12h/24h and theme switches beside it, then a row of views (Today, Week, Month, Routines, Tags) with the current one highlighted. On a wide screen the name no longer wraps onto two lines. On a phone the views sit as five equal tabs with the icon above the label, so all of them fit without scrolling, and the tagline is hidden to save room.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
