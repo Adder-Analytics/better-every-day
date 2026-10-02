@@ -878,6 +878,14 @@ export const changelog: ChangelogEntry[] = [
       'The header on the main page is now two rows: the name with the 12h/24h and theme switches beside it, then a row of views (Today, Week, Month, Routines, Tags) with the current one highlighted. On a wide screen the name no longer wraps onto two lines. On a phone the views sit as five equal tabs with the icon above the label, so all of them fit without scrolling, and the tagline is hidden to save room.',
     type: 'design',
   },
+  {
+    day: 110,
+    date: '2026-10-02',
+    title: 'Undo a bulk move',
+    description:
+      '"Move N to tomorrow" and "Bring all to today" now show the same Undo toast a swiped task does: "Moved 4 tasks to tomorrow", with an Undo button for a few seconds afterward. Undo puts each task back on the day it came from. Cmd/Ctrl+Z works too, both for these and for a single swiped task, after any pending delete has been undone. The same applies when either action is run from the command menu. Previously a bulk move could only be reversed one task at a time.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

@@ -586,7 +586,14 @@ export default function Planner() {
   const listAddedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The task just swiped to tomorrow, with the day (and Someday flag) it came
   // from, held for the undo window so a stray swipe is one tap from undone.
-  const [moved, setMoved] = useState<{ id: string; text: string; from: string; someday?: boolean } | null>(null)
+  // The last move that can still be taken back: a swiped task, or a whole batch
+  // from "Move N to tomorrow" / "Bring all to today". Each item remembers the day
+  // (and Someday flag) it came from, so undo restores exactly that.
+  const [moved, setMoved] = useState<{
+    items: { id: string; from: string; someday?: boolean }[]
+    to: 'today' | 'tomorrow'
+    text?: string // the task's title, when a single task moved
+  } | null>(null)
   const movedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -640,6 +647,20 @@ export default function Planner() {
     else if (undoTimer.current) clearTimeout(undoTimer.current)
     return true
   }, [deleted, armUndoTimer])
+
+  // Put every task from the last move back on the day it came from. Returns
+  // whether there was anything to undo, for the Cmd/Ctrl+Z handler.
+  const undoMove = useCallback((): boolean => {
+    if (!moved) return false
+    const from = new Map(moved.items.map(m => [m.id, m]))
+    setTasks(prev => prev.map(t => {
+      const m = from.get(t.id)
+      return m ? { ...t, createdDate: m.from, someday: m.someday } : t
+    }))
+    setMoved(null)
+    if (movedTimer.current) clearTimeout(movedTimer.current)
+    return true
+  }, [moved])
 
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
   useEffect(() => () => { if (movedTimer.current) clearTimeout(movedTimer.current) }, [])
@@ -708,10 +729,11 @@ export default function Planner() {
         setFocusMode(false)
         return
       }
-      // Cmd/Ctrl+Z takes back the last delete while the undo window is open.
-      // Inputs are already excluded above, so their native undo still works.
+      // Cmd/Ctrl+Z takes back the last delete (or, failing that, the last
+      // move) while its undo window is open. Inputs are already excluded
+      // above, so their native undo still works.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        if (undoDelete()) e.preventDefault()
+        if (undoDelete() || undoMove()) e.preventDefault()
         return
       }
 
@@ -780,7 +802,7 @@ export default function Planner() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [focusMode, undoDelete])
+  }, [focusMode, undoDelete, undoMove])
 
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
@@ -1084,21 +1106,25 @@ export default function Planner() {
   const doToday = (id: string) => scheduleTask(id, todayStr())
 
   // A task swiped aside on a touch screen goes to tomorrow, with an undo toast.
-  const moveToTomorrow = (id: string) => {
-    const t = tasks.find(x => x.id === id)
-    if (!t) return
-    scheduleTask(id, tomorrowStr())
-    setMoved({ id, text: t.text, from: t.createdDate, someday: t.someday })
+  // Remember a move for the undo toast, opening a fresh undo window.
+  const recordMove = (moves: Task[], to: 'today' | 'tomorrow') => {
+    if (moves.length === 0) return
+    setMoved({
+      items: moves.map(t => ({ id: t.id, from: t.createdDate, someday: t.someday })),
+      to,
+      text: moves.length === 1 ? moves[0].text : undefined,
+    })
     if (movedTimer.current) clearTimeout(movedTimer.current)
     movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
   }
 
-  const undoMove = () => {
-    if (!moved) return
-    setTasks(prev => prev.map(t => (t.id === moved.id ? { ...t, createdDate: moved.from, someday: moved.someday } : t)))
-    setMoved(null)
-    if (movedTimer.current) clearTimeout(movedTimer.current)
+  const moveToTomorrow = (id: string) => {
+    const t = tasks.find(x => x.id === id)
+    if (!t) return
+    scheduleTask(id, tomorrowStr())
+    recordMove([t], 'tomorrow')
   }
+
 
   // Push a task to a later slot in one step — "in an hour", this afternoon or
   // evening, or tomorrow morning — for when you can't get to it now but don't
@@ -1179,7 +1205,9 @@ export default function Planner() {
   // the bulk form of each row's "Do today", for mornings with a full backlog.
   const bringCarryoversToToday = () => {
     const today = todayStr()
-    setTasks(prev => prev.map(t => (!t.repeat && !t.done && t.createdDate < today ? { ...t, createdDate: today } : t)))
+    const isCarryover = (t: Task) => !t.repeat && !t.done && t.createdDate < today
+    recordMove(tasks.filter(isCarryover), 'today')
+    setTasks(prev => prev.map(t => (isCarryover(t) ? { ...t, createdDate: today } : t)))
   }
 
   // Sweep today's still-to-do one-off tasks to tomorrow at once — the bulk form
@@ -1190,9 +1218,9 @@ export default function Planner() {
   const moveRemainingToTomorrow = () => {
     const today = todayStr()
     const tmw = tomorrowStr()
-    setTasks(prev =>
-      prev.map(t => (!t.repeat && !t.someday && !t.done && t.createdDate === today ? { ...t, createdDate: tmw } : t))
-    )
+    const isRemaining = (t: Task) => !t.repeat && !t.someday && !t.done && t.createdDate === today
+    recordMove(tasks.filter(isRemaining), 'tomorrow')
+    setTasks(prev => prev.map(t => (isRemaining(t) ? { ...t, createdDate: tmw } : t)))
   }
 
   // Move a task next to another in the stored array — the single reorder both
@@ -1882,8 +1910,9 @@ export default function Planner() {
     {/* Quick-list confirmation — a brief note that a saved list's tasks landed
         on the day. Shares the bottom-center home; held back while an undo or a
         copy toast is up, since those are more time-sensitive. */}
-    {/* Swipe-to-tomorrow confirmation, with the way back. Same home as the
-        others; a delete's undo takes precedence while both are live. */}
+    {/* Move confirmation — a swiped task or a bulk move — with the way back.
+        Same home as the others; a delete's undo takes precedence while both
+        are live. */}
     {moved && deleted.length === 0 && !copied && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
@@ -1892,11 +1921,16 @@ export default function Planner() {
         >
           <span className="min-w-0 truncate text-xs text-zinc-400 dark:text-zinc-500">
             Moved{' '}
-            <span className="font-medium text-white dark:text-zinc-900">“{stripTags(moved.text)}”</span>
-            {' '}to tomorrow
+            <span className="font-medium text-white dark:text-zinc-900">
+              {moved.text !== undefined
+                ? `“${stripTags(moved.text)}”`
+                : `${moved.items.length} ${moved.items.length === 1 ? 'task' : 'tasks'}`}
+            </span>
+            {' '}to {moved.to}
           </span>
           <button
             onClick={undoMove}
+            title="Undo move (Ctrl+Z)"
             className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
           >
             Undo
