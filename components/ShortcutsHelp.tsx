@@ -135,7 +135,7 @@ export default function ShortcutsHelp() {
 
           <Section title="Editing">
             <Row keys={['Double-click']}>Edit a task in place</Row>
-            <Row keys={[mod, 'Z']} joiner="+">Undo a delete</Row>
+            <Row keys={[mod, 'Z']} joiner="+">Undo a delete or move</Row>
           </Section>
         </div>
       </div>
