@@ -747,11 +747,14 @@ export default function TaskItem({
           : ''
       } ${highlight ? 'reveal-flash' : ''}`}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="relative flex items-center gap-3 min-w-0">
+        {/* The grip sits in the row's left padding rather than in the flow,
+            so reorderable and timed tasks start at the same edge and notes
+            and steps line up under every title. */}
         {draggable && (
           <div
             aria-hidden="true"
-            className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 pointer-coarse:hidden text-zinc-300 dark:text-zinc-600 transition-opacity"
+            className="absolute -left-4 top-1/2 -translate-y-1/2 flex h-8 w-4 items-center justify-center cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 pointer-coarse:hidden text-zinc-300 dark:text-zinc-600 transition-opacity"
           >
             <svg className="w-3 h-4" fill="currentColor" viewBox="0 0 8 14">
               <circle cx="2" cy="2" r="1.2"/>

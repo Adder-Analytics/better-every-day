@@ -886,6 +886,14 @@ export const changelog: ChangelogEntry[] = [
       '"Move N to tomorrow" and "Bring all to today" now show the same Undo toast a swiped task does: "Moved 4 tasks to tomorrow", with an Undo button for a few seconds afterward. Undo puts each task back on the day it came from. Cmd/Ctrl+Z works too, both for these and for a single swiped task, after any pending delete has been undone. The same applies when either action is run from the command menu. Previously a bulk move could only be reversed one task at a time.',
     type: 'feature',
   },
+  {
+    day: 111,
+    date: '2026-10-03',
+    title: 'Task rows line up',
+    description:
+      'Tasks you can drag to reorder used to sit about 24px further right than timed tasks, because the drag grip took up room in the row even while it was invisible. In a day mixing both, checkboxes and titles zig-zagged down the list, and a task\'s note and steps no longer sat under its title. The grip now appears in the row\'s left margin on hover instead, so every checkbox, title, note, and step list starts at the same edge. Dragging works as before.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
