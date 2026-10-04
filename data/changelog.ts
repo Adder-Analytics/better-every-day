@@ -886,6 +886,14 @@ export const changelog: ChangelogEntry[] = [
       '"Move N to tomorrow" and "Bring all to today" now show the same Undo toast a swiped task does: "Moved 4 tasks to tomorrow", with an Undo button for a few seconds afterward. Undo puts each task back on the day it came from. Cmd/Ctrl+Z works too, both for these and for a single swiped task, after any pending delete has been undone. The same applies when either action is run from the command menu. Previously a bulk move could only be reversed one task at a time.',
     type: 'feature',
   },
+  {
+    day: 111,
+    date: '2026-10-04',
+    title: 'Move a task between days in the week',
+    description:
+      'In the Week view, an unfinished one-off task can now be moved to another of the seven days. With a mouse, drag it onto another day; the day under the pointer is outlined while you hold it. On a touch screen or from the keyboard, use the new two-arrow button on the row, which opens a row of day buttons (Today, Tomorrow, Wed, Thu, ...); tap one to move it there. Moving a carried-over task off Today schedules it for that day instead. Routines and finished tasks stay where they are.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

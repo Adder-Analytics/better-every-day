@@ -113,6 +113,12 @@ export default function WeekView() {
   // A per-day draft, keyed by the day's date, for the quick-add inputs.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const persist = useRef(false)
+  // The task whose "Move to" day picker is open, if any — the tap and keyboard
+  // way to move a task between days.
+  const [movingId, setMovingId] = useState<string | null>(null)
+  // Mouse drag between days: the task being dragged and the day it's over.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dropDate, setDropDate] = useState<string | null>(null)
 
   // Save on change — but not on the first render, so simply visiting the page
   // never rewrites storage (and never trims finished tasks a moment early).
@@ -147,6 +153,13 @@ export default function WeekView() {
     setDrafts(prev => ({ ...prev, [date]: '' }))
   }
 
+  // Move a one-off task onto another day. Same change the home page makes when
+  // you reschedule: a new day, and out of Someday if it was there.
+  const moveTask = (id: string, date: string) => {
+    setTasks(prev => prev.map(t => (t.id === id && !t.repeat ? { ...t, createdDate: date, someday: undefined } : t)))
+    setMovingId(null)
+  }
+
   // Remove a one-off task from the plan. Only offered for one-offs — a routine
   // spans many days, so deleting it from a single column would be a surprise;
   // routines are managed from the task's own row on the home page.
@@ -165,7 +178,7 @@ export default function WeekView() {
   return (
     <div className="space-y-3">
       <p className="px-1 text-xs leading-relaxed text-zinc-400">
-        Your next seven days at a glance. Drop a task under any day to plan ahead — add a time like{' '}
+        Your next seven days at a glance. Add a task under any day to plan ahead, or move one to another day — add a time like{' '}
         <span className="text-zinc-500 dark:text-zinc-300">9am</span>, a block like{' '}
         <span className="text-zinc-500 dark:text-zinc-300">9–11am</span>, or make it repeat with{' '}
         <span className="text-zinc-500 dark:text-zinc-300">every day</span>.
@@ -178,11 +191,33 @@ export default function WeekView() {
         const remaining = items.filter(i => !i.done).length
         const plannedMin = items.filter(i => !i.done).reduce((sum, i) => sum + (i.task.estimateMin ?? 0), 0)
 
+        const dragged = dragId ? tasks.find(t => t.id === dragId) : undefined
+        // A drop only means something on a day the task isn't already on.
+        const canDrop = !!dragged && (dragged.createdDate !== date || (isToday && dragged.createdDate < today))
+        const dropping = canDrop && dropDate === date
+
         return (
           <section
             key={date}
-            className={`rounded-2xl border px-4 py-3.5 ${
-              isToday
+            onDragOver={e => {
+              if (!canDrop) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              if (dropDate !== date) setDropDate(date)
+            }}
+            onDragLeave={e => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null) && dropDate === date) setDropDate(null)
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              if (dragId && canDrop) moveTask(dragId, date)
+              setDragId(null)
+              setDropDate(null)
+            }}
+            className={`rounded-2xl border px-4 py-3.5 transition-colors ${
+              dropping
+                ? 'border-zinc-400 bg-zinc-100 ring-2 ring-zinc-300 dark:border-zinc-500 dark:bg-zinc-800/80 dark:ring-zinc-600'
+                : isToday
                 ? 'border-emerald-200 dark:border-emerald-900/70 bg-emerald-50/40 dark:bg-emerald-950/20'
                 : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
             }`}
@@ -228,8 +263,23 @@ export default function WeekView() {
                 {items.map(({ task, done, carriedFrom }) => {
                   const tags = extractTags(task.text)
                   const title = stripTags(task.text)
+                  const movable = !task.repeat && !done
+                  const pickerOpen = movingId === task.id
                   return (
-                    <li key={task.id} className="group flex items-start gap-2 py-0.5">
+                    <li
+                      key={task.id}
+                      draggable={movable}
+                      onDragStart={e => {
+                        if (!movable) return
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', task.text)
+                        setDragId(task.id)
+                        setMovingId(null)
+                      }}
+                      onDragEnd={() => { setDragId(null); setDropDate(null) }}
+                      className={`rounded-md ${movable ? 'cursor-grab active:cursor-grabbing' : ''} ${dragId === task.id ? 'opacity-40' : ''}`}
+                    >
+                    <div className="group flex items-start gap-2 py-0.5">
                       <span className="mt-1 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
                         {done ? (
                           <svg className="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
@@ -281,6 +331,23 @@ export default function WeekView() {
                           </div>
                         )}
                       </div>
+                      {movable && (
+                        <button
+                          type="button"
+                          onClick={() => setMovingId(pickerOpen ? null : task.id)}
+                          title="Move to another day"
+                          aria-label={`Move “${title}” to another day`}
+                          aria-expanded={pickerOpen}
+                          className={`flex-shrink-0 rounded-md p-1 transition-opacity hover:bg-zinc-100 hover:text-zinc-600 focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 ${
+                            pickerOpen ? 'bg-zinc-100 text-zinc-600 opacity-100 dark:bg-zinc-800 dark:text-zinc-300' : 'text-zinc-300 opacity-0 dark:text-zinc-600'
+                          }`}
+                        >
+                          {/* Heroicons "arrows-right-left" */}
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                          </svg>
+                        </button>
+                      )}
                       {!task.repeat && (
                         <button
                           type="button"
@@ -294,6 +361,32 @@ export default function WeekView() {
                           </svg>
                         </button>
                       )}
+                    </div>
+                    {pickerOpen && (
+                      <div
+                        role="group"
+                        aria-label={`Move “${title}” to`}
+                        className="mb-1 ml-5 mt-1 flex flex-wrap gap-1"
+                        onKeyDown={e => { if (e.key === 'Escape') setMovingId(null) }}
+                      >
+                        {days.map(d => {
+                          const h = dayHeading(d.date, d.offset)
+                          const here = d.date === date
+                          return (
+                            <button
+                              key={d.date}
+                              type="button"
+                              disabled={here}
+                              onClick={() => moveTask(task.id, d.date)}
+                              title={`${h.label}, ${h.date}`}
+                              className="rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100 disabled:cursor-default disabled:border-transparent disabled:bg-zinc-100 disabled:text-zinc-400 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800 dark:disabled:border-transparent dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
+                            >
+                              {d.offset < 2 ? h.label : h.label.slice(0, 3)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                     </li>
                   )
                 })}
