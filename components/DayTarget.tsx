@@ -42,11 +42,11 @@ const PRESETS = [17 * 60, 18 * 60, 21 * 60, 22 * 60]
 // and once the day's fully done — the recap takes over then.
 export default function DayTarget({
   nowMin,
-  remainingMin,
+  finishMin,
   hasWork,
 }: {
   nowMin: number
-  remainingMin: number // estimated work still to do today, in minutes (0 if none)
+  finishMin: number | null // when today's estimated work should wrap up, in minutes (null if none left)
   hasWork: boolean // whether there's still-to-do work to pace against
 }) {
   const today = todayStr()
@@ -84,15 +84,15 @@ export default function DayTarget({
   if (target === undefined && !hasWork) return null
 
   // The pacing read, once a time is set: how the still-to-do plan sits against
-  // the wrap-up hour. Slack (time left minus estimated work) is the useful
+  // the wrap-up hour. Slack (wrap-up hour minus the projected finish) is the useful
   // number when there are estimates; otherwise just the time left is shown.
   let clause: { text: string; tone: string } | null = null
   if (target !== undefined) {
     const left = target - nowMin
     if (left <= 0) {
       clause = { text: 'time’s up', tone: 'text-rose-600 dark:text-rose-400' }
-    } else if (remainingMin > 0) {
-      const slack = left - remainingMin
+    } else if (finishMin !== null) {
+      const slack = target - finishMin
       if (slack > 0) clause = { text: `${formatDuration(slack)} to spare`, tone: 'text-emerald-600 dark:text-emerald-400' }
       else if (slack === 0) clause = { text: 'just fits', tone: 'text-emerald-600 dark:text-emerald-400' }
       else clause = { text: `${formatDuration(-slack)} over`, tone: 'text-amber-600 dark:text-amber-500' }

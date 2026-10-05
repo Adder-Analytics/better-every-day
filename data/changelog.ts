@@ -894,6 +894,14 @@ export const changelog: ChangelogEntry[] = [
       'In the Week view, an unfinished one-off task can now be moved to another of the seven days. With a mouse, drag it onto another day; the day under the pointer is outlined while you hold it. On a touch screen or from the keyboard, use the new two-arrow button on the row, which opens a row of day buttons (Today, Tomorrow, Wed, Thu, ...); tap one to move it there. Moving a carried-over task off Today schedules it for that day instead. Routines and finished tasks stay where they are.',
     type: 'feature',
   },
+  {
+    day: 112,
+    date: '2026-10-05',
+    title: 'A finish time that respects your schedule',
+    description:
+      'The “finish around” estimate now keeps timed tasks at their set times and fits untimed estimated work into the free time around them, starting from now. Before, it added up every estimate as if the day ran straight through, so a plan with an evening appointment could say it would end in the morning. The wrap-up time’s “to spare” or “over” uses the same projection.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
