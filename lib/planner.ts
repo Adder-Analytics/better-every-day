@@ -398,6 +398,42 @@ export function formatTimeRange(startMin: number, durationMin: number, hour12 = 
   return `${start} – ${endStr}`
 }
 
+// Roughly when the day's remaining work wraps up, read against the clock.
+// Timed tasks still ahead (or under way) are fixed blocks: they hold their
+// place on the clock and run their estimate's length, so a 6 PM gym hour keeps
+// the day open until 7 PM. Everything else with an estimate — untimed tasks,
+// and timed ones whose time has already slipped by — is flexible work, poured
+// into the free time from now onward, around those blocks. Returns minutes
+// since midnight (it can pass 1440), or null when there's nothing left to do.
+export function projectFinish(
+  nowMin: number,
+  items: { done: boolean; timeMin?: number; estimateMin?: number }[]
+): number | null {
+  let flex = 0
+  const blocks: { start: number; end: number }[] = []
+  for (const t of items) {
+    if (t.done) continue
+    const est = t.estimateMin ?? 0
+    if (t.timeMin !== undefined && t.timeMin + est > nowMin) {
+      blocks.push({ start: Math.max(t.timeMin, nowMin), end: t.timeMin + est })
+    } else {
+      flex += est
+    }
+  }
+  if (flex === 0 && blocks.length === 0) return null
+  blocks.sort((a, b) => a.start - b.start)
+  let cursor = nowMin
+  for (const b of blocks) {
+    if (flex > 0 && b.start > cursor) {
+      const fill = Math.min(flex, b.start - cursor)
+      flex -= fill
+      cursor += fill
+    }
+    cursor = Math.max(cursor, b.end)
+  }
+  return cursor + flex
+}
+
 // Which of a day's timed tasks collide with one another — a quiet check against
 // double-booking. Each task holds a span: a block runs its estimate's length; a
 // bare time is a moment, widened to a single minute so two things at the same

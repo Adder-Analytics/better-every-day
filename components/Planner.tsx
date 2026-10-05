@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
@@ -1515,12 +1515,13 @@ export default function Planner() {
   // the number stays honest and never nags when nothing's been estimated.
   const plannedMin = todayTasks.reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
   const doneMin = todayTasks.filter(t => t.done).reduce((sum, t) => sum + (t.estimateMin ?? 0), 0)
-  // What's still estimated but unfinished, and — working straight through from
-  // now — roughly when it would wrap up. A quiet read on whether today's plan
-  // actually fits before the day is out; it ticks with the clock. Past 1440
-  // (midnight) it stops guessing a time and says so plainly.
+  // What's still estimated but unfinished, and roughly when it would wrap up:
+  // timed tasks hold their place on the clock and the rest fills the free time
+  // around them from now on. A quiet read on whether today's plan actually fits
+  // before the day is out; it ticks with the clock. Past 1440 (midnight) it
+  // stops guessing a time and says so plainly.
   const remainingMin = plannedMin - doneMin
-  const projectedFinish = nowMin + remainingMin
+  const projectedFinish = remainingMin > 0 ? projectFinish(nowMin, todayTasks) : null
   // Seconds of focused work logged across today — the day's actual time on task,
   // shown beside the plan's estimates so the two can be read against each other.
   const focusedTodaySec = daySeconds(focusLog, today)
@@ -2171,8 +2172,8 @@ export default function Planner() {
                 {' '}· <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatFocus(focusedTodaySec)}</span> focused
               </span>
             )}
-            {remainingMin > 0 && (
-              <span title="Roughly when you’d wrap up the remaining estimated tasks, working straight through from now">
+            {projectedFinish !== null && (
+              <span title="Roughly when you’d wrap up: timed tasks keep their times, and the rest fills the free time around them from now">
                 {projectedFinish < 1440 ? (
                   <> · finish around <span className="font-medium text-zinc-500 dark:text-zinc-300">{formatTime(projectedFinish, hour12)}</span></>
                 ) : (
@@ -2194,7 +2195,7 @@ export default function Planner() {
           carry estimates) whether the still-to-do work fits or runs over. Held
           out of focus mode, and once the day's fully done the recap takes over. */}
       {!inFocus && !allDone && (
-        <DayTarget nowMin={nowMin} remainingMin={remainingMin} hasWork={remaining > 0} />
+        <DayTarget nowMin={nowMin} finishMin={projectedFinish} hasWork={remaining > 0} />
       )}
 
       {/* The day at a glance — a spatial companion to the agenda list below.
