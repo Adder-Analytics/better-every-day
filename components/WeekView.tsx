@@ -18,6 +18,7 @@ import {
   formatDuration,
   formatRepeatDays,
   formatInterval,
+  formatTimesPerWeek,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
@@ -53,6 +54,7 @@ function repeatLabel(task: Task): string {
   if (task.repeat === 'monthly') return 'Monthly'
   if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
+  if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return ''
 }

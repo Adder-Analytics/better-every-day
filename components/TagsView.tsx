@@ -13,6 +13,7 @@ import {
   formatDue,
   formatTime,
   formatInterval,
+  formatTimesPerWeek,
   formatRepeatDays,
   PLANNER_VERSION,
 } from '@/lib/planner'
@@ -54,6 +55,8 @@ function cadenceLabel(task: Task): string {
       return 'Yearly'
     case 'interval':
       return formatInterval(task.repeatEvery ?? 2)
+    case 'perWeek':
+      return formatTimesPerWeek(task.repeatEvery ?? 3)
     case 'days':
       return formatRepeatDays(task.repeatDays ?? [])
     default:

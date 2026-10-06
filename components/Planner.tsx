@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
@@ -67,6 +67,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'monthly') return 'Monthly'
   if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
+  if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return 'Today'
 }
@@ -998,7 +999,7 @@ export default function Planner() {
               ...t,
               repeat,
               repeatDays: repeat === 'days' ? repeatDays : undefined,
-              repeatEvery: repeat === 'interval' ? repeatEvery : undefined,
+              repeatEvery: repeat === 'interval' || repeat === 'perWeek' ? repeatEvery : undefined,
               completions: repeat ? (t.completions ?? []) : undefined,
               // Completion times follow the same split: a routine keeps its
               // per-date map, a one-off its single completedAt — the other clears,

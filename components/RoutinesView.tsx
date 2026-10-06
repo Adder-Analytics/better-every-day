@@ -16,6 +16,8 @@ import {
   bestRoutineStreak,
   formatRepeatDays,
   formatInterval,
+  formatTimesPerWeek,
+  streakUnitOf,
   monthlyDayLabel,
   yearlyDateLabel,
   formatDayLabel,
@@ -67,7 +69,7 @@ function isoLocal(dt: Date): string {
 // The unit a routine's streak counts in, so "5" reads as days, weeks, or months
 // to match its cadence — the same vocabulary the task row uses.
 function streakUnit(task: Task): string {
-  return task.repeat === 'yearly' ? 'year' : task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
+  return streakUnitOf(task)
 }
 
 // A short cadence label, mirroring the wording used on the task row, the repeat
@@ -86,6 +88,8 @@ function cadenceLabel(task: Task): string {
       return `Yearly on ${yearlyDateLabel(task)}`
     case 'interval':
       return formatInterval(task.repeatEvery ?? 2)
+    case 'perWeek':
+      return formatTimesPerWeek(task.repeatEvery ?? 3)
     case 'days':
       return formatRepeatDays(task.repeatDays ?? [])
     default:
@@ -278,7 +282,8 @@ export default function RoutinesView() {
         const cursor = new Date(y, m - 1, d)
         let date = isoLocal(cursor)
         while (date < today) {
-          if (isDueOn({ ...t, pausedSince: undefined }, date)) bridged.push(date)
+          // A times-a-week routine owes no particular day, so the whole span rests.
+          if (t.repeat === 'perWeek' || isDueOn({ ...t, pausedSince: undefined }, date)) bridged.push(date)
           cursor.setDate(cursor.getDate() + 1)
           date = isoLocal(cursor)
         }

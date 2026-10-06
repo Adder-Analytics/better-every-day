@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -531,6 +531,23 @@ export default function TaskItem({
     else setDraftEvery(n)
   }
 
+  // The times-a-week count, for its stepper in the repeat menu — the same
+  // draft-then-apply shape as the interval above. Seeded from the task when it
+  // already recurs this way, otherwise 3; stays in range 1–6 (7 is daily).
+  const isPerWeek = task.repeat === 'perWeek'
+  const [draftTimes, setDraftTimes] = useState(isPerWeek ? perWeekTarget(task) : 3)
+  const choosePerWeek = (times: number) => {
+    const n = Math.min(6, Math.max(1, times))
+    setDraftDays(null)
+    setDraftTimes(n)
+    onSetRepeat?.(task.id, 'perWeek', undefined, n)
+  }
+  const bumpTimes = (delta: number) => {
+    const n = Math.min(6, Math.max(1, draftTimes + delta))
+    if (isPerWeek) choosePerWeek(n)
+    else setDraftTimes(n)
+  }
+
   const chooseDate = (date: string) => {
     onSchedule?.(task.id, date)
     setMenu(null)
@@ -549,7 +566,7 @@ export default function TaskItem({
   // A routine's current streak. Only a real run (2+) earns the flame — a
   // single completion is just a task done, not yet a streak.
   const streak = task.repeat ? routineStreak(task) : 0
-  const streakUnit = task.repeat === 'yearly' ? 'year' : task.repeat === 'monthly' ? 'month' : task.repeat === 'weekly' ? 'week' : 'day'
+  const streakUnit = streakUnitOf(task)
 
   // How this task's recurrence reads on its row and in tooltips: the fixed
   // cadences have a static word; a 'days' routine names its weekdays and an
@@ -558,9 +575,11 @@ export default function TaskItem({
     ? formatRepeatDays(task.repeatDays ?? [])
     : task.repeat === 'interval'
       ? formatInterval(task.repeatEvery ?? 2)
-      : task.repeat
-        ? REPEAT_LABEL[task.repeat]
-        : ''
+      : task.repeat === 'perWeek'
+        ? formatTimesPerWeek(perWeekTarget(task))
+        : task.repeat
+          ? REPEAT_LABEL[task.repeat]
+          : ''
   // The recurrence tooltip: a 'days' routine reads its weekday set as-is; a
   // monthly one names the day it lands on ("Repeats monthly on the 15th"); the
   // rest lower-case their word ("Repeats weekly", "Repeats every other day").
@@ -570,11 +589,15 @@ export default function TaskItem({
       ? `Repeats monthly on ${monthlyDayLabel(task)}`
       : task.repeat === 'yearly'
         ? `Repeats yearly on ${yearlyDateLabel(task)}`
-        : `Repeats ${repeatLabel.toLowerCase()}`
+        : task.repeat === 'perWeek'
+          ? `Repeats ${repeatLabel.toLowerCase()}, on any days`
+          : `Repeats ${repeatLabel.toLowerCase()}`
   // A routine's planned end, if one is set: "until Sep 30" on the row, spelled
   // out in the tooltip. Empty for a one-off or an open-ended routine.
   const repeatUntilLabel = formatRepeatUntil(task)
   const repeatUntilFull = formatRepeatUntilFull(task)
+  // A times-a-week routine's progress through the current week: "1 of 3".
+  const weekProgress = isPerWeek ? `${Math.min(weekCompletions(task, todayStr()), perWeekTarget(task))} of ${perWeekTarget(task)} this week` : ''
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -966,6 +989,9 @@ export default function TaskItem({
                 >
                   <RepeatIcon className="w-3 h-3" />
                   <span>{repeatUntilLabel ? `${repeatLabel} · ${repeatUntilLabel}` : repeatLabel}</span>
+                  {weekProgress && (
+                    <span className="tabular-nums text-zinc-500 dark:text-zinc-400">· {weekProgress}</span>
+                  )}
                 </span>
               )}
 
@@ -1382,6 +1408,54 @@ export default function TaskItem({
                 title="More days between"
                 onClick={() => bumpEvery(1)}
                 disabled={draftEvery >= 30}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* N times a week, on any days — for the habits with a weekly count
+              but no fixed days: a run three times a week. It shows each day
+              until the week's count is met, then steps out until Sunday. Same
+              controls as the interval above. */}
+          <div className="mt-1 border-t border-zinc-100 dark:border-zinc-800 px-1.5 pt-2 pb-1">
+            <p className="mb-1.5 px-1 text-[11px] font-medium text-zinc-400">A few times a week</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Fewer times a week"
+                title="Fewer times a week"
+                onClick={() => bumpTimes(-1)}
+                disabled={draftTimes <= 1}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={isPerWeek}
+                onClick={() => choosePerWeek(draftTimes)}
+                className={`flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-xs tabular-nums transition-colors ${
+                  isPerWeek
+                    ? 'font-medium text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {formatTimesPerWeek(draftTimes)}
+                {isPerWeek && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button
+                type="button"
+                aria-label="More times a week"
+                title="More times a week"
+                onClick={() => bumpTimes(1)}
+                disabled={draftTimes >= 6}
                 className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
