@@ -4,8 +4,9 @@
 // recurs on the same month-and-day it was created (a Feb 29 anchor clamps to
 // Feb 28 in a non-leap year); 'interval' recurs every N days counting from the
 // day it was created (see `repeatEvery`) — the rest are fixed weekly/daily
-// cadences.
-export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly' | 'yearly' | 'interval'
+// cadences. 'perWeek' is the flexible one: N times a week on whichever days
+// (see `repeatEvery`), due each day until that week's count is met.
+export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly' | 'yearly' | 'interval' | 'perWeek'
 
 // A single step within a task — a way to break one thing into the smaller
 // pieces it actually takes. Each is checked off on its own; they don't drive
@@ -38,7 +39,9 @@ export type Task = {
   repeatDays?: number[]
   // How many days apart an 'interval' routine recurs — the N in "every N days"
   // ("every other day" is 2). Counted from `createdDate`. Integer ≥ 2; only
-  // read when `repeat === 'interval'`, ignored by every other cadence.
+  // read when `repeat === 'interval'`, ignored by every other cadence. A
+  // 'perWeek' routine reuses it as its weekly count — the N in "3 times a
+  // week" (1–6).
   repeatEvery?: number
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   // The local time of day (minutes since midnight, 0–1439) a routine was
@@ -102,10 +105,12 @@ export type Task = {
 // v16: added an optional `repeatUntil` (a routine's planned end date).
 // v17: added an optional `completedAt` (a one-off's completion time of day) and
 // an optional `completionTimes` map (a routine's completion time per date).
+// v18: added the 'perWeek' repeat rule (N times a week, any days), which stores
+// its count in `repeatEvery` and so allows a count of 1.
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v17 alike.
-export const PLANNER_VERSION = 17
+// loadPlanner reads v1–v18 alike.
+export const PLANNER_VERSION = 18
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -232,7 +237,7 @@ export function formatDueFull(dueDate: string): string {
 function isRepeatRule(value: unknown): value is RepeatRule {
   return (
     value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' ||
-    value === 'monthly' || value === 'yearly' || value === 'interval'
+    value === 'monthly' || value === 'yearly' || value === 'interval' || value === 'perWeek'
   )
 }
 
@@ -271,7 +276,7 @@ function isTask(value: unknown): value is Task {
     (t.repeat === undefined || isRepeatRule(t.repeat)) &&
     (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
     (t.repeatEvery === undefined ||
-      (typeof t.repeatEvery === 'number' && Number.isInteger(t.repeatEvery) && t.repeatEvery >= 2)) &&
+      (typeof t.repeatEvery === 'number' && Number.isInteger(t.repeatEvery) && t.repeatEvery >= 1)) &&
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
     (t.skips === undefined ||
@@ -520,12 +525,104 @@ export function isDueOn(task: Task, dateStr: string): boolean {
     const every = Math.max(2, task.repeatEvery ?? 2)
     return daysBetween(task.createdDate, dateStr) % every === 0
   }
+  // perWeek: N times a week, on any days. A day it was done on is due; any other
+  // day from today on is due while that week (Sunday to Saturday) still falls
+  // short of its count, and drops out once the count is met. A past day it
+  // wasn't done on is never due — no single day was owed — so it never reads as
+  // missed; the week as a whole is what counts (see perWeekStreaks).
+  if (task.repeat === 'perWeek') {
+    const done = task.completions ?? []
+    if (done.includes(dateStr)) return true
+    if (dateStr < todayStr()) return false
+    return weekCompletions(task, dateStr) < perWeekTarget(task)
+  }
   const dow = weekdayOf(dateStr)
   if (task.repeat === 'weekdays') return dow >= 1 && dow <= 5
   // days: recurs on each chosen weekday (0 = Sun … 6 = Sat).
   if (task.repeat === 'days') return (task.repeatDays ?? []).includes(dow)
   // weekly: recurs on the same weekday it was created on.
   return weekdayOf(task.createdDate) === dow
+}
+
+// The Sunday that starts the week containing a date — the same Sunday-to-Saturday
+// week the weekly review uses.
+function weekStartStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() - dt.getDay())
+  return fmtDate(dt)
+}
+
+// A perWeek routine's weekly count, clamped to its 1–6 range.
+export function perWeekTarget(task: Task): number {
+  return Math.min(6, Math.max(1, Math.round(task.repeatEvery ?? 3)))
+}
+
+// How many times a routine was completed in the Sunday-to-Saturday week that
+// contains the given date.
+export function weekCompletions(task: Task, dateStr: string): number {
+  const start = weekStartStr(dateStr)
+  const end = addDays(start, 6)
+  return (task.completions ?? []).filter(c => c >= start && c <= end).length
+}
+
+// A short label for a perWeek routine's count: "Once a week", "Twice a week",
+// "3 times a week". Shared by the task row, the repeat menu, and every view.
+export function formatTimesPerWeek(n: number): string {
+  const times = Math.min(6, Math.max(1, Math.round(n)))
+  return times === 1 ? 'Once a week' : times === 2 ? 'Twice a week' : `${times} times a week`
+}
+
+// The unit a routine's streak counts in: a perWeek routine counts weeks that met
+// their count, the fixed cadences count their own period.
+export function streakUnitOf(task: Task): string {
+  return task.repeat === 'yearly'
+    ? 'year'
+    : task.repeat === 'monthly'
+      ? 'month'
+      : task.repeat === 'weekly' || task.repeat === 'perWeek'
+        ? 'week'
+        : 'day'
+}
+
+// A YYYY-MM-DD string shifted by n days.
+function addDays(dateStr: string, n: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + n)
+  return fmtDate(dt)
+}
+
+// A perWeek routine's current and best runs of weeks that met their count. A
+// week is met when it holds at least the count's completions. A week that
+// couldn't have been met — too few days left after the routine began, or after
+// its rest days and pauses are set aside — is neutral: it bridges a run without
+// adding to it. The current week is a grace week while it's still short.
+function perWeekStreaks(task: Task, today: string): { current: number; best: number } {
+  const target = perWeekTarget(task)
+  const skips = new Set(task.skips ?? [])
+  const thisWeek = weekStartStr(today)
+  const states: ('met' | 'neutral' | 'missed')[] = [] // oldest first
+  for (let start = weekStartStr(task.createdDate); start <= thisWeek; start = addDays(start, 7)) {
+    if (weekCompletions(task, start) >= target) { states.push('met'); continue }
+    if (start === thisWeek) { states.push('neutral'); continue }
+    let open = 0
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(start, i)
+      if (date < task.createdDate || skips.has(date)) continue
+      if (task.pausedSince && date >= task.pausedSince) continue
+      if (task.repeatUntil && date > task.repeatUntil) continue
+      open++
+    }
+    states.push(open < target ? 'neutral' : 'missed')
+  }
+  let best = 0
+  let run = 0
+  for (const s of states) {
+    if (s === 'met') best = Math.max(best, ++run)
+    else if (s === 'missed') run = 0
+  }
+  return { current: run, best }
 }
 
 // Whether a repeating task has been completed on the given date.
@@ -652,6 +749,7 @@ export function yearlyDateLabel(task: Task): string {
 // deliberate day off keeps the streak alive.
 export function routineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
+  if (task.repeat === 'perWeek') return perWeekStreaks(task, today).current
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
   const skips = new Set(task.skips ?? [])
@@ -680,6 +778,7 @@ export function routineStreak(task: Task, today: string = todayStr()): number {
 // ending it, matching how the current streak counts.
 export function bestRoutineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
+  if (task.repeat === 'perWeek') return perWeekStreaks(task, today).best
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
   const skips = new Set(task.skips ?? [])
@@ -720,10 +819,10 @@ export function loadPlanner(): PlannerData {
     // day), v6 (priority), v7 (subtasks), v8 (specific-day routines), v9 (the
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
-    // v15 (paused routines), v16 (routine end dates) and v17 (completion times)
-    // only add optional fields (or a repeat value old data never used), so every
+    // v15 (paused routines), v16 (routine end dates), v17 (completion times)
+    // and v18 (times-a-week routines) only add optional fields (or a repeat value old data never used), so every
     // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -983,7 +1082,7 @@ export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
-  repeatEvery?: number // the N of an 'interval' recurrence ("every 3 days")
+  repeatEvery?: number // the N of an 'interval' ("every 3 days") or 'perWeek' ("3 times a week") recurrence
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
@@ -1023,6 +1122,28 @@ function parseTrailingInterval(text: string): { text: string; every: number } | 
     if (stripped && n >= 2 && n <= 365) return { text: stripped, every: n }
   }
   return null
+}
+
+// Trailing times-a-week phrases: "3 times a week", "twice a week", "once per
+// week", "3x a week", "3x/week", "4 days a week". These name a perWeek routine —
+// a count to reach on any days — so they're read before the fixed recurrences,
+// where "once a week" would otherwise fall to nothing and "a week" to a date.
+const PER_WEEK_RE =
+  /\s+(once|twice|\d)\s*(?:x|times?|days?)?\s*(?:\/\s*|(?:a|per|each|every)\s+)(?:week|wk)\.?\s*$/i
+
+// Strip a trailing times-a-week phrase and resolve it to a count (1–6). Returns
+// null when nothing is recognized, when stripping would empty the title, or
+// when the count is out of range (7 a week is just daily).
+function parseTrailingPerWeek(text: string): { text: string; times: number } | null {
+  const m = text.match(PER_WEEK_RE)
+  if (!m) return null
+  const word = m[1].toLowerCase()
+  const times = word === 'once' ? 1 : word === 'twice' ? 2 : Number(word)
+  // A bare digit needs a unit ("3x", "3 times") so "Read 2 a week" isn't read.
+  if (/^\d$/.test(word) && !/\d\s*(?:x|times?|days?)/i.test(m[0])) return null
+  const stripped = text.slice(0, m.index).trim()
+  if (!stripped || times < 1 || times > 6) return null
+  return { text: stripped, times }
 }
 
 // Trailing day phrases, each resolving the title to an absolute date so the
@@ -1439,6 +1560,14 @@ export function parseQuickAdd(input: string): QuickAdd {
     if (repeat === undefined) {
       // An every-N-days interval is tried before the fixed phrases, so "every 3
       // days" reads as an interval rather than being missed by them.
+      const perWeek = parseTrailingPerWeek(text)
+      if (perWeek) {
+        text = perWeek.text
+        repeat = 'perWeek'
+        repeatEvery = perWeek.times
+        repeatLabel = formatTimesPerWeek(perWeek.times)
+        continue
+      }
       const interval = parseTrailingInterval(text)
       if (interval) {
         text = interval.text

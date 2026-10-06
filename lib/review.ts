@@ -14,6 +14,8 @@ import {
   isCompletedOn,
   isSkippedOn,
   routineStreak,
+  perWeekTarget,
+  weekCompletions,
 } from './planner'
 import { stripTags } from './tags'
 
@@ -147,6 +149,18 @@ export function weekReview(
       if (isSkippedOn(t, date)) continue // a rest day is neither expected nor missed
       due++
       if (isCompletedOn(t, date)) done++
+    }
+    // A times-a-week routine owes a count, not particular days, so the week is
+    // read against that count: "2 of 3".
+    if (t.repeat === 'perWeek') {
+      const count = weekCompletions(t, dates[0])
+      // Left out of a week it didn't run in: not yet created, not yet begun,
+      // or paused or ended before the week started without a session in it.
+      const offAllWeek =
+        (!!t.pausedSince && t.pausedSince <= dates[0]) || (!!t.repeatUntil && t.repeatUntil < dates[0])
+      if (t.createdDate > dates[6] || dates[0] > today || (offAllWeek && count === 0)) continue
+      due = perWeekTarget(t)
+      done = Math.min(due, count)
     }
     if (due === 0) continue
     routines.push({

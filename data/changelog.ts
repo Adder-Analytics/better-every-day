@@ -902,6 +902,14 @@ export const changelog: ChangelogEntry[] = [
       'The “finish around” estimate now keeps timed tasks at their set times and fits untimed estimated work into the free time around them, starting from now. Before, it added up every estimate as if the day ran straight through, so a plan with an evening appointment could say it would end in the morning. The wrap-up time’s “to spare” or “over” uses the same projection.',
     type: 'fix',
   },
+  {
+    day: 113,
+    date: '2026-10-06',
+    title: 'Repeat a few times a week',
+    description:
+      'A routine can now repeat a set number of times a week, on any days, from once to six. It shows on each day until that week’s count is met, then stays off until Sunday starts a new week; past days it wasn’t done on are not marked missed. The row shows progress (“1 of 3 this week”), and the streak counts weeks that met the count. Set it from the repeat menu under “A few times a week”, or type it in the add box: “Run 3x a week”, “Swim twice a week”, “Call home once a week”.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
