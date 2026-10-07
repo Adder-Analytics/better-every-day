@@ -85,3 +85,26 @@ export function tagDot(tag: string): string {
   for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0
   return TAG_DOT_PALETTE[h % TAG_DOT_PALETTE.length]
 }
+
+// A tag name as typed into a rename box, cleaned to what a task would carry: a
+// leading '#' dropped, lowercased. Null when it isn't a valid tag (it must start
+// with a letter, then letters, digits, '_' or '-', up to 30), so the caller can
+// refuse it before touching any task.
+export function normalizeTagName(input: string): string | null {
+  const name = input.trim().replace(/^#/, '').toLowerCase()
+  return /^[a-z][\w-]{0,29}$/.test(name) ? name : null
+}
+
+// Rewrite one tag to another inside a task's text. Each "#from" (any case)
+// becomes "#to"; when the text already carries "#to", the "#from" is dropped
+// instead, so a merge never leaves the same tag twice. Text without the tag
+// comes back unchanged (the same string), so callers can skip untouched tasks.
+export function renameTagInText(text: string, from: string, to: string): string {
+  const tags = extractTags(text)
+  if (!tags.includes(from) || from === to) return text
+  const merge = tags.includes(to)
+  const out = text.replace(TAG_RE, (m, pre: string, name: string) =>
+    name.toLowerCase() === from ? (merge ? pre : `${pre}#${to}`) : m
+  )
+  return merge ? out.replace(/ {2,}/g, ' ').trim() : out
+}

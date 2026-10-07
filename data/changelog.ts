@@ -910,6 +910,14 @@ export const changelog: ChangelogEntry[] = [
       'A routine can now repeat a set number of times a week, on any days, from once to six. It shows on each day until that week’s count is met, then stays off until Sunday starts a new week; past days it wasn’t done on are not marked missed. The row shows progress (“1 of 3 this week”), and the streak counts weeks that met the count. Set it from the repeat menu under “A few times a week”, or type it in the add box: “Run 3x a week”, “Swim twice a week”, “Call home once a week”.',
     type: 'feature',
   },
+  {
+    day: 114,
+    date: '2026-10-07',
+    title: 'Rename a tag',
+    description:
+      'A tag can now be renamed from the Tags page. Tap its chip; under the colors is a Rename box. The new name replaces the tag in every task that carries it, finished ones included, and in saved quick lists, and the tag keeps its chosen color. If the new name is already a tag, the button reads Merge and the two become one; a task that had both keeps a single copy.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

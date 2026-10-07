@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from 'react'
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore, type FormEvent } from 'react'
 import Link from 'next/link'
 import {
   type Task,
@@ -18,7 +18,8 @@ import {
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
-import { extractTags, stripTags } from '@/lib/tags'
+import { extractTags, stripTags, normalizeTagName, renameTagInText } from '@/lib/tags'
+import { listsStore } from '@/lib/lists'
 import { resolveTagClasses, useTagColors, tagColorStore, TAG_COLOR_OPTIONS, type TagColorKey } from '@/lib/tagcolors'
 
 const emptySubscribe = () => () => {}
@@ -203,6 +204,13 @@ export default function TagsView() {
     return { groups, untagged, totalOpen, tagCount: groups.length }
   }, [tasks, today])
 
+  // Every tag on any task, open or finished — what a rename would merge into.
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of tasks) for (const tag of extractTags(t.text)) set.add(tag)
+    return set
+  }, [tasks])
+
   const toggle = (id: string) => {
     setTasks(prev =>
       prev.map(t => {
@@ -222,6 +230,28 @@ export default function TagsView() {
         return { ...t, done: true, completedDate: today }
       })
     )
+  }
+
+  // Rename a tag everywhere it lives: in every task's text (finished ones too, so
+  // history reads under the new name), in saved quick lists, and in its chosen
+  // color. Renaming onto a tag that already exists merges the two.
+  const renameTag = (from: string, to: string) => {
+    if (from === to) return
+    setTasks(prev =>
+      prev.map(t => {
+        const text = renameTagInText(t.text, from, to)
+        return text === t.text ? t : { ...t, text }
+      })
+    )
+    const color = tagColorStore.get(from)
+    if (color) {
+      if (!tagColorStore.get(to)) tagColorStore.set(to, color)
+      tagColorStore.set(from, null)
+    }
+    for (const list of listsStore.all()) {
+      const items = list.items.map(item => renameTagInText(item, from, to))
+      if (items.some((item, i) => item !== list.items[i])) listsStore.update(list.id, { items })
+    }
   }
 
   // Match the planner's first-paint contract: render nothing data-shaped until
@@ -258,7 +288,7 @@ export default function TagsView() {
         <span className="font-medium text-zinc-700 dark:text-zinc-200">{totalOpen}</span>{' '}
         {totalOpen === 1 ? 'task' : 'tasks'} open across{' '}
         <span className="font-medium text-zinc-700 dark:text-zinc-200">{tagCount}</span>{' '}
-        {tagCount === 1 ? 'tag' : 'tags'}. Tap a tag to give it a color.
+        {tagCount === 1 ? 'tag' : 'tags'}. Tap a tag to rename it or change its color.
       </p>
 
       {groups.map(group => (
@@ -269,6 +299,8 @@ export default function TagsView() {
           today={today}
           hour12={hour12}
           onToggle={toggle}
+          allTags={allTags}
+          onRename={renameTag}
         />
       ))}
 
@@ -284,16 +316,45 @@ export default function TagsView() {
   )
 }
 
-// The tag's chip, made a button that opens a small color picker. Tapping a
-// swatch tints the tag everywhere it appears — here, on every task row, in the
-// filter bar, the week and month views. "Auto" clears the choice back to the
-// hashed default. Opens on tap (so it works by touch), closes on an outside
-// click or Escape, matching the app's other little menus.
-function TagColorPicker({ tag }: { tag: string }) {
+// The tag's chip, made a button that opens a small menu: a color picker and a
+// rename box. Tapping a swatch tints the tag everywhere it appears — here, on
+// every task row, in the filter bar, the week and month views. "Auto" clears the
+// choice back to the hashed default. Renaming rewrites the tag in every task;
+// a name that's already a tag merges the two. Opens on tap (so it works by
+// touch), closes on an outside click or Escape, matching the app's other menus.
+function TagMenu({
+  tag,
+  allTags,
+  onRename,
+}: {
+  tag: string
+  allTags: Set<string>
+  onRename: (from: string, to: string) => void
+}) {
   const map = useTagColors()
   const current = map[tag.toLowerCase()]
   const [open, setOpen] = useState(false)
+  const [name, setName] = useState(tag)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  const target = normalizeTagName(name)
+  const unchanged = target === tag
+  const merging = !!target && !unchanged && allTags.has(target)
+  const nameError = name.trim() && !target
+    ? 'Start with a letter; use letters, numbers, - or _.'
+    : null
+
+  const toggleOpen = () => {
+    setOpen(o => !o)
+    setName(tag)
+  }
+
+  const submitRename = (e: FormEvent) => {
+    e.preventDefault()
+    if (!target || unchanged) return
+    onRename(tag, target)
+    setOpen(false)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -320,10 +381,10 @@ function TagColorPicker({ tag }: { tag: string }) {
     <div ref={wrapRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`Set a color for #${tag}`}
+        title={`Rename or recolor #${tag}`}
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium transition-[transform,opacity] duration-100 ease-out hover:opacity-80 active:scale-95 ${resolveTagClasses(
           tag,
           map
@@ -336,7 +397,7 @@ function TagColorPicker({ tag }: { tag: string }) {
       {open && (
         <div
           role="menu"
-          className="absolute left-0 top-full z-20 mt-1.5 w-56 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 shadow-lg shadow-zinc-900/10 dark:shadow-black/40"
+          className="absolute left-0 top-full z-20 mt-1.5 w-64 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 shadow-lg shadow-zinc-900/10 dark:shadow-black/40"
         >
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
             Color for #{tag}
@@ -376,6 +437,48 @@ function TagColorPicker({ tag }: { tag: string }) {
             <span>Auto (default)</span>
             {!current && <CheckIcon className="h-3.5 w-3.5" />}
           </button>
+
+          <form onSubmit={submitRename} className="mt-3 border-t border-zinc-100 dark:border-zinc-800 pt-3">
+            <label
+              htmlFor={`rename-${tag}`}
+              className="mb-2 block text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500"
+            >
+              Rename
+            </label>
+            <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 flex-1 items-center rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2 focus-within:border-zinc-400 dark:focus-within:border-zinc-500">
+                <span className="text-sm text-zinc-400 dark:text-zinc-500" aria-hidden>#</span>
+                <input
+                  id={`rename-${tag}`}
+                  value={name}
+                  onChange={e => setName(e.target.value.replace(/^#+/, ''))}
+                  maxLength={31}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-invalid={!!nameError}
+                  aria-describedby={`rename-${tag}-hint`}
+                  className="min-w-0 flex-1 bg-transparent py-1.5 pl-0.5 text-base sm:text-sm text-zinc-800 dark:text-zinc-100 outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!target || unchanged}
+                className="flex-shrink-0 rounded-lg bg-zinc-900 dark:bg-zinc-100 px-2.5 py-1.5 text-xs font-medium text-white dark:text-zinc-900 transition-[opacity,transform] duration-100 ease-out active:scale-95 disabled:opacity-30 disabled:active:scale-100"
+              >
+                {merging ? 'Merge' : 'Rename'}
+              </button>
+            </div>
+            <p
+              id={`rename-${tag}-hint`}
+              className={`mt-1.5 text-xs leading-snug ${nameError ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-400 dark:text-zinc-500'}`}
+            >
+              {nameError ??
+                (merging
+                  ? `#${target} already exists, so the two will be merged.`
+                  : 'Changes the tag on every task, past and present.')}
+            </p>
+          </form>
         </div>
       )}
     </div>
@@ -390,18 +493,22 @@ function TagSection({
   today,
   hour12,
   onToggle,
+  allTags,
+  onRename,
 }: {
   tag?: string
   tasks: Task[]
   today: string
   hour12: boolean
   onToggle: (id: string) => void
+  allTags?: Set<string>
+  onRename?: (from: string, to: string) => void
 }) {
   return (
-    <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+    <section className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-        {tag ? (
-          <TagColorPicker tag={tag} />
+        {tag && allTags && onRename ? (
+          <TagMenu tag={tag} allTags={allTags} onRename={onRename} />
         ) : (
           <span className="text-sm font-medium text-zinc-400 dark:text-zinc-500">No tag</span>
         )}
