@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useSyncExternalStore } from 'react'
-import { historyByDay, loadPlanner, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
+import { historyByDay, loadPlanner, addDaysStr, HISTORY_WINDOW_DAYS, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
@@ -16,8 +16,12 @@ function useHydrated(): boolean {
   return useSyncExternalStore(emptySubscribe, () => true, () => false)
 }
 
-function formatFullDate(dateStr: string): string {
+// The quiet date beside a day's heading. "Today" or "Tuesday" gets its date;
+// an older heading already reads "Tue, Sep 29", so it only gains the year,
+// and only when that's not this year.
+function dateAside(dateStr: string): string | null {
   const [y, m, d] = dateStr.split('-').map(Number)
+  if (/\d/.test(formatPastDayLabel(dateStr))) return y === new Date().getFullYear() ? null : String(y)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
@@ -54,8 +58,9 @@ function Highlighted({ text, query }: { text: string; query: string }) {
   )
 }
 
-// The look-back: everything completed in the last 30 days, grouped by day,
-// newest first. Read-only — it never writes the planner, it just shows what
+// The look-back: everything completed, grouped by day, newest first. It opens
+// on the last 30 days and pages further back on request; search reaches the
+// whole year the planner keeps. Read-only — it never writes the planner, it just shows what
 // the planner already remembers.
 export default function HistoryList() {
   const mounted = useHydrated()
@@ -63,6 +68,8 @@ export default function HistoryList() {
   const [tasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
   const [dayNotes] = useState(() => (typeof window === 'undefined' ? {} : loadDayNotes()))
   const [query, setQuery] = useState('')
+  // How many days back the unfiltered list reaches. Grows a window at a time.
+  const [spanDays, setSpanDays] = useState(HISTORY_WINDOW_DAYS)
 
   const allDays = useMemo(() => historyByDay(tasks), [tasks])
 
@@ -88,6 +95,13 @@ export default function HistoryList() {
 
   const total = allDays.reduce((sum, d) => sum + d.items.length, 0)
   const searching = q.length > 0
+
+  // Unfiltered, show only the days inside the current span; a search runs
+  // over everything kept. Days are newest first, so the hidden ones are a tail.
+  const spanCutoff = addDaysStr(-(spanDays - 1))
+  const shownDays = searching ? days : days.filter(d => d.date >= spanCutoff)
+  const earlierDays = searching ? [] : days.filter(d => d.date < spanCutoff)
+  const earlierCount = earlierDays.reduce((sum, d) => sum + d.items.length, 0)
 
   // Live streaks for every routine that has one going. Current runs lead;
   // the best-ever run tags along quietly once it's been beaten before.
@@ -150,7 +164,7 @@ export default function HistoryList() {
           <SearchIcon className="w-10 h-10 mx-auto mb-3 text-zinc-300 dark:text-zinc-600" />
           <p className="text-zinc-600 dark:text-zinc-300 font-medium">Nothing found</p>
           <p className="text-zinc-400 text-sm mt-1">
-            No completed task in the last 30 days matches “{query.trim()}”.
+            No completed task in the last year matches “{query.trim()}”.
           </p>
         </div>
       )}
@@ -191,14 +205,16 @@ export default function HistoryList() {
         </div>
       )}
       <ol className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-        {days.map(day => (
+        {shownDays.map(day => (
           <li key={day.date} className="py-4">
             <div className="flex items-baseline justify-between gap-2 px-1">
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                 {formatPastDayLabel(day.date)}
-                <span className="ml-2 font-normal text-zinc-400 dark:text-zinc-500">
-                  <time dateTime={day.date}>{formatFullDate(day.date)}</time>
-                </span>
+                {dateAside(day.date) && (
+                  <span className="ml-2 font-normal text-zinc-400 dark:text-zinc-500">
+                    <time dateTime={day.date}>{dateAside(day.date)}</time>
+                  </span>
+                )}
               </p>
               <p className="text-xs text-zinc-400 tabular-nums flex-shrink-0">{day.items.length} done</p>
             </div>
@@ -268,6 +284,21 @@ export default function HistoryList() {
           </li>
         ))}
       </ol>
+      {earlierCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setSpanDays(s => s + HISTORY_WINDOW_DAYS)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition-colors hover:border-zinc-300 hover:text-zinc-900 dark:hover:border-zinc-700 dark:hover:text-white"
+        >
+          <svg aria-hidden="true" className="h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+          Show earlier
+          <span className="font-normal text-zinc-400 tabular-nums">
+            · {earlierCount} more {earlierCount === 1 ? 'task' : 'tasks'}
+          </span>
+        </button>
+      )}
     </div>
   )
 }

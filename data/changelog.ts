@@ -918,6 +918,14 @@ export const changelog: ChangelogEntry[] = [
       'A tag can now be renamed from the Tags page. Tap its chip; under the colors is a Rename box. The new name replaces the tag in every task that carries it, finished ones included, and in saved quick lists, and the tag keeps its chosen color. If the new name is already a tag, the button reads Merge and the two become one; a task that had both keeps a single copy.',
     type: 'feature',
   },
+  {
+    day: 115,
+    date: '2026-10-08',
+    title: 'Finished tasks are kept for a year',
+    description:
+      'Finished one-off tasks were deleted from the browser 30 days after completion. They are now kept for 365 days. The History page still opens on the last 30 days, with a Show earlier button at the bottom that adds 30 days at a time, and its search covers the full year. Day headings from a previous year show the year. The daily streak was also limited by the old cutoff and can now count past 30 days. Tasks removed under the old rule cannot be recovered.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

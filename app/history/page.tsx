@@ -5,7 +5,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 
 export const metadata: Metadata = {
   title: 'History',
-  description: 'What you got done, day by day, over the last 30 days.',
+  description: 'What you got done, day by day, over the last year.',
 }
 
 export default function HistoryPage() {
@@ -34,7 +34,7 @@ export default function HistoryPage() {
       </div>
 
       <footer className="max-w-xl mx-auto px-4 py-10 text-center">
-        <p className="text-xs text-zinc-400">Completed tasks are kept for 30 days, in your browser.</p>
+        <p className="text-xs text-zinc-400">Completed tasks are kept for a year, in your browser.</p>
       </footer>
     </main>
   )
