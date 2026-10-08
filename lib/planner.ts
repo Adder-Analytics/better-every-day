@@ -118,7 +118,11 @@ export type PlannerData = {
 }
 
 const STORAGE_KEY = 'bed-planner'
-const COMPLETED_RETENTION_DAYS = 30
+// Finished one-off tasks are kept for a year, then forgotten on load, so the
+// stored list can't grow without bound. The look-back views (History's summary,
+// the default History list) read a shorter recent window of it.
+const COMPLETED_RETENTION_DAYS = 365
+export const HISTORY_WINDOW_DAYS = 30
 
 export function todayStr(): string {
   const d = new Date()
@@ -868,7 +872,7 @@ export function completionCounts(tasks: Task[]): Map<string, number> {
 // at least one task was completed. Today is a grace day — a not-yet-productive
 // today never breaks a run that's going, but finishing something today extends
 // it. Built from the same completion history the week bars and calendar read, so
-// one-offs and routines both count. (Finished one-offs are trimmed after 30 days,
+// one-offs and routines both count. (Finished one-offs are trimmed after a year,
 // so a run longer than that is honestly capped rather than overstated.)
 export function activityStreak(tasks: Task[], today: string = todayStr()): number {
   const counts = completionCounts(tasks)
@@ -888,8 +892,8 @@ export function activityStreak(tasks: Task[], today: string = todayStr()): numbe
 // numbers: how much got done, on how many days, which weekday carried the most,
 // and the longest run of consecutive active days. All derived from the same
 // completion history the week bars and calendar read, so one-offs and routines
-// both count. Scoped to the window so the numbers stay honest against the
-// 30-day retention of finished one-off tasks.
+// both count. Scoped to a recent window (30 days by default) so the numbers
+// read as "lately" rather than as an all-time total.
 export type ActivityInsights = {
   windowDays: number
   total: number // tasks completed across the window
@@ -901,7 +905,7 @@ export type ActivityInsights = {
 
 export function activityInsights(
   tasks: Task[],
-  windowDays: number = COMPLETED_RETENTION_DAYS
+  windowDays: number = HISTORY_WINDOW_DAYS
 ): ActivityInsights {
   const counts = completionCounts(tasks)
   const byDow = new Array(7).fill(0)

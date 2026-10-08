@@ -10,9 +10,9 @@ import { addDaysStr, todayStr } from '@/lib/planner'
 
 const STORAGE_KEY = 'bed-focuslog'
 const FOCUSLOG_VERSION = 1
-// How far back to keep the record — a little longer than the planner's own
-// 30-day completed-task retention, so a task finished 30 days ago still has its
-// focus time to show alongside it.
+// How far back to keep the record — a little longer than the 30-day window the
+// look-back views read, so a task finished 30 days ago still has its focus time
+// to show alongside it.
 const RETENTION_DAYS = 45
 
 // date (YYYY-MM-DD) → task id → seconds of focused time on that day.
