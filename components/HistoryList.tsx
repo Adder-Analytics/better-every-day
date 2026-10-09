@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useSyncExternalStore } from 'react'
-import { historyByDay, loadPlanner, addDaysStr, HISTORY_WINDOW_DAYS, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
+import { historyByDay, loadPlanner, savePlanner, newTask, todayStr, PLANNER_VERSION, type Task, addDaysStr, HISTORY_WINDOW_DAYS, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
@@ -41,6 +41,36 @@ function XIcon({ className }: { className?: string }) {
   )
 }
 
+// Heroicons plus and check, for the "do again" button on a finished one-off.
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  )
+}
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
+// A fresh, unfinished copy of a finished one-off, on today's list. It keeps what
+// describes the task (text and tags, note, estimate, star, steps unchecked) and
+// drops what belonged to the day it was done: its time slot and any deadline.
+function againToday(src: Task): Task {
+  const base = newTask(src.text, todayStr())
+  return {
+    ...base,
+    note: src.note,
+    estimateMin: src.estimateMin,
+    priority: src.priority,
+    subtasks: src.subtasks?.map((s, i) => ({ ...s, id: `s${base.id.slice(1)}${i}`, done: false })),
+  }
+}
+
 // The completed-task text with the matched part emphasized, so a match is easy
 // to spot when scanning results. Case-insensitive; only the first hit per task
 // is highlighted (there's rarely more than one in a short title).
@@ -60,12 +90,39 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 
 // The look-back: everything completed, grouped by day, newest first. It opens
 // on the last 30 days and pages further back on request; search reaches the
-// whole year the planner keeps. Read-only — it never writes the planner, it just shows what
-// the planner already remembers.
+// whole year the planner keeps. The only write is "do again", which adds a fresh
+// copy of a finished one-off to today; the finished task itself is never changed.
 export default function HistoryList() {
   const mounted = useHydrated()
   const hour12 = useHour12()
-  const [tasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
+  const [tasks, setTasks] = useState<Task[]>(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
+  // Finished task id -> the id of the copy "do again" put on today, so a second
+  // tap can take it back off while it's still untouched.
+  const [again, setAgain] = useState<Record<string, string>>({})
+
+  // Write against a fresh read of storage rather than this page's snapshot, so
+  // a planner open in another tab since this page loaded isn't overwritten.
+  const commit = (change: (prev: Task[]) => Task[]) => {
+    const next = change(loadPlanner().tasks)
+    savePlanner({ version: PLANNER_VERSION, tasks: next })
+    setTasks(next)
+  }
+
+  const toggleAgain = (src: Task) => {
+    const copyId = again[src.id]
+    if (copyId) {
+      commit(prev => prev.filter(t => !(t.id === copyId && !t.done)))
+      setAgain(prev => {
+        const rest = { ...prev }
+        delete rest[src.id]
+        return rest
+      })
+      return
+    }
+    const copy = againToday(src)
+    commit(prev => [...prev, copy])
+    setAgain(prev => ({ ...prev, [src.id]: copy.id }))
+  }
   const [dayNotes] = useState(() => (typeof window === 'undefined' ? {} : loadDayNotes()))
   const [query, setQuery] = useState('')
   // How many days back the unfiltered list reaches. Grows a window at a time.
@@ -276,6 +333,33 @@ export default function HistoryList() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
                     </svg>
+                  )}
+                  {/* Put a finished one-off back on today — the errand that came
+                      round again, the call that needs another go. A second tap
+                      takes the copy back off. Routines already come back. */}
+                  {!task.repeat && (
+                    again[task.id] ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleAgain(task)}
+                        aria-label={`Added to today: ${stripTags(task.text)}. Remove it`}
+                        title="On today's list. Tap to take it off."
+                        className="ml-auto -my-1 flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-emerald-600 transition-colors hover:bg-zinc-100 dark:text-emerald-400 dark:hover:bg-zinc-800"
+                      >
+                        <CheckIcon className="h-3 w-3" />
+                        On today
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleAgain(task)}
+                        aria-label={`Do again today: ${stripTags(task.text)}`}
+                        title="Do again today"
+                        className="ml-auto -my-1 flex flex-shrink-0 items-center justify-center rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                      >
+                        <PlusIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )
                   )}
                 </li>
                 )

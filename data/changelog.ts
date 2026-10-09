@@ -926,6 +926,14 @@ export const changelog: ChangelogEntry[] = [
       'Finished one-off tasks were deleted from the browser 30 days after completion. They are now kept for 365 days. The History page still opens on the last 30 days, with a Show earlier button at the bottom that adds 30 days at a time, and its search covers the full year. Day headings from a previous year show the year. The daily streak was also limited by the old cutoff and can now count past 30 days. Tasks removed under the old rule cannot be recovered.',
     type: 'feature',
   },
+  {
+    day: 116,
+    date: '2026-10-09',
+    title: 'Do a finished task again',
+    description:
+      'Each finished one-off task in History now has a plus button that adds a new copy of it to today’s list. The copy keeps the text, tags, note, estimate, star, and steps (unchecked); it leaves out the old time of day and deadline. The button then reads “On today”; tapping it again removes the copy if it hasn’t been finished. Routines don’t have the button, since they come back on their own.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
