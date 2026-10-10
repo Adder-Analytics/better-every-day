@@ -8,6 +8,7 @@ import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
+import DayMenu, { type DayMenuItem } from '@/components/DayMenu'
 import { type Theme, themeStore } from '@/lib/theme'
 import { extractTags, stripTags, hasTag } from '@/lib/tags'
 import { resolveTagClasses, useTagColors } from '@/lib/tagcolors'
@@ -1420,6 +1421,29 @@ export default function Planner() {
   const reminders = useReminders(
     timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
   )
+  // The day header's "More" menu — each entry only when it has something to act
+  // on. Reminders reads as a checkbox item with its On/Off state, since the
+  // menu now holds the toggle.
+  const dayMenuItems: DayMenuItem[] = [
+    ...(todayTasks.length > 0
+      ? [
+          { id: 'copy', label: 'Copy plan as text', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) },
+          { id: 'print', label: 'Print plan', icon: <PrinterIcon className="h-4 w-4" />, run: printTodayPlan },
+        ]
+      : []),
+    ...(timedActive.length > 0
+      ? [{ id: 'ics', label: 'Add timed tasks to calendar', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
+      : []),
+    ...(reminders.supported && timedActive.length > 0
+      ? [{
+          id: 'reminders',
+          label: 'Reminders',
+          icon: reminders.enabled ? <BellIcon className="h-4 w-4" /> : <BellSlashIcon className="h-4 w-4" />,
+          run: reminders.toggle,
+          checked: reminders.enabled,
+        }]
+      : []),
+  ]
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
   const vCarryovers = carryovers.filter(matchesTag)
@@ -2012,8 +2036,8 @@ export default function Planner() {
       <div className="flex items-end justify-between px-1 pt-2">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-zinc-900 dark:text-white">{greeting()}</h2>
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-zinc-400">{formatDate()}</p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="whitespace-nowrap text-xs text-zinc-400">{formatDate()}</p>
             {/* A quiet, always-on read on momentum — the day-in-a-row streak the
                 recap only shows once everything's checked off. Only a real run
                 (2+) earns the flame, so it encourages rather than nags, and it
@@ -2030,66 +2054,7 @@ export default function Planner() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {!inFocus && todayTasks.length > 0 && (
-            <button
-              onClick={() => copyTodayPlan([...todayActive, ...todayDone])}
-              title="Copy today’s plan as text — for a standup, a message, or a journal"
-              className={`flex items-center transition-colors ${
-                copied === 'ok'
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-            >
-              {copied === 'ok' ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              ) : (
-                <ClipboardIcon className="w-4 h-4" />
-              )}
-              <span className="sr-only">Copy today’s plan</span>
-            </button>
-          )}
-          {!inFocus && todayTasks.length > 0 && (
-            <button
-              onClick={printTodayPlan}
-              title="Print today’s plan — a clean sheet to pin up, tuck in a notebook, or cross off by hand"
-              className="flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
-            >
-              <PrinterIcon className="w-4 h-4" />
-              <span className="sr-only">Print today’s plan</span>
-            </button>
-          )}
-          {!inFocus && timedActive.length > 0 && (
-            <button
-              onClick={downloadTodayCalendar}
-              title="Add today’s timed tasks to your calendar (.ics) — their alarms reach you even with this tab closed"
-              className="flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
-            >
-              <CalendarPlusIcon className="w-4 h-4" />
-              <span className="sr-only">Add today’s schedule to calendar</span>
-            </button>
-          )}
-          {!inFocus && reminders.supported && timedActive.length > 0 && (
-            <button
-              onClick={reminders.toggle}
-              aria-pressed={reminders.enabled}
-              title={
-                reminders.enabled
-                  ? 'Reminders on — you’ll be notified when a task’s time arrives, while this tab is open'
-                  : 'Remind me when a timed task’s moment arrives'
-              }
-              className={`flex items-center transition-colors ${
-                reminders.enabled
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
-              }`}
-            >
-              {reminders.enabled ? <BellIcon className="w-4 h-4" /> : <BellSlashIcon className="w-4 h-4" />}
-              <span className="sr-only">{reminders.enabled ? 'Turn reminders off' : 'Turn reminders on'}</span>
-            </button>
-          )}
+        <div className="flex flex-shrink-0 items-center gap-3">
           {!inFocus && focusQueue.length > 0 && (
             <button
               onClick={() => { setSelectedId(null); setFocusStartId(null); setFocusMode(true) }}
@@ -2104,11 +2069,17 @@ export default function Planner() {
             </button>
           )}
           {todayTasks.length > 0 && (
-            <p className="text-xs text-zinc-400 tabular-nums">
+            <p className="whitespace-nowrap text-xs text-zinc-400 tabular-nums">
               <span className="text-base font-bold text-zinc-900 dark:text-white">{doneCount}</span>
               /{todayTasks.length} done
             </p>
           )}
+          {/* The day's less frequent actions, gathered behind one button and
+              named in full: copy, print, add to a calendar, reminders. One
+              target that works the same by mouse, touch, or keyboard, in place
+              of a row of small icons that only explained themselves on hover. */}
+          {/* Every menu item needs at least one task today, so an empty day has no menu. */}
+          {!inFocus && todayTasks.length > 0 && <DayMenu items={dayMenuItems} />}
         </div>
       </div>
 

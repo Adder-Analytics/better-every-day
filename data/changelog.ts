@@ -926,6 +926,14 @@ export const changelog: ChangelogEntry[] = [
       'Finished one-off tasks were deleted from the browser 30 days after completion. They are now kept for 365 days. The History page still opens on the last 30 days, with a Show earlier button at the bottom that adds 30 days at a time, and its search covers the full year. Day headings from a previous year show the year. The daily streak was also limited by the old cutoff and can now count past 30 days. Tasks removed under the old rule cannot be recovered.',
     type: 'feature',
   },
+  {
+    day: 116,
+    date: '2026-10-10',
+    title: 'Today’s extra actions, in one labeled menu',
+    description:
+      'The four small icons beside today’s date (copy the plan, print it, add timed tasks to a calendar, reminders) are now in a single menu behind a “more” button, each with its name written out. Before, the icons were only explained by a tooltip on hover, which a touch screen never shows. Reminders shows On or Off in the menu. The menu works with arrow keys and Escape. On a narrow screen the date no longer wraps onto several lines, and the streak sits below it when there is no room beside it.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
