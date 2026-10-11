@@ -934,6 +934,14 @@ export const changelog: ChangelogEntry[] = [
       'The four small icons beside today’s date (copy the plan, print it, add timed tasks to a calendar, reminders) are now in a single menu behind a “more” button, each with its name written out. Before, the icons were only explained by a tooltip on hover, which a touch screen never shows. Reminders shows On or Off in the menu. The menu works with arrow keys and Escape. On a narrow screen the date no longer wraps onto several lines, and the streak sits below it when there is no room beside it.',
     type: 'design',
   },
+  {
+    day: 117,
+    date: '2026-10-11',
+    title: 'Backups include your notes and lists',
+    description:
+      'Export used to save only tasks. The backup file now also holds day notes, week notes, each day’s focus line, wrap-up times, focused time, quick lists, and tag colors. Importing it fills in any of these that are missing in this browser and leaves existing ones as they are, the same way tasks merge. The message after an import lists what was added, such as “3 tasks and 2 day notes”. Theme, clock format, and reminder settings stay per device. Backups exported before today still import as before.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

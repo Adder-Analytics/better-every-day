@@ -11,9 +11,8 @@
 // through the same quick-add parsing the add box uses, so a line can still carry
 // a #tag, a time, an estimate, or a "!" — the list is a shortcut into the normal
 // add path, not a second kind of task. Because of that, lists never touch the
-// stored task shape: they live in their own `bed-lists` key, and a task export
-// or import doesn't carry them (they're reusable scaffolding, not your day's
-// data). A tiny external store (mirroring lib/tagcolors and lib/theme) lets the
+// stored task shape: they live in their own `bed-lists` key, and a backup
+// carries them alongside the tasks (see lib/backup). A tiny external store (mirroring lib/tagcolors and lib/theme) lets the
 // manager re-render on a change and syncs edits across tabs.
 
 import { useSyncExternalStore } from 'react'
@@ -164,6 +163,26 @@ export const listsStore = {
     next[i] = { ...cur[i], name, items }
     persist(next)
     return true
+  },
+  // Bring back lists from a backup, skipping any already here (same id, or the
+  // same name and lines) and stopping at the cap. Returns how many were added.
+  restore(raw: unknown[]): number {
+    const cur = this.all()
+    const seen = new Set(cur.map(l => l.id))
+    const same = new Set(cur.map(l => `${l.name}\n${l.items.join('\n')}`))
+    const fresh: QuickList[] = []
+    for (const entry of raw) {
+      const list = parseList(entry)
+      if (!list || seen.has(list.id)) continue
+      const sig = `${list.name}\n${list.items.join('\n')}`
+      if (same.has(sig)) continue
+      if (cur.length + fresh.length >= MAX_LISTS) break
+      seen.add(list.id)
+      same.add(sig)
+      fresh.push(list)
+    }
+    if (fresh.length > 0) persist([...cur, ...fresh])
+    return fresh.length
   },
   remove(id: string) {
     const cur = this.all()
