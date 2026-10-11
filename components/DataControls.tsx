@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import type { Task } from '@/lib/planner'
 import { serializeExport, exportFilename, parseImportedTasks } from '@/lib/planner'
+import { collectExtras, countExtras, restoreExtras } from '@/lib/backup'
 
 type Status = { kind: 'ok' | 'info' | 'error'; msg: string }
 
@@ -22,6 +23,12 @@ function UploadIcon({ className }: { className?: string }) {
   )
 }
 
+// "a", "a and b", "a, b, and c".
+function joinList(parts: string[]): string {
+  if (parts.length <= 2) return parts.join(' and ')
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
+
 const STATUS_COLOR: Record<Status['kind'], string> = {
   ok: 'text-emerald-600 dark:text-emerald-400',
   info: 'text-zinc-500 dark:text-zinc-400',
@@ -31,7 +38,9 @@ const STATUS_COLOR: Record<Status['kind'], string> = {
 type Props = {
   tasks: Task[]
   // Merge imported tasks into the planner; returns how many were newly added.
-  onImport: (incoming: Task[]) => number
+  // `extrasRestored` says notes or other non-task data were written, so the
+  // planner can re-read them.
+  onImport: (incoming: Task[], extrasRestored: boolean) => number
 }
 
 // A quiet "Your data" card: take your tasks with you, or bring them back.
@@ -51,7 +60,8 @@ export default function DataControls({ tasks, onImport }: Props) {
 
   const handleExport = () => {
     if (tasks.length === 0) return
-    const blob = new Blob([serializeExport(tasks)], { type: 'application/json' })
+    const extras = collectExtras()
+    const blob = new Blob([serializeExport(tasks, extras)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -60,7 +70,8 @@ export default function DataControls({ tasks, onImport }: Props) {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    flash('ok', `Saved a backup of ${tasks.length} task${tasks.length === 1 ? '' : 's'}.`)
+    const more = countExtras(extras) > 0 ? ', with your notes and lists' : ''
+    flash('ok', `Saved a backup of ${tasks.length} task${tasks.length === 1 ? '' : 's'}${more}.`)
   }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,11 +79,13 @@ export default function DataControls({ tasks, onImport }: Props) {
     e.target.value = '' // let the same file be picked again later
     if (!file) return
     try {
-      const incoming = parseImportedTasks(await file.text())
-      const added = onImport(incoming)
-      if (added > 0) {
-        flash('ok', `Added ${added} task${added === 1 ? '' : 's'} from your backup.`)
-      } else if (incoming.length > 0) {
+      const { tasks: incoming, extras } = parseImportedTasks(await file.text())
+      const restored = restoreExtras(extras)
+      const added = onImport(incoming, restored.length > 0)
+      const parts = [...(added > 0 ? [`${added} task${added === 1 ? '' : 's'}`] : []), ...restored]
+      if (parts.length > 0) {
+        flash('ok', `Added ${joinList(parts)} from your backup.`)
+      } else if (incoming.length > 0 || extras !== undefined) {
         flash('info', 'Already up to date — nothing new to add.')
       } else {
         flash('info', 'That backup was empty.')
@@ -102,7 +115,7 @@ export default function DataControls({ tasks, onImport }: Props) {
             type="button"
             onClick={handleExport}
             disabled={tasks.length === 0}
-            title={tasks.length === 0 ? 'Nothing to export yet' : 'Download a backup of your tasks'}
+            title={tasks.length === 0 ? 'Nothing to export yet' : 'Download a backup of your tasks, notes, and lists'}
             className={btn}
           >
             <DownloadIcon className="w-3.5 h-3.5" />

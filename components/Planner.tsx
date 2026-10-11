@@ -18,6 +18,7 @@ import TagChip from '@/components/TagChip'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
+import { collectExtras } from '@/lib/backup'
 import DayNote from '@/components/DayNote'
 import DayFocus from '@/components/DayFocus'
 import DayTarget from '@/components/DayTarget'
@@ -504,6 +505,8 @@ export default function Planner() {
   const [focusLog, setFocusLog] = useState<FocusLog>(() =>
     typeof window === 'undefined' ? {} : loadFocusLog()
   )
+  // Bumped when a backup restores notes, to remount the views that read them.
+  const [restoreKey, setRestoreKey] = useState(0)
   const logFocus = useCallback((taskId: string, deltaSec: number) => {
     setFocusLog(prev => addFocusSeconds(prev, taskId, deltaSec))
   }, [])
@@ -1182,9 +1185,15 @@ export default function Planner() {
   // on an id collision, so importing only ever adds what's new — it can't
   // overwrite or duplicate what's already here. Returns the count added so the
   // data card can report exactly what happened.
-  const importTasks = (incoming: Task[]): number => {
+  const importTasks = (incoming: Task[], extrasRestored: boolean): number => {
     const { tasks: merged, added } = mergeTasks(tasks, incoming)
     if (added > 0) setTasks(merged)
+    // Restored notes were written straight to storage; re-read them. The day
+    // focus, wrap-up time and note each load once on mount, so remount them.
+    if (extrasRestored) {
+      setFocusLog(loadFocusLog())
+      setRestoreKey(k => k + 1)
+    }
     return added
   }
 
@@ -1192,7 +1201,7 @@ export default function Planner() {
   // card offers, reachable in one keystroke from the command palette.
   const exportBackup = () => {
     if (tasks.length === 0) return
-    const blob = new Blob([serializeExport(tasks)], { type: 'application/json' })
+    const blob = new Blob([serializeExport(tasks, collectExtras())], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -2030,7 +2039,7 @@ export default function Planner() {
           counterpart to the retrospective day note at the bottom; stored under
           its own key, so it never touches task data. Held back in focus mode,
           where a single task is already the whole view. */}
-      {!inFocus && <DayFocus />}
+      {!inFocus && <DayFocus key={restoreKey} />}
 
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
@@ -2167,7 +2176,7 @@ export default function Planner() {
           carry estimates) whether the still-to-do work fits or runs over. Held
           out of focus mode, and once the day's fully done the recap takes over. */}
       {!inFocus && !allDone && (
-        <DayTarget nowMin={nowMin} finishMin={projectedFinish} hasWork={remaining > 0} />
+        <DayTarget key={restoreKey} nowMin={nowMin} finishMin={projectedFinish} hasWork={remaining > 0} />
       )}
 
       {/* The day at a glance — a spatial companion to the agenda list below.
@@ -3007,7 +3016,7 @@ export default function Planner() {
       )}
 
       <div className="pt-2 space-y-2.5">
-        <DayNote />
+        <DayNote key={restoreKey} />
         <WeekActivity tasks={tasks} />
         <DataControls tasks={tasks} onImport={importTasks} />
       </div>

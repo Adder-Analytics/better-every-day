@@ -1678,7 +1678,7 @@ export function parseQuickAdd(input: string): QuickAdd {
 // --- Backup & restore ---------------------------------------------------------
 // The planner lives only in this browser, so the one real risk is losing it:
 // clearing the browser, or switching to a new device. Export writes the tasks
-// to a file the user keeps; import reads one back and merges it in. The wire
+// (plus notes, lists and tag colors, from lib/backup) to a file the user keeps; import reads one back and merges it in. The wire
 // format is just the stored task shape wrapped with a marker, so any version's
 // export imports cleanly (tasks only ever gain optional fields).
 
@@ -1689,6 +1689,9 @@ export type TaskExport = {
   version: typeof PLANNER_VERSION
   exportedAt: string
   tasks: Task[]
+  // Notes, lists and tag colors kept under their own keys (see lib/backup).
+  // Optional: exports from before Day 117 don't have it.
+  extras?: unknown
 }
 
 // A dated, human-readable filename so backups sort and self-describe on disk.
@@ -1699,12 +1702,13 @@ export function exportFilename(date: string = todayStr()): string {
 // Serialize the current tasks to the export format. `at` is injected so the
 // caller owns the clock (this module's other date helpers read it directly,
 // but a timestamp is data worth keeping explicit).
-export function serializeExport(tasks: Task[], at: string = new Date().toISOString()): string {
+export function serializeExport(tasks: Task[], extras?: unknown, at: string = new Date().toISOString()): string {
   const payload: TaskExport = {
     format: EXPORT_MARKER,
     version: PLANNER_VERSION,
     exportedAt: at,
     tasks,
+    ...(extras === undefined ? {} : { extras }),
   }
   return JSON.stringify(payload, null, 2)
 }
@@ -1713,8 +1717,9 @@ export function serializeExport(tasks: Task[], at: string = new Date().toISOStri
 // our envelope, a raw planner blob, or a bare task array) but strict about the
 // tasks themselves — anything that isn't a valid Task is dropped. Throws a
 // human-readable message when the file clearly isn't a backup, so the UI can
-// show it verbatim.
-export function parseImportedTasks(raw: string): Task[] {
+// show it verbatim. `extras` is the backup's non-task data, unvalidated (the
+// restore in lib/backup checks it piece by piece), or undefined if absent.
+export function parseImportedTasks(raw: string): { tasks: Task[]; extras: unknown } {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -1733,7 +1738,8 @@ export function parseImportedTasks(raw: string): Task[] {
   if (rawTasks.length > 0 && valid.length === 0) {
     throw new Error("That backup didn't contain any readable tasks.")
   }
-  return valid
+  const extras = Array.isArray(parsed) ? undefined : (parsed as Record<string, unknown>).extras
+  return { tasks: valid, extras }
 }
 
 // Merge imported tasks into what's already here. Existing tasks always win on

@@ -8,8 +8,8 @@
 // The choice is a display layer, exactly like the theme and the clock format: it
 // changes how a tag is tinted, never the task text a tag lives in. It's kept in
 // its own `bed-tagcolors` key (a map of tag → color), separate from your tasks,
-// so a task export/import doesn't carry it and the stored task shape is
-// untouched. A tiny external store (mirroring lib/theme and lib/timeformat) lets
+// so the stored task shape is untouched; a backup carries it alongside (see
+// lib/backup). A tiny external store (mirroring lib/theme and lib/timeformat) lets
 // every chip on screen re-tint at once via useSyncExternalStore, and syncs the
 // choice across tabs.
 
