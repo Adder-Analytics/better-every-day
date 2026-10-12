@@ -942,6 +942,14 @@ export const changelog: ChangelogEntry[] = [
       'Export used to save only tasks. The backup file now also holds day notes, week notes, each day’s focus line, wrap-up times, focused time, quick lists, and tag colors. Importing it fills in any of these that are missing in this browser and leaves existing ones as they are, the same way tasks merge. The message after an import lists what was added, such as “3 tasks and 2 day notes”. Theme, clock format, and reminder settings stay per device. Backups exported before today still import as before.',
     type: 'feature',
   },
+  {
+    day: 118,
+    date: '2026-10-12',
+    title: 'The focus line shows once again',
+    description:
+      'Since yesterday, the “Set today’s focus” row could repeat down the page after you added or checked off tasks. The cause was the focus line, the wrap-up time, and the day note sharing one internal key after the backup change. Each now has its own key, so the focus line appears once. No saved data was affected.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

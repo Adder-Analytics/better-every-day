@@ -506,6 +506,7 @@ export default function Planner() {
     typeof window === 'undefined' ? {} : loadFocusLog()
   )
   // Bumped when a backup restores notes, to remount the views that read them.
+  // Each use prefixes it, since sibling keys must stay unique.
   const [restoreKey, setRestoreKey] = useState(0)
   const logFocus = useCallback((taskId: string, deltaSec: number) => {
     setFocusLog(prev => addFocusSeconds(prev, taskId, deltaSec))
@@ -2039,7 +2040,7 @@ export default function Planner() {
           counterpart to the retrospective day note at the bottom; stored under
           its own key, so it never touches task data. Held back in focus mode,
           where a single task is already the whole view. */}
-      {!inFocus && <DayFocus key={restoreKey} />}
+      {!inFocus && <DayFocus key={`focus-${restoreKey}`} />}
 
       {/* Today header */}
       <div className="flex items-end justify-between px-1 pt-2">
@@ -2176,7 +2177,7 @@ export default function Planner() {
           carry estimates) whether the still-to-do work fits or runs over. Held
           out of focus mode, and once the day's fully done the recap takes over. */}
       {!inFocus && !allDone && (
-        <DayTarget key={restoreKey} nowMin={nowMin} finishMin={projectedFinish} hasWork={remaining > 0} />
+        <DayTarget key={`target-${restoreKey}`} nowMin={nowMin} finishMin={projectedFinish} hasWork={remaining > 0} />
       )}
 
       {/* The day at a glance — a spatial companion to the agenda list below.
@@ -3016,7 +3017,7 @@ export default function Planner() {
       )}
 
       <div className="pt-2 space-y-2.5">
-        <DayNote key={restoreKey} />
+        <DayNote key={`note-${restoreKey}`} />
         <WeekActivity tasks={tasks} />
         <DataControls tasks={tasks} onImport={importTasks} />
       </div>
