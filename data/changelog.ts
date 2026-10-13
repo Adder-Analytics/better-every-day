@@ -950,6 +950,14 @@ export const changelog: ChangelogEntry[] = [
       'Since yesterday, the “Set today’s focus” row could repeat down the page after you added or checked off tasks. The cause was the focus line, the wrap-up time, and the day note sharing one internal key after the backup change. Each now has its own key, so the focus line appears once. No saved data was affected.',
     type: 'fix',
   },
+  {
+    day: 119,
+    date: '2026-10-13',
+    title: 'Task rows line up',
+    description:
+      'Tasks without a time had a hidden drag handle taking up space at the start of the row, so their checkbox and title sat further right than those of timed tasks, and further right than their own notes and steps. The handle now sits in the row’s left margin and still appears on hover with a mouse. Checkboxes, titles, notes, and steps line up in every row. Dragging works as before.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
