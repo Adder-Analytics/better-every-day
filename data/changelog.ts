@@ -958,6 +958,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks without a time had a hidden drag handle taking up space at the start of the row, so their checkbox and title sat further right than those of timed tasks, and further right than their own notes and steps. The handle now sits in the row’s left margin and still appears on hover with a mouse. Checkboxes, titles, notes, and steps line up in every row. Dragging works as before.',
     type: 'design',
   },
+  {
+    day: 120,
+    date: '2026-10-14',
+    title: 'Timeline blocks show their task',
+    description:
+      'Blocks on today’s timeline were plain gray shapes, and the only way to tell which task one stood for was a tooltip on hover or tapping it. A block wide enough to hold a few letters now shows the task’s title, cut short with an ellipsis when it does not fit. Blocks use lighter tinted fills with a darker left edge so the text reads in light and dark themes: green for done, amber for starred, gray for the rest. The hour labels under the bar no longer overlap at the right end, as “6 PM” and “7 PM” could on a phone.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
