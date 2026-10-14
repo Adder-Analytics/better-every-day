@@ -172,14 +172,17 @@ export default function DayTimeline({
             const left = pct(task.timeMin)
             const width = Math.max(0, pct(drawEnd) - left)
             const overdue = !task.done && task.timeMin < nowMin
+            // Tinted fills with a firmer left edge, so the title written inside
+            // stays readable in both themes and the state still shows at a glance.
             const fill = task.done
-              ? 'bg-emerald-500/90 dark:bg-emerald-500/80'
+              ? 'bg-emerald-50 text-emerald-800/70 line-through decoration-emerald-800/40 shadow-[inset_2px_0_0_var(--color-emerald-500)] dark:bg-emerald-500/15 dark:text-emerald-300/70 dark:decoration-emerald-300/40'
               : task.priority
-                ? 'bg-amber-400 dark:bg-amber-400/90'
+                ? 'bg-amber-100 text-amber-900 shadow-[inset_2px_0_0_var(--color-amber-400)] dark:bg-amber-400/20 dark:text-amber-100'
                 : overdue
-                  ? 'bg-zinc-300 dark:bg-zinc-600'
-                  : 'bg-zinc-400 dark:bg-zinc-500'
-            const label = `${task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)} · ${stripTags(task.text)}`
+                  ? 'bg-zinc-100 text-zinc-500 shadow-[inset_2px_0_0_var(--color-zinc-300)] dark:bg-zinc-800 dark:text-zinc-400 dark:shadow-[inset_2px_0_0_var(--color-zinc-600)]'
+                  : 'bg-zinc-200/80 text-zinc-800 shadow-[inset_2px_0_0_var(--color-zinc-400)] dark:bg-zinc-700/70 dark:text-zinc-100 dark:shadow-[inset_2px_0_0_var(--color-zinc-500)]'
+            const title = stripTags(task.text)
+            const label = `${task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)} · ${title}`
             return (
               <button
                 key={task.id}
@@ -188,7 +191,7 @@ export default function DayTimeline({
                 title={label}
                 aria-hidden="false"
                 aria-label={`Go to ${label}`}
-                className={`absolute rounded-md ${fill} transition-[filter,transform] hover:brightness-110 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`}
+                className={`@container absolute flex items-center overflow-hidden rounded-md ${fill} transition-[filter,transform] hover:brightness-95 dark:hover:brightness-125 active:scale-[0.97] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`}
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
@@ -196,7 +199,13 @@ export default function DayTimeline({
                   top: `calc(${lane * laneH}% + 1px)`,
                   height: `calc(${laneH}% - 2px)`,
                 }}
-              />
+              >
+                {/* The title, written in when the block is wide enough to hold a
+                    few letters; narrower blocks stay plain shapes. */}
+                <span className="hidden min-w-0 truncate pr-1 pl-1.5 text-left text-[10px] leading-none font-medium @min-[2.5rem]:block">
+                  {title}
+                </span>
+              </button>
             )
           })}
           {/* Now marker */}
@@ -211,7 +220,10 @@ export default function DayTimeline({
       {/* Hour axis */}
       <div className="relative mt-1 h-3.5">
         {hours.map((h, i) => {
-          if (i % labelStep !== 0 && i !== hours.length - 1) return null
+          const last = hours.length - 1
+          if (i % labelStep !== 0 && i !== last) return null
+          // The end always gets a label; skip a thinned one that would crowd it.
+          if (i !== last && i !== 0 && last - i < labelStep) return null
           const align = i === 0 ? 'translate-x-0' : i === hours.length - 1 ? '-translate-x-full' : '-translate-x-1/2'
           return (
             <span
