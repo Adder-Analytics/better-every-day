@@ -966,6 +966,14 @@ export const changelog: ChangelogEntry[] = [
       'Blocks on today’s timeline were plain gray shapes, and the only way to tell which task one stood for was a tooltip on hover or tapping it. A block wide enough to hold a few letters now shows the task’s title, cut short with an ellipsis when it does not fit. Blocks use lighter tinted fills with a darker left edge so the text reads in light and dark themes: green for done, amber for starred, gray for the rest. The hour labels under the bar no longer overlap at the right end, as “6 PM” and “7 PM” could on a phone.',
     type: 'design',
   },
+  {
+    day: 121,
+    date: '2026-10-15',
+    title: 'An Add button that stays in reach',
+    description:
+      'When the add box is scrolled out of view, an “Add task” button now sits in the bottom-right corner. Tapping it puts the cursor in the add box and scrolls it into view, so on a phone with a long list there is no need to scroll down to add something. The button is hidden while the add box is on screen, while any text field is being typed in, and while a message such as Undo is showing at the bottom.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

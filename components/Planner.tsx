@@ -540,6 +540,32 @@ export default function Planner() {
   // Whether the add box is focused — gates the "reuse a tag" suggestions so they
   // appear only while you're composing, keeping the resting UI clean.
   const [addFocused, setAddFocused] = useState(false)
+  // The add box's row, and whether it's scrolled out of view. On a long day
+  // (and on a phone, where there's no "n" key) the add box can sit several
+  // screens down, so a floating Add button appears while it's off-screen and
+  // brings it back with the cursor in it. Hidden while any text field has the
+  // keyboard, so it never floats over typing.
+  const [addRowEl, setAddRowEl] = useState<HTMLDivElement | null>(null)
+  const [addOffscreen, setAddOffscreen] = useState(false)
+  const [typing, setTyping] = useState(false)
+  useEffect(() => {
+    if (!addRowEl) return
+    const io = new IntersectionObserver(([entry]) => setAddOffscreen(!entry.isIntersecting))
+    io.observe(addRowEl)
+    return () => io.disconnect()
+  }, [addRowEl])
+  useEffect(() => {
+    const isField = (el: EventTarget | null) =>
+      el instanceof HTMLElement && (el.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select') || el.isContentEditable)
+    const onIn = (e: FocusEvent) => setTyping(isField(e.target))
+    const onOut = (e: FocusEvent) => setTyping(isField(e.relatedTarget))
+    document.addEventListener('focusin', onIn)
+    document.addEventListener('focusout', onOut)
+    return () => {
+      document.removeEventListener('focusin', onIn)
+      document.removeEventListener('focusout', onOut)
+    }
+  }, [])
   // The highlighted row in the task-suggestion list (−1 = none), and whether the
   // list has been dismissed (Escape or an accepted pick) for the current draft.
   // Both reset as soon as the text changes again, so the list follows what you
@@ -1991,6 +2017,33 @@ export default function Planner() {
       </div>
     )}
 
+    {/* Floating Add — shown while the add box is off-screen, so a new task is
+        one tap away from anywhere on a long day. Focuses the box first (inside
+        the tap, so a phone raises its keyboard) and then scrolls it into view.
+        Steps aside for the bottom toasts and while a field is being typed in. */}
+    {(() => {
+      const show = !!addRowEl && addOffscreen && !typing && deleted.length === 0 && !copied && !moved && listAdded === null
+      return (
+        <button
+          type="button"
+          inert={!show}
+          aria-hidden={!show}
+          onClick={() => {
+            const el = inputRef.current
+            if (!el) return
+            el.focus({ preventScroll: true })
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }}
+          className={`fixed right-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-30 flex items-center gap-1.5 rounded-full bg-zinc-900 dark:bg-white py-3 pl-3.5 pr-4.5 text-sm font-semibold text-white dark:text-zinc-900 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 transition-[opacity,transform] duration-200 ease-out hover:bg-zinc-800 dark:hover:bg-zinc-200 active:scale-95 sm:right-6 sm:bottom-6 ${show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2'}`}
+        >
+          <svg aria-hidden="true" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Add task
+        </button>
+      )
+    })()}
+
     <div className="space-y-2.5">
       {/* Tag bar — every tag in play, each a one-tap filter with its count, so a
           context is reachable without hunting for a task that wears it. The
@@ -2571,7 +2624,7 @@ export default function Planner() {
           Shift+Enter can stack several — each line becomes its own task. Plain
           Enter still adds (on every device), so the single-task flow is
           unchanged; it just grows to fit when there's more than one line. */}
-      <div className="flex items-start gap-2 pt-1">
+      <div ref={setAddRowEl} className="flex items-start gap-2 pt-1">
         <textarea
           ref={inputRef}
           value={newText}
