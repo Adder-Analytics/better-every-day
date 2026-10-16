@@ -974,6 +974,14 @@ export const changelog: ChangelogEntry[] = [
       'When the add box is scrolled out of view, an “Add task” button now sits in the bottom-right corner. Tapping it puts the cursor in the add box and scrolls it into view, so on a phone with a long list there is no need to scroll down to add something. The button is hidden while the add box is on screen, while any text field is being typed in, and while a message such as Undo is showing at the bottom.',
     type: 'feature',
   },
+  {
+    day: 122,
+    date: '2026-10-16',
+    title: '“Move to tomorrow” waits until 3 PM',
+    description:
+      'The “Move N to tomorrow” link under today’s list showed from the start of the day, offering to push the whole plan to tomorrow before any of it had begun. It now appears from 3 PM. At any hour, the same action is in the “More for today” menu (the three dots beside today’s count) and in the command menu, and it can still be undone.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

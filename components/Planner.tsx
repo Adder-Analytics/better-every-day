@@ -224,6 +224,13 @@ function DownToTodayIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+
+// From 3 PM the day's leftovers are worth offering to move on, so the inline
+// "Move N to tomorrow" link shows under the list. Earlier than that it would
+// invite punting a day that has barely started; the action stays in the
+// "More for today" menu and the command palette at any hour.
+const WRAP_UP_FROM_MIN = 15 * 60
+
 // A forward arrow — the mirror of DownToTodayIcon (down = into today, right =
 // on to tomorrow). Names the "move the day's leftovers to tomorrow" action.
 function ToTomorrowIcon({ className }: { className?: string }) {
@@ -1470,6 +1477,16 @@ export default function Planner() {
     ...(timedActive.length > 0
       ? [{ id: 'ics', label: 'Add timed tasks to calendar', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
       : []),
+    // The bulk "move the rest to tomorrow", always here; the inline link under
+    // the list only appears later in the day (see WRAP_UP_FROM_MIN).
+    ...(movableToTomorrow > 0
+      ? [{
+          id: 'move-tomorrow',
+          label: `Move ${movableToTomorrow} to tomorrow`,
+          icon: <ToTomorrowIcon className="h-4 w-4" />,
+          run: moveRemainingToTomorrow,
+        }]
+      : []),
     ...(reminders.supported && timedActive.length > 0
       ? [{
           id: 'reminders',
@@ -2512,9 +2529,10 @@ export default function Planner() {
       {/* Wrap up the day — sweep the still-to-do tasks to tomorrow in one move,
           so what's left is planned as tomorrow's work rather than nagging as an
           overdue carryover. The bulk form of each row's "Move to tomorrow";
-          shown once two or more are left (one is quick enough on its own) and
-          held back while a tag filter is showing only a slice. */}
-      {!activeTag && movableToTomorrow >= 2 && (
+          shown once two or more are left (one is quick enough on its own), from
+          the afternoon on, and held back while a tag filter is showing only a
+          slice. */}
+      {!activeTag && movableToTomorrow >= 2 && nowMin >= WRAP_UP_FROM_MIN && (
         <div className="flex justify-end px-1">
           <button
             type="button"
