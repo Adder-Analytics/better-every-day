@@ -758,7 +758,7 @@ export default function TaskItem({
         touchAction: 'pan-y pinch-zoom',
         ...(swipeDx !== 0 || swiping ? { transform: `translateX(${swipeDx}px)`, transition: swiping ? 'none' : undefined } : {}),
       }}
-      className={`group relative rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
+      className={`@container group relative rounded-2xl bg-white dark:bg-zinc-900 border px-4 py-3 transition-all duration-150 ${
         isDragging
           ? 'opacity-40 scale-[0.98] border-zinc-200 dark:border-zinc-800'
           : isDragOver
@@ -818,11 +818,12 @@ export default function TaskItem({
         )}
 
         {/* Title and details are the readable heart of the row. The title
-            always keeps the full width of this middle column; the quiet
+            always keeps the full width of this middle column and wraps onto
+            more lines rather than cutting a long name short; the quiet
             metadata pills (time excepted) drop to a second line beneath it
             rather than crowding the title off-screen on a narrow phone. */}
         <div className="min-w-0 flex-1 flex flex-col gap-1">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-start gap-2 min-w-0">
             {/* Time of day — a quiet agenda timestamp that leads the task.
                 Opens the schedule menu (where the time lives) when editable. */}
             {task.timeMin != null && !editing && (
@@ -832,14 +833,14 @@ export default function TaskItem({
                   aria-haspopup="menu"
                   aria-expanded={menu === 'schedule'}
                   title={task.estimateMin ? 'Change time block' : 'Change time'}
-                  className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                  className="mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
                 >
                   {timeLabel}
                 </button>
               ) : (
                 <span
                   title={task.estimateMin ? 'Scheduled block' : 'Scheduled time'}
-                  className={`flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
+                  className={`mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
                 >
                   {timeLabel}
                 </span>
@@ -861,7 +862,7 @@ export default function TaskItem({
             ) : (
               <span
                 onDoubleClick={startEdit}
-                className={`flex-1 min-w-0 truncate text-sm ${
+                className={`flex-1 min-w-0 break-words text-sm ${
                   task.done ? 'line-through text-zinc-400' : 'text-zinc-800 dark:text-zinc-100'
                 } ${carryover ? '' : 'font-medium'} ${!task.done ? 'cursor-text' : ''}`}
               >
@@ -902,12 +903,12 @@ export default function TaskItem({
                   onClick={() => onSetPriority!(task.id, false)}
                   aria-label="Remove star"
                   title="Starred as important — click to unstar"
-                  className="flex-shrink-0 text-amber-400 hover:text-amber-500 transition-colors"
+                  className="mt-0.5 flex-shrink-0 text-amber-400 hover:text-amber-500 transition-colors"
                 >
                   <StarIcon className="w-4 h-4" />
                 </button>
               ) : (
-                <span title="Important" className={`flex-shrink-0 text-amber-400 ${task.done ? 'opacity-60' : ''}`}>
+                <span title="Important" className={`mt-0.5 flex-shrink-0 text-amber-400 ${task.done ? 'opacity-60' : ''}`}>
                   <StarIcon className="w-4 h-4" />
                 </span>
               )
@@ -1078,10 +1079,11 @@ export default function TaskItem({
                 keeps the full width of the row instead of being squeezed into
                 a sliver — and slides open when the row is hovered, a button
                 inside takes keyboard focus, or one of its menus is open. On
-                touch (no hover) the whole cluster is hidden; the always-present
-                ellipsis menu below carries these actions there instead. */}
+                touch (no hover), or in a row too narrow to hold it beside the
+                title, the whole cluster is hidden; the ellipsis menu below
+                carries these actions there instead. */}
             <div
-              className={`pointer-coarse:hidden grid transition-[grid-template-columns] duration-200 ease-out ${
+              className={`hidden @md:not-pointer-coarse:grid transition-[grid-template-columns] duration-200 ease-out ${
                 menu ? 'grid-cols-[1fr]' : 'grid-cols-[0fr] group-hover:grid-cols-[1fr] group-focus-within:grid-cols-[1fr]'
               }`}
             >
@@ -1216,15 +1218,16 @@ export default function TaskItem({
               </div>
             </div>
 
-            {/* Touch screens have no hover, so the actions above live behind
-                one always-visible menu button there instead. */}
+            {/* Touch screens have no hover, and a narrow row has no room for
+                the cluster, so the actions above live behind one
+                always-visible menu button there instead. */}
             {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canFocus || canSkip) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
                 aria-haspopup="menu"
                 aria-expanded={menu === 'actions'}
-                className="hidden pointer-coarse:block flex-shrink-0 p-1 rounded text-zinc-400 dark:text-zinc-500"
+                className="hidden pointer-coarse:block @max-md:block flex-shrink-0 p-1 rounded text-zinc-400 dark:text-zinc-500"
               >
                 <EllipsisIcon className="w-4 h-4" />
               </button>

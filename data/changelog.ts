@@ -982,6 +982,14 @@ export const changelog: ChangelogEntry[] = [
       'The “Move N to tomorrow” link under today’s list showed from the start of the day, offering to push the whole plan to tomorrow before any of it had begun. It now appears from 3 PM. At any hour, the same action is in the “More for today” menu (the three dots beside today’s count) and in the command menu, and it can still be undone.',
     type: 'design',
   },
+  {
+    day: 123,
+    date: '2026-10-17',
+    title: 'Long task names show in full',
+    description:
+      'A task name too long for one line was cut off with an ellipsis, and on a phone there was no way to read the rest without opening it to edit. Names now wrap onto as many lines as they need. The time and the star stay beside the first line. With a mouse in a narrow window, hovering a row used to squeeze its name to nothing to make room for the row’s action icons; when a row is too narrow for both, the icons are now behind the same “…” menu that touch screens use.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
