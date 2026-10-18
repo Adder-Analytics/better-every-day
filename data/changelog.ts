@@ -990,6 +990,14 @@ export const changelog: ChangelogEntry[] = [
       'A task name too long for one line was cut off with an ellipsis, and on a phone there was no way to read the rest without opening it to edit. Names now wrap onto as many lines as they need. The time and the star stay beside the first line. With a mouse in a narrow window, hovering a row used to squeeze its name to nothing to make room for the row’s action icons; when a row is too narrow for both, the icons are now behind the same “…” menu that touch screens use.',
     type: 'fix',
   },
+  {
+    day: 124,
+    date: '2026-10-18',
+    title: 'Move between views from any page',
+    description:
+      'The row of views (Today, Week, Month, Routines, Tags) was only at the top of Today. The Week, Month, Routines, Tags, History, and Review pages had a “Back to today” link instead, so going from Week to Month meant passing through Today. Every one of these pages now has the same header and view row, with the open view highlighted, and the 12h/24h clock toggle is available on all of them.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
