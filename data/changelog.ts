@@ -998,6 +998,14 @@ export const changelog: ChangelogEntry[] = [
       'The row of views (Today, Week, Month, Routines, Tags) was only at the top of Today. The Week, Month, Routines, Tags, History, and Review pages had a “Back to today” link instead, so going from Week to Month meant passing through Today. Every one of these pages now has the same header and view row, with the open view highlighted, and the 12h/24h clock toggle is available on all of them.',
     type: 'design',
   },
+  {
+    day: 125,
+    date: '2026-10-19',
+    title: 'Put the daily update card away',
+    description:
+      'The “What got better today” card sat above the plan on every visit, even after it had been read. It now has a close button, and opening it to read the entry also puts it away. It stays hidden until the next entry is added. The changelog is still linked at the bottom of Today and from the command menu.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
