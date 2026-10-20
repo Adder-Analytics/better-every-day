@@ -19,6 +19,7 @@ import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
 import { collectExtras } from '@/lib/backup'
+import { lastBackupStore, requestPersistentStorage } from '@/lib/lastbackup'
 import DayNote from '@/components/DayNote'
 import DayFocus from '@/components/DayFocus'
 import DayTarget from '@/components/DayTarget'
@@ -1244,6 +1245,8 @@ export default function Planner() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+    lastBackupStore.markToday()
+    void requestPersistentStorage()
   }
 
   // Pull every unfinished task carried over from a past day into today at once —
