@@ -4,6 +4,13 @@ import { useRef, useState } from 'react'
 import type { Task } from '@/lib/planner'
 import { serializeExport, exportFilename, parseImportedTasks } from '@/lib/planner'
 import { collectExtras, countExtras, restoreExtras } from '@/lib/backup'
+import {
+  useLastBackup,
+  lastBackupStore,
+  formatLastBackup,
+  isBackupStale,
+  requestPersistentStorage,
+} from '@/lib/lastbackup'
 
 type Status = { kind: 'ok' | 'info' | 'error'; msg: string }
 
@@ -50,6 +57,7 @@ export default function DataControls({ tasks, onImport }: Props) {
   const [status, setStatus] = useState<Status | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastBackup = useLastBackup()
 
   // Show a message, then fade back to the default hint after a few seconds.
   const flash = (kind: Status['kind'], msg: string) => {
@@ -70,6 +78,8 @@ export default function DataControls({ tasks, onImport }: Props) {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
+    lastBackupStore.markToday()
+    void requestPersistentStorage()
     const more = countExtras(extras) > 0 ? ', with your notes and lists' : ''
     flash('ok', `Saved a backup of ${tasks.length} task${tasks.length === 1 ? '' : 's'}${more}.`)
   }
@@ -95,6 +105,15 @@ export default function DataControls({ tasks, onImport }: Props) {
     }
   }
 
+  // With nothing saved yet the card just says what it's for; once there are
+  // tasks, it says how long it's been since a copy left this browser.
+  const hint =
+    tasks.length === 0 && lastBackup === null
+      ? { text: 'Back it up, or move it to another browser.', stale: false }
+      : lastBackup === null
+        ? { text: 'Not backed up yet. Your tasks are only in this browser.', stale: false }
+        : { text: formatLastBackup(lastBackup), stale: isBackupStale(lastBackup) }
+
   const btn =
     'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed'
 
@@ -105,9 +124,15 @@ export default function DataControls({ tasks, onImport }: Props) {
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-300">Your data</p>
           <p
             aria-live="polite"
-            className={`text-[11px] mt-0.5 truncate ${status ? STATUS_COLOR[status.kind] : 'text-zinc-400'}`}
+            className={`text-[11px] mt-0.5 ${
+              status
+                ? STATUS_COLOR[status.kind]
+                : hint.stale
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-zinc-500 dark:text-zinc-400'
+            }`}
           >
-            {status ? status.msg : 'Back it up, or move it to another browser.'}
+            {status ? status.msg : hint.text}
           </p>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">

@@ -1006,6 +1006,14 @@ export const changelog: ChangelogEntry[] = [
       'The “What got better today” card sat above the plan on every visit, even after it had been read. It now has a close button, and opening it to read the entry also puts it away. It stays hidden until the next entry is added. The changelog is still linked at the bottom of Today and from the command menu.',
     type: 'design',
   },
+  {
+    day: 126,
+    date: '2026-10-20',
+    title: 'See when you last backed up',
+    description:
+      'Tasks are kept only in this browser, and the “Your data” card at the bottom of Today did not say whether a copy existed anywhere else. It now shows when this browser last saved a backup (“Last backup 12 days ago”), or “Not backed up yet” if it never has. The line turns amber once the last backup is 30 days old. Exporting, from the card or the command menu, also asks the browser to keep the site’s storage rather than clearing it on its own, which some browsers, Safari in particular, do for sites that go unvisited for a while. The date is kept under its own key (bed-lastbackup); task data is unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
