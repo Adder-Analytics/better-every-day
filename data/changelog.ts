@@ -1014,6 +1014,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks are kept only in this browser, and the “Your data” card at the bottom of Today did not say whether a copy existed anywhere else. It now shows when this browser last saved a backup (“Last backup 12 days ago”), or “Not backed up yet” if it never has. The line turns amber once the last backup is 30 days old. Exporting, from the card or the command menu, also asks the browser to keep the site’s storage rather than clearing it on its own, which some browsers, Safari in particular, do for sites that go unvisited for a while. The date is kept under its own key (bed-lastbackup); task data is unchanged.',
     type: 'feature',
   },
+  {
+    day: 127,
+    date: '2026-10-21',
+    title: 'Send your tasks to another device',
+    description:
+      'The “Your data” card has a new “Send to a device” button. It makes a link that carries the same backup Export saves (tasks, notes, lists, and tag colors). On a phone or tablet it opens the share sheet; elsewhere it copies the link. Opening the link on another device shows what it holds and asks before adding anything. Tasks already there are left as they are, the same as Import. The data sits in the part of the link after the #, which browsers do not send to the server, and it is cleared from the address bar once read.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

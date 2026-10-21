@@ -3,7 +3,9 @@
 import { useRef, useState } from 'react'
 import type { Task } from '@/lib/planner'
 import { serializeExport, exportFilename, parseImportedTasks } from '@/lib/planner'
-import { collectExtras, countExtras, restoreExtras } from '@/lib/backup'
+import { collectExtras, countExtras, restoreExtras, joinList } from '@/lib/backup'
+import { makeTransferLink } from '@/lib/transfer'
+import { DeviceIcon } from '@/components/TransferPrompt'
 import {
   useLastBackup,
   lastBackupStore,
@@ -28,12 +30,6 @@ function UploadIcon({ className }: { className?: string }) {
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
     </svg>
   )
-}
-
-// "a", "a and b", "a, b, and c".
-function joinList(parts: string[]): string {
-  if (parts.length <= 2) return parts.join(' and ')
-  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
 }
 
 const STATUS_COLOR: Record<Status['kind'], string> = {
@@ -84,6 +80,38 @@ export default function DataControls({ tasks, onImport }: Props) {
     flash('ok', `Saved a backup of ${tasks.length} task${tasks.length === 1 ? '' : 's'}${more}.`)
   }
 
+  // Hand the backup over as a link: the share sheet on a touch device (AirDrop,
+  // Messages, mail), the clipboard elsewhere. The link is built after the tap,
+  // so the clipboard gets a pending item — Safari only allows a write that
+  // starts inside the tap itself.
+  const handleSend = async () => {
+    if (tasks.length === 0) return
+    const n = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`
+    const link = makeTransferLink(JSON.stringify(JSON.parse(serializeExport(tasks, collectExtras()))))
+    try {
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+        try {
+          await navigator.share({ title: 'Better Every Day', url: await link })
+          flash('ok', `Shared a link with your ${n}. Open it on the other device to add them there.`)
+          return
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') return
+          // No share target; fall back to copying.
+        }
+      }
+      if (typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': link.then(url => new Blob([url], { type: 'text/plain' })) }),
+        ])
+      } else {
+        await navigator.clipboard.writeText(await link)
+      }
+      flash('ok', `Copied a link with your ${n}. Open it on the other device to add them there.`)
+    } catch {
+      flash('error', 'Couldn’t make a link in this browser. Use Export instead.')
+    }
+  }
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // let the same file be picked again later
@@ -119,7 +147,7 @@ export default function DataControls({ tasks, onImport }: Props) {
 
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
+      <div>
         <div className="min-w-0">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-300">Your data</p>
           <p
@@ -135,7 +163,17 @@ export default function DataControls({ tasks, onImport }: Props) {
             {status ? status.msg : hint.text}
           </p>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="mt-2 -ml-2.5 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={tasks.length === 0}
+            title={tasks.length === 0 ? 'Nothing to send yet' : 'Copy a link that adds your tasks, notes, and lists on another device'}
+            className={btn}
+          >
+            <DeviceIcon className="w-3.5 h-3.5" />
+            Send to a device
+          </button>
           <button
             type="button"
             onClick={handleExport}
