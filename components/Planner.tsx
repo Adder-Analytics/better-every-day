@@ -18,6 +18,7 @@ import TagChip from '@/components/TagChip'
 import Confetti from '@/components/Confetti'
 import WeekActivity from '@/components/WeekActivity'
 import DataControls from '@/components/DataControls'
+import TransferPrompt from '@/components/TransferPrompt'
 import { collectExtras } from '@/lib/backup'
 import { lastBackupStore, requestPersistentStorage } from '@/lib/lastbackup'
 import DayNote from '@/components/DayNote'
@@ -2113,6 +2114,9 @@ export default function Planner() {
           counterpart to the retrospective day note at the bottom; stored under
           its own key, so it never touches task data. Held back in focus mode,
           where a single task is already the whole view. */}
+      {/* Opened from a "Send to a device" link: offer to add what it carries. */}
+      <TransferPrompt tasks={tasks} onImport={importTasks} />
+
       {!inFocus && <DayFocus key={`focus-${restoreKey}`} />}
 
       {/* Today header */}
