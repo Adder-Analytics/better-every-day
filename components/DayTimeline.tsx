@@ -16,8 +16,9 @@ export type TimelineTask = {
 }
 
 // A bare time (no estimate) is a moment, not a block — give it a small nominal
-// length so its segment is wide enough to read and tap. Only affects how wide
-// the block draws; the day's span math uses the real end.
+// length so its segment is wide enough to read and tap. The day's span reaches
+// the end of that drawn length too, so a bare time late in the day (say "Gym
+// 6pm") isn't pinned to the bar's right edge as a sliver.
 const MIN_BLOCK = 20
 
 // Only offer an open stretch as plannable once it's at least this wide, so a
@@ -53,9 +54,9 @@ export default function DayTimeline({
   onPlan?: (timeMin: number) => void
 }) {
   const hour12 = useHour12()
-  // Each task's true end; the day spans from the earliest start to the latest
+  // Each task's drawn end; the day spans from the earliest start to the latest
   // end, always widened to include now so the marker sits on the bar.
-  const ends = tasks.map(t => t.timeMin + (t.estimateMin ?? 0))
+  const ends = tasks.map(t => t.timeMin + Math.max(t.estimateMin ?? 0, MIN_BLOCK))
   const firstStart = Math.min(...tasks.map(t => t.timeMin))
   const lastEnd = Math.min(1440, Math.max(...ends))
   const start = floorHour(Math.min(firstStart, nowMin))

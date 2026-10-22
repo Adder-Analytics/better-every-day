@@ -1022,6 +1022,14 @@ export const changelog: ChangelogEntry[] = [
       'The “Your data” card has a new “Send to a device” button. It makes a link that carries the same backup Export saves (tasks, notes, lists, and tag colors). On a phone or tablet it opens the share sheet; elsewhere it copies the link. Opening the link on another device shows what it holds and asks before adding anything. Tasks already there are left as they are, the same as Import. The data sits in the part of the link after the #, which browsers do not send to the server, and it is cleared from the address bar once read.',
     type: 'feature',
   },
+  {
+    day: 128,
+    date: '2026-10-22',
+    title: 'The last task on the timeline shows in full',
+    description:
+      'The timeline ended at the hour of the last task’s end time. A task with a time but no length counted as ending the moment it started, so one set for the hour (such as “Gym 6pm”) was cut down to a thin sliver on the right edge of the bar, hard to see and to tap. The bar now runs to the next hour after such a task, so it draws at the same width as any other task without a length.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
