@@ -1022,6 +1022,14 @@ export const changelog: ChangelogEntry[] = [
       'The “Your data” card has a new “Send to a device” button. It makes a link that carries the same backup Export saves (tasks, notes, lists, and tag colors). On a phone or tablet it opens the share sheet; elsewhere it copies the link. Opening the link on another device shows what it holds and asks before adding anything. Tasks already there are left as they are, the same as Import. The data sits in the part of the link after the #, which browsers do not send to the server, and it is cleared from the address bar once read.',
     type: 'feature',
   },
+  {
+    day: 128,
+    date: '2026-10-24',
+    title: 'Drag a task along the timeline',
+    description:
+      'Blocks on Today’s timeline can now be dragged sideways to change when a task starts. The time snaps to 5 minutes and shows above the block while it moves. Dragging past either end extends the bar. A short tap still jumps to the task in the list. Finished tasks stay put. A toast confirms the new time and has an Undo button; Ctrl+Z also works. With the keyboard, focus a block and use the left and right arrows to move it 15 minutes, or an hour with Shift.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
