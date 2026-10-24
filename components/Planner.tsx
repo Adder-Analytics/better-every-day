@@ -631,9 +631,10 @@ export default function Planner() {
   // from "Move N to tomorrow" / "Bring all to today". Each item remembers the day
   // (and Someday flag) it came from, so undo restores exactly that.
   const [moved, setMoved] = useState<{
-    items: { id: string; from: string; someday?: boolean }[]
+    items: { id: string; from: string; someday?: boolean; fromTime?: number }[]
     to: 'today' | 'tomorrow'
     text?: string // the task's title, when a single task moved
+    toTime?: number // set when a task was moved to a new time on the same day
   } | null>(null)
   const movedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
@@ -696,7 +697,10 @@ export default function Planner() {
     const from = new Map(moved.items.map(m => [m.id, m]))
     setTasks(prev => prev.map(t => {
       const m = from.get(t.id)
-      return m ? { ...t, createdDate: m.from, someday: m.someday } : t
+      if (!m) return t
+      return moved.toTime != null
+        ? { ...t, timeMin: m.fromTime }
+        : { ...t, createdDate: m.from, someday: m.someday }
     }))
     setMoved(null)
     if (movedTimer.current) clearTimeout(movedTimer.current)
@@ -1154,6 +1158,22 @@ export default function Planner() {
       items: moves.map(t => ({ id: t.id, from: t.createdDate, someday: t.someday })),
       to,
       text: moves.length === 1 ? moves[0].text : undefined,
+    })
+    if (movedTimer.current) clearTimeout(movedTimer.current)
+    movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
+  }
+
+  // A block dragged along the timeline: set its new start time, with the same
+  // undo toast a move between days gets, so a stray drag is one tap from undone.
+  const moveToTime = (id: string, timeMin: number) => {
+    const t = tasks.find(x => x.id === id)
+    if (!t || t.timeMin === timeMin) return
+    setTime(id, timeMin)
+    setMoved({
+      items: [{ id, from: t.createdDate, someday: t.someday, fromTime: t.timeMin }],
+      to: 'today',
+      text: t.text,
+      toTime: timeMin,
     })
     if (movedTimer.current) clearTimeout(movedTimer.current)
     movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
@@ -2009,7 +2029,7 @@ export default function Planner() {
                 ? `“${stripTags(moved.text)}”`
                 : `${moved.items.length} ${moved.items.length === 1 ? 'task' : 'tasks'}`}
             </span>
-            {' '}to {moved.to}
+            {' '}to {moved.toTime != null ? formatTime(moved.toTime, hour12) : moved.to}
           </span>
           <button
             onClick={undoMove}
@@ -2274,6 +2294,7 @@ export default function Planner() {
           nowMin={nowMin}
           onSelect={revealTask}
           onPlan={planAt}
+          onMove={moveToTime}
         />
       )}
 
