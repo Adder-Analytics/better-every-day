@@ -17,8 +17,8 @@ export type TimelineTask = {
 }
 
 // A bare time (no estimate) is a moment, not a block — give it a small nominal
-// length so its segment is wide enough to read and tap. Only affects how wide
-// the block draws; the day's span math uses the real end.
+// length so its segment is wide enough to read and tap. The bar's span reaches
+// the end of this drawn block too, so the day's last task is never clipped.
 const MIN_BLOCK = 20
 
 // Only offer an open stretch as plannable once it's at least this wide, so a
@@ -87,9 +87,10 @@ export default function DayTimeline({
   // While a block is being dragged, draw it at its new time.
   const shown = drag ? tasks.map(t => (t.id === drag.id ? { ...t, timeMin: drag.timeMin } : t)) : tasks
 
-  // Each task's true end; the day spans from the earliest start to the latest
-  // end, always widened to include now so the marker sits on the bar.
-  const ends = shown.map(t => t.timeMin + (t.estimateMin ?? 0))
+  // Where each block's drawn end lands (a bare time or a short task held to
+  // MIN_BLOCK); the day spans from the earliest start to the latest of these,
+  // always widened to include now so the marker sits on the bar.
+  const ends = shown.map(t => t.timeMin + Math.max(t.estimateMin ?? 0, MIN_BLOCK))
   const firstStart = Math.min(...shown.map(t => t.timeMin))
   const lastEnd = Math.min(1440, Math.max(...ends))
   // During a drag the span holds still (only growing, an hour at a time, when a
