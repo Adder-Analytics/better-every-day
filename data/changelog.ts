@@ -1030,6 +1030,14 @@ export const changelog: ChangelogEntry[] = [
       'Blocks on Today’s timeline can now be dragged sideways to change when a task starts. The time snaps to 5 minutes and shows above the block while it moves. Dragging past either end extends the bar. A short tap still jumps to the task in the list. Finished tasks stay put. A toast confirms the new time and has an Undo button; Ctrl+Z also works. With the keyboard, focus a block and use the left and right arrows to move it 15 minutes, or an hour with Shift.',
     type: 'feature',
   },
+  {
+    day: 129,
+    date: '2026-10-25',
+    title: 'Timeline blocks no longer clipped',
+    description:
+      'On Today’s timeline, a task with a start time but no length, or one shorter than 20 minutes, is drawn as a 20-minute block. The bar’s span was measured to the task’s start rather than the end of that block, so when such a task was the last of the day (a 2 PM call, say) the bar ended at 2 PM and the block was cut down to a sliver at the right edge. The span now reaches the end of the drawn block, so the last task shows at full width with its title, and the bar ends on the next hour.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
