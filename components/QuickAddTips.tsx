@@ -34,6 +34,7 @@ const GROUPS: Group[] = [
       { example: 'in 2 hours', does: 'a time from now' },
       { example: '9–11am', does: 'a time block' },
       { example: '30m', does: 'how long it takes' },
+      { example: 'for an hour', does: 'the same, in words' },
     ],
   },
   {
