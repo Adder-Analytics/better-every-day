@@ -1288,10 +1288,16 @@ function parseTrailingDue(text: string): { text: string; date: string } | null {
 // Trailing time-estimate phrases: "30m", "45 min", "1h", "2 hours", "1h 30m".
 // An hours unit always needs h/hr/hour and a minutes unit always needs
 // m/min/minute, so a bare trailing number ("Read chapter 3", "Run 5km") is
-// never mistaken for a duration. The combined form is tried first.
-const EST_HM_RE = /\s+(\d{1,2})\s*h(?:rs?|ours?)?\s*(\d{1,2})\s*m(?:ins?|inutes?)?\.?\s*$/i
-const EST_H_RE = /\s+(\d{1,2})\s*h(?:rs?|ours?)?\.?\s*$/i
-const EST_M_RE = /\s+(\d{1,3})\s*m(?:ins?|inutes?)?\.?\s*$/i
+// never mistaken for a duration. The combined form is tried first. A leading
+// "for" is read as part of the phrase ("Gym 6pm for 1h", "Call for 20 min"), so
+// it isn't left dangling on the title where it would also hide a time before it.
+// "for an hour" and "for half an hour" read the same way; without the "for",
+// those words stay in the title.
+const EST_HM_RE = /\s+(?:for\s+)?(\d{1,2})\s*h(?:rs?|ours?)?\s*(?:and\s+)?(\d{1,2})\s*m(?:ins?|inutes?)?\.?\s*$/i
+const EST_H_RE = /\s+(?:for\s+)?(\d{1,2})\s*h(?:rs?|ours?)?\.?\s*$/i
+const EST_M_RE = /\s+(?:for\s+)?(\d{1,3})\s*m(?:ins?|inutes?)?\.?\s*$/i
+const EST_HALF_HOUR_RE = /\s+for\s+(?:half\s+an|a\s+half)\s+hour\.?\s*$/i
+const EST_AN_HOUR_RE = /\s+for\s+(?:an|one)\s+hour\.?\s*$/i
 
 // Strip a trailing duration and resolve it to minutes (1–1440). Returns null
 // when nothing is recognized, or when stripping would empty the title (so a
@@ -1301,6 +1307,8 @@ function parseTrailingEstimate(text: string): { text: string; estimateMin: numbe
     { re: EST_HM_RE, minutes: m => Number(m[1]) * 60 + Number(m[2]) },
     { re: EST_H_RE, minutes: m => Number(m[1]) * 60 },
     { re: EST_M_RE, minutes: m => Number(m[1]) },
+    { re: EST_HALF_HOUR_RE, minutes: () => 30 },
+    { re: EST_AN_HOUR_RE, minutes: () => 60 },
   ]
   for (const { re, minutes } of tries) {
     const match = text.match(re)

@@ -1038,6 +1038,14 @@ export const changelog: ChangelogEntry[] = [
       'On Today’s timeline, a task with a start time but no length, or one shorter than 20 minutes, is drawn as a 20-minute block. The bar’s span was measured to the task’s start rather than the end of that block, so when such a task was the last of the day (a 2 PM call, say) the bar ended at 2 PM and the block was cut down to a sliver at the right edge. The span now reaches the end of the drawn block, so the last task shows at full width with its title, and the bar ends on the next hour.',
     type: 'fix',
   },
+  {
+    day: 130,
+    date: '2026-10-26',
+    title: 'Say “for an hour” when you add a task',
+    description:
+      'Quick-add read “1h” or “30 min” at the end of a task as how long it takes, but not “for 1h”. The “for” was left on the title, and it also hid a time typed before it, so “Write report 9am for 1h” became a task called “Write report 9am for” with no time. A leading “for” is now read as part of the length, along with “for an hour”, “for half an hour”, and “1h and 30m”. That entry now becomes “Write report” at 9 AM, 1h long. Without the “for”, words like “an hour” stay in the title. “What you can type” lists the new form.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
