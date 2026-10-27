@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { formatTime, formatTimeRange } from '@/lib/planner'
+import { formatDuration, formatTime, formatTimeRange } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 
@@ -45,7 +45,8 @@ const KEY_STEP_MIN = 15
 // when they happen and how long they take, the space between them left empty so
 // free time shows itself, and a live marker for now. Tapping a block jumps to
 // its task in the list; dragging an unfinished one sideways moves it to a new
-// time, snapped to 5 minutes. It complements the agenda list — the list is the order,
+// time, snapped to 5 minutes, and dragging its right edge changes how long it
+// takes. It complements the agenda list — the list is the order,
 // this is the shape. Shown only once there are at least two timed tasks, so a
 // near-empty bar never appears.
 export default function DayTimeline({
@@ -54,6 +55,7 @@ export default function DayTimeline({
   onSelect,
   onPlan,
   onMove,
+  onResize,
 }: {
   tasks: TimelineTask[]
   nowMin: number
@@ -65,27 +67,43 @@ export default function DayTimeline({
   // Move a task to a new start time: given, unfinished blocks can be dragged
   // sideways (or nudged with the arrow keys) and hand back the minute dropped on.
   onMove?: (id: string, timeMin: number) => void
+  // Change how long a task takes: given, unfinished blocks get a handle on their
+  // right edge that drags the end (or [ and ] step it) and hands back the new
+  // length in minutes.
+  onResize?: (id: string, estimateMin: number) => void
 }) {
   const hour12 = useHour12()
   const trackRef = useRef<HTMLDivElement>(null)
-  // The block being dragged: where the press began, the time it started from,
-  // the minutes one pixel is worth (fixed for the whole drag), and the span the
-  // bar showed when it began, so the scale doesn't shift under the pointer.
+  // The block being dragged: whether the whole block moves or only its end,
+  // where the press began, the start time and length it began with, the
+  // minutes one pixel is worth (fixed for the whole drag), and the span the bar
+  // showed when it began, so the scale doesn't shift under the pointer.
   const dragRef = useRef<{
     id: string
+    mode: 'move' | 'resize'
     pointerId: number
     x0: number
     fromMin: number
+    fromLen: number
     minPerPx: number
     moved: boolean
   } | null>(null)
-  const [drag, setDrag] = useState<{ id: string; timeMin: number; spanStart: number; spanEnd: number } | null>(null)
+  const [drag, setDrag] = useState<{
+    id: string
+    mode: 'move' | 'resize'
+    timeMin: number
+    estimateMin?: number
+    spanStart: number
+    spanEnd: number
+  } | null>(null)
   // Set when a drag ends so the click that follows the release doesn't also
   // count as a tap on the block.
   const suppressClick = useRef(false)
 
-  // While a block is being dragged, draw it at its new time.
-  const shown = drag ? tasks.map(t => (t.id === drag.id ? { ...t, timeMin: drag.timeMin } : t)) : tasks
+  // While a block is being dragged, draw it at its new time and length.
+  const shown = drag
+    ? tasks.map(t => (t.id === drag.id ? { ...t, timeMin: drag.timeMin, estimateMin: drag.estimateMin } : t))
+    : tasks
 
   // Where each block's drawn end lands (a bare time or a short task held to
   // MIN_BLOCK); the day spans from the earliest start to the latest of these,
@@ -108,52 +126,89 @@ export default function DayTimeline({
   // The latest a block can start and still end by midnight.
   const latestStart = (t: TimelineTask) => 1440 - Math.max(t.estimateMin ?? 0, SNAP_MIN)
   const clampMin = (t: TimelineTask, min: number) => Math.max(0, Math.min(latestStart(t), min))
+  // A length runs from 5 minutes up to whatever still ends by midnight.
+  const clampLen = (t: TimelineTask, len: number) => Math.max(SNAP_MIN, Math.min(1440 - t.timeMin, len))
 
-  const onBlockPointerDown = (e: React.PointerEvent<HTMLButtonElement>, task: TimelineTask) => {
-    if (!onMove || task.done || e.button !== 0 || !trackRef.current) return
+  const beginDrag = (e: React.PointerEvent<HTMLElement>, task: TimelineTask, mode: 'move' | 'resize') => {
+    if (task.done || e.button !== 0 || !trackRef.current) return false
     const width = trackRef.current.getBoundingClientRect().width
-    if (width <= 0) return
+    if (width <= 0) return false
     // Follow the pointer even once it leaves the block or the bar.
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = {
       id: task.id,
+      mode,
       pointerId: e.pointerId,
       x0: e.clientX,
       fromMin: task.timeMin,
+      // Resizing starts from the edge as drawn, so a bare time (shown as a
+      // 20-minute block) grows from where its handle actually sits.
+      fromLen: Math.max(task.estimateMin ?? 0, MIN_BLOCK),
       minPerPx: total / width,
       moved: false,
     }
+    return true
   }
 
-  const onBlockPointerMove = (e: React.PointerEvent<HTMLButtonElement>, task: TimelineTask) => {
+  const onBlockPointerDown = (e: React.PointerEvent<HTMLButtonElement>, task: TimelineTask) => {
+    if (onMove) beginDrag(e, task, 'move')
+  }
+
+  // The edge handle sits inside the block, so its press must not also start a
+  // move of the whole block.
+  const onHandlePointerDown = (e: React.PointerEvent<HTMLSpanElement>, task: TimelineTask) => {
+    if (!onResize) return
+    if (beginDrag(e, task, 'resize')) e.stopPropagation()
+  }
+
+  const onDragPointerMove = (e: React.PointerEvent<HTMLElement>, task: TimelineTask) => {
     const d = dragRef.current
     if (!d || d.id !== task.id || d.pointerId !== e.pointerId) return
+    e.stopPropagation()
     const dx = e.clientX - d.x0
     if (!d.moved) {
       if (Math.abs(dx) < DRAG_THRESHOLD_PX) return
       d.moved = true
     }
-    const timeMin = clampMin(task, Math.round((d.fromMin + dx * d.minPerPx) / SNAP_MIN) * SNAP_MIN)
+    const snapped = (min: number) => Math.round(min / SNAP_MIN) * SNAP_MIN
+    const timeMin = d.mode === 'move' ? clampMin(task, snapped(d.fromMin + dx * d.minPerPx)) : task.timeMin
+    const estimateMin = d.mode === 'resize' ? clampLen(task, snapped(d.fromLen + dx * d.minPerPx)) : task.estimateMin
     setDrag(prev => ({
       id: task.id,
+      mode: d.mode,
       timeMin,
+      estimateMin,
       spanStart: prev?.spanStart ?? start,
       spanEnd: prev?.spanEnd ?? end,
     }))
   }
 
-  const endDrag = (e: React.PointerEvent<HTMLButtonElement>, commit: boolean) => {
+  const endDrag = (e: React.PointerEvent<HTMLElement>, commit: boolean) => {
     const d = dragRef.current
     if (!d || d.pointerId !== e.pointerId) return
+    e.stopPropagation()
     dragRef.current = null
     if (!d.moved) return
     suppressClick.current = true
-    if (commit && drag && drag.id === d.id && drag.timeMin !== d.fromMin) onMove?.(d.id, drag.timeMin)
+    if (commit && drag && drag.id === d.id) {
+      if (d.mode === 'move' && drag.timeMin !== d.fromMin) onMove?.(d.id, drag.timeMin)
+      const was = tasks.find(t => t.id === d.id)?.estimateMin
+      if (d.mode === 'resize' && drag.estimateMin != null && drag.estimateMin !== was) onResize?.(d.id, drag.estimateMin)
+    }
     setDrag(null)
   }
 
   const onBlockKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, task: TimelineTask) => {
-    if (!onMove || task.done || e.metaKey || e.ctrlKey || e.altKey) return
+    if (task.done || e.metaKey || e.ctrlKey || e.altKey) return
+    if (onResize && (e.key === '[' || e.key === ']')) {
+      // Shorter or longer by 15 minutes, from the length as drawn.
+      e.preventDefault()
+      const len = Math.max(task.estimateMin ?? 0, MIN_BLOCK)
+      const next = clampLen(task, len + (e.key === ']' ? KEY_STEP_MIN : -KEY_STEP_MIN))
+      if (next !== task.estimateMin) onResize(task.id, next)
+      return
+    }
+    if (!onMove) return
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
     e.preventDefault()
     const step = e.shiftKey ? 60 : KEY_STEP_MIN
@@ -282,7 +337,9 @@ export default function DayTimeline({
             const when = task.estimateMin ? formatTimeRange(task.timeMin, task.estimateMin, hour12) : formatTime(task.timeMin, hour12)
             const label = `${when} · ${title}`
             const movable = !!onMove && !task.done
+            const resizable = !!onResize && !task.done
             const dragging = drag?.id === task.id
+            const hints = [movable && 'Left and right arrows move it.', resizable && '[ and ] change its length.'].filter(Boolean).join(' ')
             return (
               <button
                 key={task.id}
@@ -295,14 +352,14 @@ export default function DayTimeline({
                   onSelect(task.id)
                 }}
                 onPointerDown={e => onBlockPointerDown(e, task)}
-                onPointerMove={e => onBlockPointerMove(e, task)}
+                onPointerMove={e => onDragPointerMove(e, task)}
                 onPointerUp={e => endDrag(e, true)}
                 onPointerCancel={e => endDrag(e, false)}
                 onKeyDown={e => onBlockKeyDown(e, task)}
-                title={movable ? `${label} (drag to move)` : label}
+                title={movable && resizable ? `${label} (drag to move, drag the right edge to change length)` : movable ? `${label} (drag to move)` : label}
                 aria-hidden="false"
-                aria-label={movable ? `Go to ${label}. Left and right arrows move it.` : `Go to ${label}`}
-                className={`@container absolute flex items-center overflow-hidden rounded-md ${fill} ${movable ? 'cursor-grab touch-pan-y select-none [-webkit-touch-callout:none]' : ''} ${dragging ? 'z-20 cursor-grabbing shadow-lg ring-2 ring-emerald-500/70 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900' : 'transition-[filter,transform] active:scale-[0.97]'} hover:brightness-95 dark:hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`}
+                aria-label={hints ? `Go to ${label}. ${hints}` : `Go to ${label}`}
+                className={`@container absolute flex items-center overflow-hidden rounded-md ${fill} ${movable || resizable ? 'cursor-grab touch-pan-y select-none [-webkit-touch-callout:none]' : ''} ${dragging ? 'z-20 cursor-grabbing shadow-lg ring-2 ring-emerald-500/70 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900' : 'transition-[filter,transform] active:scale-[0.97]'} hover:brightness-95 dark:hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-900`}
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
@@ -316,19 +373,37 @@ export default function DayTimeline({
                 <span className="hidden min-w-0 truncate pr-1 pl-1.5 text-left text-[10px] leading-none font-medium @min-[2.5rem]:block">
                   {title}
                 </span>
+                {/* The end handle: drag it to change how long the task takes. A
+                    short grip line shows it's there without needing a hover;
+                    hidden on blocks too narrow to also leave room to grab the
+                    block itself. */}
+                {resizable && (
+                  <span
+                    onPointerDown={e => onHandlePointerDown(e, task)}
+                    onPointerMove={e => onDragPointerMove(e, task)}
+                    onPointerUp={e => endDrag(e, true)}
+                    onPointerCancel={e => endDrag(e, false)}
+                    className="group/handle absolute inset-y-0 right-0 hidden w-3 cursor-ew-resize touch-none items-center justify-center @min-[1.5rem]:flex"
+                  >
+                    <span className={`h-3.5 w-0.5 rounded-full bg-current transition-opacity ${dragging && drag?.mode === 'resize' ? 'opacity-70' : 'opacity-30 group-hover/handle:opacity-70'}`} />
+                  </span>
+                )}
               </button>
             )
           })}
-          {/* While dragging, the time the block would land on, above it. */}
+          {/* While dragging, the time the block would land on, above its start
+              (or, while resizing, the new range and length above its end). */}
           {drag && (() => {
             const t = shown.find(x => x.id === drag.id)
             if (!t) return null
+            const at = drag.mode === 'resize' ? t.timeMin + Math.max(t.estimateMin ?? 0, MIN_BLOCK) : t.timeMin
             return (
               <div
                 className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-zinc-900 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white shadow-md dark:bg-white dark:text-zinc-900"
-                style={{ left: `${Math.min(92, Math.max(8, pct(t.timeMin)))}%` }}
+                style={{ left: `${Math.min(88, Math.max(12, pct(at)))}%` }}
               >
                 {t.estimateMin ? formatTimeRange(t.timeMin, t.estimateMin, hour12) : formatTime(t.timeMin, hour12)}
+                {drag.mode === 'resize' && t.estimateMin ? <span className="opacity-60"> · {formatDuration(t.estimateMin)}</span> : null}
               </div>
             )
           })()}

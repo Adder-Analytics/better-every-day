@@ -1046,6 +1046,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add read “1h” or “30 min” at the end of a task as how long it takes, but not “for 1h”. The “for” was left on the title, and it also hid a time typed before it, so “Write report 9am for 1h” became a task called “Write report 9am for” with no time. A leading “for” is now read as part of the length, along with “for an hour”, “for half an hour”, and “1h and 30m”. That entry now becomes “Write report” at 9 AM, 1h long. Without the “for”, words like “an hour” stay in the title. “What you can type” lists the new form.',
     type: 'fix',
   },
+  {
+    day: 131,
+    date: '2026-10-27',
+    title: 'Change a task’s length on the timeline',
+    description:
+      'Blocks on Today’s timeline have a small handle on their right edge. Dragging it changes how long the task takes, snapped to 5 minutes, and the new range and length show above the block while it moves. A task with a start time but no length can be given one this way. A toast confirms the new range and has an Undo button; Ctrl+Z also works. With the keyboard, focus a block and press ] to make it 15 minutes longer or [ to make it 15 minutes shorter. Blocks too narrow to hold a handle and finished tasks are unchanged; their length can still be set from the task in the list.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
