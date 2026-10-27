@@ -631,10 +631,13 @@ export default function Planner() {
   // from "Move N to tomorrow" / "Bring all to today". Each item remembers the day
   // (and Someday flag) it came from, so undo restores exactly that.
   const [moved, setMoved] = useState<{
-    items: { id: string; from: string; someday?: boolean; fromTime?: number }[]
+    items: { id: string; from: string; someday?: boolean; fromTime?: number; fromEstimate?: number }[]
     to: 'today' | 'tomorrow'
     text?: string // the task's title, when a single task moved
     toTime?: number // set when a task was moved to a new time on the same day
+    // Set when a task's length was changed on the timeline: the new length, so
+    // the toast can show the range and undo puts the old one (fromEstimate) back.
+    toEstimate?: number
   } | null>(null)
   const movedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
@@ -698,6 +701,7 @@ export default function Planner() {
     setTasks(prev => prev.map(t => {
       const m = from.get(t.id)
       if (!m) return t
+      if (moved.toEstimate != null) return { ...t, estimateMin: m.fromEstimate }
       return moved.toTime != null
         ? { ...t, timeMin: m.fromTime }
         : { ...t, createdDate: m.from, someday: m.someday }
@@ -1174,6 +1178,23 @@ export default function Planner() {
       to: 'today',
       text: t.text,
       toTime: timeMin,
+    })
+    if (movedTimer.current) clearTimeout(movedTimer.current)
+    movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
+  }
+
+  // Change a task's length from the timeline's edge handle, with the same undo
+  // toast a move gets — a stray drag is one tap (or Ctrl+Z) from undone.
+  const resizeTask = (id: string, estimateMin: number) => {
+    const t = tasks.find(x => x.id === id)
+    if (!t || t.timeMin == null || t.estimateMin === estimateMin) return
+    setEstimate(id, estimateMin)
+    setMoved({
+      items: [{ id, from: t.createdDate, someday: t.someday, fromEstimate: t.estimateMin }],
+      to: 'today',
+      text: t.text,
+      toTime: t.timeMin,
+      toEstimate: estimateMin,
     })
     if (movedTimer.current) clearTimeout(movedTimer.current)
     movedTimer.current = setTimeout(() => setMoved(null), UNDO_WINDOW_MS)
@@ -2023,17 +2044,19 @@ export default function Planner() {
           className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-1.5 pl-4 pr-1.5 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
         >
           <span className="min-w-0 truncate text-xs text-zinc-400 dark:text-zinc-500">
-            Moved{' '}
+            {moved.toEstimate != null ? 'Set' : 'Moved'}{' '}
             <span className="font-medium text-white dark:text-zinc-900">
               {moved.text !== undefined
                 ? `“${stripTags(moved.text)}”`
                 : `${moved.items.length} ${moved.items.length === 1 ? 'task' : 'tasks'}`}
             </span>
-            {' '}to {moved.toTime != null ? formatTime(moved.toTime, hour12) : moved.to}
+            {' '}to {moved.toEstimate != null && moved.toTime != null
+              ? formatTimeRange(moved.toTime, moved.toEstimate, hour12)
+              : moved.toTime != null ? formatTime(moved.toTime, hour12) : moved.to}
           </span>
           <button
             onClick={undoMove}
-            title="Undo move (Ctrl+Z)"
+            title={moved.toEstimate != null ? 'Undo (Ctrl+Z)' : 'Undo move (Ctrl+Z)'}
             className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
           >
             Undo
@@ -2295,6 +2318,7 @@ export default function Planner() {
           onSelect={revealTask}
           onPlan={planAt}
           onMove={moveToTime}
+          onResize={resizeTask}
         />
       )}
 
