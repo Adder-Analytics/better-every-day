@@ -1054,6 +1054,14 @@ export const changelog: ChangelogEntry[] = [
       'Blocks on Today’s timeline have a small handle on their right edge. Dragging it changes how long the task takes, snapped to 5 minutes, and the new range and length show above the block while it moves. A task with a start time but no length can be given one this way. A toast confirms the new range and has an Undo button; Ctrl+Z also works. With the keyboard, focus a block and press ] to make it 15 minutes longer or [ to make it 15 minutes shorter. Blocks too narrow to hold a handle and finished tasks are unchanged; their length can still be set from the task in the list.',
     type: 'feature',
   },
+  {
+    day: 132,
+    date: '2026-10-28',
+    title: 'Say “every Monday” when you add a task',
+    description:
+      'Quick-add read a weekday at the end of a task as a single day, so “Gym every Monday” became a one-off task called “Gym every” on the next Monday, and “Trash every Tue and Fri” landed on Friday with the rest left in the title. Naming weekdays after “every” or “each” now makes a routine on exactly those days, the same as picking them in the repeat menu. Lists can be written “Mon and Thu”, “Mon, Wed & Fri”, or “Tue/Thu”, and “on Mondays” or “on Mon and Thu” work too. All five weekdays become a Weekdays routine and all seven an every-day one. A single “on Friday” is still a day, not a routine. Adding from Week and Month reads the same phrases. “What you can type” lists the new form.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

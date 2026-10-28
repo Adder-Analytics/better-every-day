@@ -894,14 +894,14 @@ export default function Planner() {
   // what the words already say.
   const buildTask = (line: string, preset?: number): Task => {
     const parsed = parseQuickAdd(line)
-    const { date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
+    const { date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
     // Add-in-context: while the day is filtered to a tag, a task added here joins
     // that context automatically, unless the line already carries it. The tag is
     // appended to the stored text (where tags live), after any schedule phrase
     // parseQuickAdd already read, so it never changes how the line was parsed.
     const text =
       activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
     // Someday, either from a typed "someday" (saidSomeday, which already implies
     // no day was read) or the toggle — a real day typed on the line wins over both.
     if (!date && (saidSomeday || addFor === 'someday')) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
@@ -963,8 +963,8 @@ export default function Planner() {
   // its own thing, added the same way whatever the day's slice happens to be, so
   // "Add to today" always means today. A short toast confirms the batch.
   const buildListTask = (line: string): Task => {
-    const { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parseQuickAdd(line)
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, estimateMin, timeMin, dueDate, priority }
+    const { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parseQuickAdd(line)
+    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
     if (!date && saidSomeday) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     return { ...newTask(text, date ?? todayStr()), estimateMin, timeMin, dueDate, priority }
   }

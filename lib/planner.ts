@@ -1087,6 +1087,7 @@ export type QuickAdd = {
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
   repeatEvery?: number // the N of an 'interval' ("every 3 days") or 'perWeek' ("3 times a week") recurrence
+  repeatDays?: number[] // the weekdays of a 'days' recurrence ("every Mon and Thu"), 0 = Sun … 6 = Sat
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
@@ -1126,6 +1127,34 @@ function parseTrailingInterval(text: string): { text: string; every: number } | 
     if (stripped && n >= 2 && n <= 365) return { text: stripped, every: n }
   }
   return null
+}
+
+// Trailing named-weekday recurrences: "every Monday", "each Tue and Thu",
+// "every Mon, Wed & Fri", "on Mondays and Thursdays". These name a 'days'
+// routine on exactly those weekdays, so they're read before the plain weekday
+// date ("Friday"), which would otherwise take the last name as a one-off day and
+// leave "every Mon Wed" in the title. A single name only counts after "every" or
+// "each" — or in the plural after "on" — so "Call mom on Friday" is still a day.
+const DOW_WORD = '(?:sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)'
+const DOW_LIST = `${DOW_WORD}s?(?:(?:\\s*[,/&]\\s*|\\s*,?\\s+and\\s+|\\s+)${DOW_WORD}s?)*`
+const EVERY_DAYS_RE = new RegExp(`\\s+(?:every|each)\\s+(${DOW_LIST})\\.?\\s*$`, 'i')
+const ON_DAYS_RE = new RegExp(`\\s+on\\s+(${DOW_LIST})\\.?\\s*$`, 'i')
+const WEEKDAY_FULL_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// Strip a trailing named-weekday recurrence and resolve it to a weekday set.
+// "on …" needs a plural or a list ("on Mondays", "on Mon and Thu") so a plain
+// "on Monday" stays a date.
+// Returns null when nothing is recognized or when stripping would empty the title.
+function parseTrailingWeekdays(text: string): { text: string; days: number[] } | null {
+  const every = text.match(EVERY_DAYS_RE)
+  const m = every ?? text.match(ON_DAYS_RE)
+  if (!m) return null
+  const words = m[1].match(new RegExp(DOW_WORD, 'gi')) ?? []
+  if (!every && words.length < 2 && !/days$/i.test(m[1])) return null
+  const stripped = text.slice(0, m.index).trim()
+  if (!stripped) return null
+  const days = [...new Set(words.map(w => DOW3[w.slice(0, 3).toLowerCase()]))].sort((a, b) => a - b)
+  return days.length ? { text: stripped, days } : null
 }
 
 // Trailing times-a-week phrases: "3 times a week", "twice a week", "once per
@@ -1520,6 +1549,7 @@ export function parseQuickAdd(input: string): QuickAdd {
 
   let repeat: RepeatRule | undefined
   let repeatEvery: number | undefined
+  let repeatDays: number[] | undefined
   let repeatLabel = ''
   let date: string | undefined
   let dueDate: string | undefined
@@ -1586,6 +1616,26 @@ export function parseQuickAdd(input: string): QuickAdd {
         repeat = 'interval'
         repeatEvery = interval.every
         repeatLabel = formatInterval(interval.every)
+        continue
+      }
+      // Named weekdays ("every Mon and Thu") make a routine on just those days;
+      // a set that matches a fixed cadence takes that rule instead.
+      const named = parseTrailingWeekdays(text)
+      if (named) {
+        text = named.text
+        const key = named.days.join(',')
+        if (named.days.length === 7) {
+          repeat = 'daily'
+          repeatLabel = 'Every day'
+        } else if (key === '1,2,3,4,5') {
+          repeat = 'weekdays'
+          repeatLabel = 'Weekdays'
+        } else {
+          repeat = 'days'
+          repeatDays = named.days
+          const set = formatRepeatDays(named.days)
+          repeatLabel = named.days.length === 1 ? `Every ${WEEKDAY_FULL_NAMES[named.days[0]]}` : set === 'Weekends' ? set : `Every ${set}`
+        }
         continue
       }
       const hit = REPEAT_PHRASES.find(({ re }) => {
@@ -1680,7 +1730,7 @@ export function parseQuickAdd(input: string): QuickAdd {
         ? { kind: 'someday', label: 'Someday' }
         : undefined
 
-  return { text, date, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
+  return { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
 }
 
 // --- Backup & restore ---------------------------------------------------------
