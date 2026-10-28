@@ -145,11 +145,11 @@ export default function WeekView() {
   const addForDay = (date: string) => {
     const draft = (drafts[date] ?? '').trim()
     if (!draft) return
-    const { text, date: typedDate, repeat, estimateMin, timeMin } = parseQuickAdd(draft)
+    const { text, date: typedDate, repeat, repeatEvery, repeatDays, estimateMin, timeMin } = parseQuickAdd(draft)
     if (!text) return
     const base = newTask(text, repeat ? date : typedDate ?? date)
     const task: Task = repeat
-      ? { ...base, repeat, estimateMin, timeMin }
+      ? { ...base, repeat, repeatEvery, repeatDays, estimateMin, timeMin }
       : { ...base, estimateMin, timeMin }
     setTasks(prev => [...prev, task])
     setDrafts(prev => ({ ...prev, [date]: '' }))

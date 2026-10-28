@@ -169,12 +169,12 @@ export default function MonthView() {
   const addForDay = () => {
     const text0 = draft.trim()
     if (!text0) return
-    const { text, date: typedDate, repeat, repeatEvery, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(text0)
+    const { text, date: typedDate, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(text0)
     if (!text) return
     const base = newTask(text, repeat ? selected : typedDate ?? selected)
     const task: Task = {
       ...base,
-      ...(repeat ? { repeat, repeatEvery } : {}),
+      ...(repeat ? { repeat, repeatEvery, repeatDays } : {}),
       ...(estimateMin != null ? { estimateMin } : {}),
       ...(timeMin != null ? { timeMin } : {}),
       ...(dueDate ? { dueDate } : {}),
