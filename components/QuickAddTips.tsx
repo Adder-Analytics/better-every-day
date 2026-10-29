@@ -41,6 +41,7 @@ const GROUPS: Group[] = [
     title: 'Add a deadline or repeat',
     tips: [
       { example: 'due Friday', does: 'a deadline to hit' },
+      { example: 'by Friday', does: 'the same, said plainly' },
       { example: 'every day', does: 'a daily routine' },
       { example: 'weekdays', does: 'Monday to Friday' },
       { example: 'every Mon and Thu', does: 'on the days you name' },
