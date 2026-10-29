@@ -1062,6 +1062,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add read a weekday at the end of a task as a single day, so “Gym every Monday” became a one-off task called “Gym every” on the next Monday, and “Trash every Tue and Fri” landed on Friday with the rest left in the title. Naming weekdays after “every” or “each” now makes a routine on exactly those days, the same as picking them in the repeat menu. Lists can be written “Mon and Thu”, “Mon, Wed & Fri”, or “Tue/Thu”, and “on Mondays” or “on Mon and Thu” work too. All five weekdays become a Weekdays routine and all seven an every-day one. A single “on Friday” is still a day, not a routine. Adding from Week and Month reads the same phrases. “What you can type” lists the new form.',
     type: 'fix',
   },
+  {
+    day: 133,
+    date: '2026-10-29',
+    title: 'Say “by Friday” for a deadline',
+    description:
+      'Quick-add read a deadline only after the word “due”, so “Taxes by Friday” became a task called “Taxes by” placed on Friday instead of a deadline. “by” and “due by” before a date are now read the same as “due”: the task stays on today with a “due Fri” chip, and “by” is taken off the title. This works with any date the add box understands (“by tomorrow”, “by Apr 15”, “by today”, “by in 3 days”). After “stop”, “swing”, “drop”, “come”, “pop”, and similar words, “by” means a visit, so “Stop by Friday” still puts the task on Friday. “What you can type” lists the new form.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

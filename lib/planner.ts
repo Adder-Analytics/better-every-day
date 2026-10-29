@@ -1296,21 +1296,36 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
 // "due in 3 days". It reuses the date grammar above, but only fires when the
 // word "due" sits right before the date — so a plain trailing date ("Dentist
 // Aug 20") still schedules the task onto that day, while "Submit report due Aug
-// 20" leaves the task on today and reads Aug 20 as its deadline. Tried before
-// the plain-date pass in the parse loop so the "due" case wins. Returns null
-// when no "due" precedes a date, or when stripping would leave no title.
+// 20" leaves the task on today and reads Aug 20 as its deadline. "by" and "due
+// by" read the same way ("Taxes by Friday"), except after a verb that makes
+// "by" mean a visit ("Stop by Friday", "Swing by Aug 20"), where the date stays
+// the task's day. Tried before the plain-date pass in the parse loop so the
+// deadline case wins. Returns null when no "due" or "by" precedes a date, or
+// when stripping would leave no title.
+const DUE_WORD_RE = /^(.+?)\s+(?:due(?:\s+by)?|by)$/i
+const VISIT_BY_RE = /\b(?:stop|stopping|swing|swinging|drop|dropping|come|coming|pop|popping|pass|passing|stand|standing|go|going|walk|walking|drive|driving)$/i
+function dueTitle(before: string): string | null {
+  const m = before.match(DUE_WORD_RE)
+  if (!m) return null
+  const title = m[1].trim()
+  if (!title) return null
+  // "Stop by Friday" is a visit on Friday, not a deadline — only "due" itself
+  // overrides that ("Stop by due Friday" is still a deadline).
+  if (!/\bdue(?:\s+by)?$/i.test(before) && VISIT_BY_RE.test(title)) return null
+  return title
+}
 function parseTrailingDue(text: string): { text: string; date: string } | null {
   // "due today" — the date grammar has no bare "today", so it's handled here.
-  const today = text.match(/\s+due\s+today\.?\s*$/i)
+  const today = text.match(/\s+today\.?\s*$/i)
   if (today) {
-    const stripped = text.slice(0, today.index).trim()
-    if (stripped) return { text: stripped, date: todayStr() }
+    const title = dueTitle(text.slice(0, today.index))
+    if (title) return { text: title, date: todayStr() }
   }
   const parsed = parseTrailingDate(text)
   if (!parsed) return null
-  // The date is only a deadline if "due" is the word left right before it.
-  const withDue = parsed.text.match(/^(.+?)\s+due$/i)
-  if (withDue && withDue[1].trim()) return { text: withDue[1].trim(), date: parsed.date }
+  // The date is only a deadline if "due" or "by" is the word left right before it.
+  const title = dueTitle(parsed.text)
+  if (title) return { text: title, date: parsed.date }
   return null
 }
 
