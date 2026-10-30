@@ -1070,6 +1070,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add read a deadline only after the word “due”, so “Taxes by Friday” became a task called “Taxes by” placed on Friday instead of a deadline. “by” and “due by” before a date are now read the same as “due”: the task stays on today with a “due Fri” chip, and “by” is taken off the title. This works with any date the add box understands (“by tomorrow”, “by Apr 15”, “by today”, “by in 3 days”). After “stop”, “swing”, “drop”, “come”, “pop”, and similar words, “by” means a visit, so “Stop by Friday” still puts the task on Friday. “What you can type” lists the new form.',
     type: 'fix',
   },
+  {
+    day: 134,
+    date: '2026-10-30',
+    title: 'Start the week on Monday',
+    description:
+      'Weeks always began on Sunday. They now begin on the first day your browser’s language and region use, and a “Week starts Sun / Mon” switch under the Month calendar changes it; the command menu has the same choice. The setting applies to the Month grid, the History calendar, the weekly review, the weekday picker in the repeat menu, and the count for “times a week” routines. A weekly review note written before the change still shows on the week it was written for. Nothing in your saved tasks changes.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

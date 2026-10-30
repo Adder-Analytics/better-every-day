@@ -3,8 +3,9 @@
 // already keeps (nothing is stored differently) and assembles it into one
 // reflective page — how the week went, how it compares to the week before,
 // which routines held, and what's still open — so the week can be closed out
-// and the next one set up. Weeks run Sunday–Saturday, matching the app's
-// activity calendar; a week is named by its Sunday (YYYY-MM-DD).
+// and the next one set up. Weeks start on Sunday or Monday (the week-start
+// preference), matching the app's activity calendar; a week is named by its
+// first day (YYYY-MM-DD).
 
 import {
   type Task,
@@ -36,14 +37,15 @@ export function shiftDate(dateStr: string, n: number): string {
   return fmt(dt)
 }
 
-// The Sunday on or before a date — the start of the week that contains it.
-export function weekStartOf(dateStr: string): string {
+// The first day of the week that contains a date: the Sunday on or before it,
+// or the Monday when `weekStart` is 1.
+export function weekStartOf(dateStr: string, weekStart = 0): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dow = new Date(y, m - 1, d).getDay() // 0 = Sun … 6 = Sat
-  return shiftDate(dateStr, -dow)
+  return shiftDate(dateStr, -((dow - weekStart + 7) % 7))
 }
 
-// The seven dates of a week (Sun … Sat), given its Sunday.
+// The seven dates of a week, given its first day.
 export function weekDates(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => shiftDate(weekStart, i))
 }
@@ -84,11 +86,11 @@ export type RoutineWeek = {
 // caller passes it and the view shows it only for the week containing today.
 export type WeekReview = {
   weekStart: string
-  dates: string[] // the seven Sun…Sat dates
+  dates: string[] // the week's seven dates, from its first day
   counts: number[] // tasks completed on each of those dates
   total: number // tasks completed across the week
   activeDays: number // days in the week with at least one completion
-  busiestIndex: number | null // 0 = Sun … 6 = Sat, null when nothing was done
+  busiestIndex: number | null // an index into `dates`, null when nothing was done
   busiestCount: number
   // Completions in the week before, counted over the same number of elapsed
   // days as this week — so a week still in progress compares fairly against the
