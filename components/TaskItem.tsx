@@ -4,6 +4,7 @@ import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
 import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
+import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
 import { extractTags, stripTags } from '@/lib/tags'
 import { hasLink, splitLinks, linkHostname } from '@/lib/links'
@@ -460,6 +461,7 @@ export default function TaskItem({
   const tags = extractTags(task.text)
   const displayText = stripTags(task.text)
   const hour12 = useHour12()
+  const weekStart = useWeekStart()
   // A timed task that also carries an estimate reads as a window ("9 – 11 AM")
   // rather than just its start; without one, it's simply the start time.
   const timeLabel =
@@ -1351,7 +1353,8 @@ export default function TaskItem({
           <div className="mt-1 border-t border-zinc-100 dark:border-zinc-800 px-1.5 pt-2 pb-1">
             <p className="mb-1.5 px-1 text-[11px] font-medium text-zinc-400">On specific days</p>
             <div className="flex justify-between gap-0.5">
-              {WEEKDAY_ABBR.map((abbr, day) => {
+              {weekdayOrder(weekStart).map(day => {
+                const abbr = WEEKDAY_ABBR[day]
                 const on = repeatDays.includes(day)
                 return (
                   <button

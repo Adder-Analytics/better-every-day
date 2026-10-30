@@ -11,6 +11,7 @@ import {
   weekReview,
 } from '@/lib/review'
 import { loadWeekNotes, setWeekNote } from '@/lib/weeknotes'
+import { useWeekStart } from '@/lib/weekstart'
 import NoteText from '@/components/NoteText'
 
 const emptySubscribe = () => () => {}
@@ -23,6 +24,12 @@ function useHydrated(): boolean {
 
 const WEEKDAY_LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// The weekday (0 = Sun … 6 = Sat) of a YYYY-MM-DD date, from its parts.
+function dowOf(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).getDay()
+}
 
 // Chevrons for stepping between weeks.
 function ChevronLeft({ className }: { className?: string }) {
@@ -94,7 +101,7 @@ function Comparison({ total, prevTotal }: { total: number; prevTotal: number }) 
   )
 }
 
-// The seven-day bar strip for the selected week (Sun … Sat). Its own view of a
+// The seven-day bar strip for the selected week, from its first day. Its own view of a
 // single calendar week — the home page's strip is a rolling last-seven-days.
 function WeekBars({ review, isCurrent, todayDate }: { review: WeekReview; isCurrent: boolean; todayDate: string }) {
   const max = Math.max(1, ...review.counts)
@@ -104,12 +111,13 @@ function WeekBars({ review, isCurrent, todayDate }: { review: WeekReview; isCurr
         const count = review.counts[i]
         const future = date > todayDate
         const isToday = date === todayDate
+        const dow = dowOf(date)
         const heightPct = count === 0 ? 0 : Math.max((count / max) * 100, 14)
         return (
           <div key={date} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
             <div
               className="relative w-full flex-1"
-              title={future ? `${WEEKDAY_FULL[i]} — still ahead` : `${count} task${count === 1 ? '' : 's'} on ${WEEKDAY_FULL[i]}`}
+              title={future ? `${WEEKDAY_FULL[dow]} — still ahead` : `${count} task${count === 1 ? '' : 's'} on ${WEEKDAY_FULL[dow]}`}
             >
               {count === 0 ? (
                 <div className={`absolute bottom-0 w-full h-1 rounded-full ${future ? 'bg-zinc-100/70 dark:bg-zinc-800/60' : 'bg-zinc-100 dark:bg-zinc-800'}`} />
@@ -123,7 +131,7 @@ function WeekBars({ review, isCurrent, todayDate }: { review: WeekReview; isCurr
               )}
             </div>
             <span className={`text-[10px] tabular-nums ${isCurrent && isToday ? 'text-zinc-600 dark:text-zinc-300 font-semibold' : 'text-zinc-400'}`}>
-              {WEEKDAY_LETTER[i]}
+              {WEEKDAY_LETTER[dow]}
             </span>
           </div>
         )
@@ -164,11 +172,12 @@ function RoutineRow({ text, done, due, streak, showStreak }: { text: string; don
 export default function ReviewView() {
   const hydrated = useHydrated()
   const today = todayStr()
+  const weekStartDay = useWeekStart()
 
   // Which week is shown, as an offset in weeks from the current one (0 = this
   // week, −1 = last week …). Stepping never goes past the current week.
   const [offset, setOffset] = useState(0)
-  const weekStart = shiftDate(weekStartOf(today), offset * 7)
+  const weekStart = shiftDate(weekStartOf(today, weekStartDay), offset * 7)
   const isCurrent = offset === 0
 
   // Loaded in the initializer (guarded for SSR), the way the planner and
@@ -203,10 +212,15 @@ export default function ReviewView() {
   }
 
   const review = weekReview(tasks, weekStart, today)
-  const note = notes[weekStart] ?? ''
+  // Notes are keyed by the week's first day. A note written while weeks started
+  // on the other day sits one day off; it's still this week's, so it's read
+  // (and kept) under its original key.
+  const altKey = shiftDate(weekStart, weekStartDay === 1 ? -1 : 1)
+  const noteKey = notes[weekStart] == null && notes[altKey] != null ? altKey : weekStart
+  const note = notes[noteKey] ?? ''
 
   const startEdit = () => { setDraft(note); setEditing(true) }
-  const saveNote = () => { setNotes(prev => setWeekNote(prev, weekStart, draft)); setEditing(false) }
+  const saveNote = () => { setNotes(prev => setWeekNote(prev, noteKey, draft)); setEditing(false) }
   const cancelNote = () => { setDraft(note); setEditing(false) }
 
   // Still-open one-off tasks that will carry into next week — the loose ends to
@@ -215,7 +229,8 @@ export default function ReviewView() {
     ? tasks.filter(t => !t.repeat && !t.someday && !t.done && t.createdDate <= today).length
     : 0
 
-  const busy = review.busiestIndex != null ? WEEKDAY_ABBR[review.busiestIndex] : '—'
+  const busiestDow = review.busiestIndex != null ? dowOf(review.dates[review.busiestIndex]) : null
+  const busy = busiestDow != null ? WEEKDAY_ABBR[busiestDow] : '—'
   const nothing = review.total === 0 && review.routines.length === 0
 
   return (
@@ -275,8 +290,8 @@ export default function ReviewView() {
                 value={busy}
                 label="busiest day"
                 title={
-                  review.busiestIndex != null
-                    ? `${WEEKDAY_FULL[review.busiestIndex]} carried the most — ${review.busiestCount} task${review.busiestCount === 1 ? '' : 's'}`
+                  busiestDow != null
+                    ? `${WEEKDAY_FULL[busiestDow]} carried the most — ${review.busiestCount} task${review.busiestCount === 1 ? '' : 's'}`
                     : 'The day you completed the most tasks'
                 }
               />

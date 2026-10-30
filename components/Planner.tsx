@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
+import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
 import { tasksToICS, icsFilename } from '@/lib/calendar'
 import DayPrintSheet from '@/components/DayPrintSheet'
@@ -504,6 +505,7 @@ export default function Planner() {
   const mounted = useHydrated()
   const nowMin = useCurrentMin()
   const hour12 = useHour12()
+  const weekStart = useWeekStart()
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
@@ -1932,6 +1934,13 @@ export default function Planner() {
         </svg>
       ),
       run: () => timeFormatStore.set(hour12 ? '24' : '12'),
+    },
+    {
+      id: 'week-start',
+      label: weekStart === 1 ? 'Start the week on Sunday' : 'Start the week on Monday',
+      keywords: 'week start first day monday sunday calendar month review',
+      icon: <CalendarDaysIcon className="h-4 w-4" />,
+      run: () => weekStartStore.set(weekStart === 1 ? 0 : 1),
     },
     ...(todayTasks.length > 0
       ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]

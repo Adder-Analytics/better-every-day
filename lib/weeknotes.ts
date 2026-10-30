@@ -2,7 +2,7 @@
 // counterpart to the per-day note: a place to write how the week went, what to
 // carry forward, or a line worth keeping before the next week starts. Stored
 // apart from the planner under its own key, so it never touches task data, and
-// keyed by the week's Sunday (YYYY-MM-DD) so each week gets its own.
+// keyed by the week's first day (YYYY-MM-DD) so each week gets its own.
 
 const STORAGE_KEY = 'bed-weeknotes'
 const NOTES_VERSION = 1

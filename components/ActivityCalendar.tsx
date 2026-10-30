@@ -2,6 +2,7 @@
 
 import type { Task } from '@/lib/planner'
 import { activityCalendar, formatPastDayLabel } from '@/lib/planner'
+import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 
 const WEEKDAY = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const WEEKS = 5
@@ -30,7 +31,8 @@ function level(count: number): number {
 // shaded by how much got done. Read-only — it shows what the planner already
 // remembers and never writes anything.
 export default function ActivityCalendar({ tasks }: { tasks: Task[] }) {
-  const weeks = activityCalendar(tasks, WEEKS)
+  const weekStart = useWeekStart()
+  const weeks = activityCalendar(tasks, WEEKS, undefined, weekStart)
   const cells = weeks.flat()
   const total = cells.reduce((sum, c) => sum + c.count, 0)
 
@@ -51,9 +53,9 @@ export default function ActivityCalendar({ tasks }: { tasks: Task[] }) {
 
       {/* Weekday guides, aligned to the columns below. */}
       <div className="grid grid-cols-7 gap-1.5 mb-1.5">
-        {WEEKDAY.map((w, i) => (
-          <span key={i} className="text-center text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
-            {w}
+        {weekdayOrder(weekStart).map(dow => (
+          <span key={dow} className="text-center text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
+            {WEEKDAY[dow]}
           </span>
         ))}
       </div>

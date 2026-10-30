@@ -22,6 +22,8 @@ import {
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
+import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
+import WeekStartToggle from '@/components/WeekStartToggle'
 import { extractTags, stripTags } from '@/lib/tags'
 import TagChip from '@/components/TagChip'
 
@@ -106,6 +108,7 @@ const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 export default function MonthView() {
   const mounted = useHydrated()
   const hour12 = useHour12()
+  const weekStart = useWeekStart()
   const [tasks, setTasks] = useState<Task[]>(() =>
     typeof window === 'undefined' ? [] : loadPlanner().tasks
   )
@@ -125,10 +128,10 @@ export default function MonthView() {
     savePlanner({ version: PLANNER_VERSION, tasks })
   }, [tasks])
 
-  // The 42 cells (six weeks, Sunday-first) that cover the shown month with its
-  // leading and trailing days from the neighbouring months.
-  const firstDow = new Date(view.y, view.m - 1, 1).getDay()
-  const gridStart = new Date(view.y, view.m - 1, 1 - firstDow)
+  // The 42 cells (six weeks, starting on the preferred weekday) that cover the
+  // shown month with its leading and trailing days from the neighbouring months.
+  const lead = (new Date(view.y, view.m - 1, 1).getDay() - weekStart + 7) % 7
+  const gridStart = new Date(view.y, view.m - 1, 1 - lead)
   const cells = Array.from({ length: 42 }, (_, i) => {
     const d = new Date(gridStart)
     d.setDate(gridStart.getDate() + i)
@@ -247,9 +250,9 @@ export default function MonthView() {
 
       {/* Weekday header */}
       <div className="grid grid-cols-7 gap-1 px-0.5 text-center">
-        {WEEKDAY_INITIALS.map((w, i) => (
-          <div key={i} className={`text-[11px] font-medium ${i === 0 || i === 6 ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400'}`}>
-            {w}
+        {weekdayOrder(weekStart).map(dow => (
+          <div key={dow} className={`text-[11px] font-medium ${dow === 0 || dow === 6 ? 'text-zinc-300 dark:text-zinc-600' : 'text-zinc-400'}`}>
+            {WEEKDAY_INITIALS[dow]}
           </div>
         ))}
       </div>
@@ -307,12 +310,15 @@ export default function MonthView() {
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px] text-zinc-400">
-        <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" /> task</span>
-        <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-400 dark:bg-sky-500" /> routine</span>
-        <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> important</span>
-        <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full ring-1 ring-rose-400 dark:ring-rose-500" /> deadline</span>
+      {/* Legend, and which day the week starts on */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" /> task</span>
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-400 dark:bg-sky-500" /> routine</span>
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> important</span>
+          <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full ring-1 ring-rose-400 dark:ring-rose-500" /> deadline</span>
+        </div>
+        <WeekStartToggle />
       </div>
 
       {/* Selected-day detail */}

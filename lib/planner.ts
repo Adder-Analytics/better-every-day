@@ -1,3 +1,5 @@
+import { weekStartsOn } from './weekstart'
+
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
 // chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
 // day-of-month it was created (clamped to a short month's last day); 'yearly'
@@ -548,12 +550,12 @@ export function isDueOn(task: Task, dateStr: string): boolean {
   return weekdayOf(task.createdDate) === dow
 }
 
-// The Sunday that starts the week containing a date — the same Sunday-to-Saturday
-// week the weekly review uses.
+// The first day (Sunday or Monday, by the week-start preference) of the week
+// containing a date — the same week the weekly review uses.
 function weekStartStr(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
-  dt.setDate(dt.getDate() - dt.getDay())
+  dt.setDate(dt.getDate() - ((dt.getDay() - weekStartsOn() + 7) % 7))
   return fmtDate(dt)
 }
 
@@ -562,8 +564,8 @@ export function perWeekTarget(task: Task): number {
   return Math.min(6, Math.max(1, Math.round(task.repeatEvery ?? 3)))
 }
 
-// How many times a routine was completed in the Sunday-to-Saturday week that
-// contains the given date.
+// How many times a routine was completed in the week (as the week-start
+// preference lays it out) that contains the given date.
 export function weekCompletions(task: Task, dateStr: string): number {
   const start = weekStartStr(dateStr)
   const end = addDays(start, 6)
@@ -949,16 +951,17 @@ export function weekActivity(tasks: Task[]): { date: string; count: number }[] {
 // it, and flags for the two special cells the grid renders differently.
 export type CalendarCell = { date: string; count: number; isToday: boolean; isFuture: boolean }
 
-// A calendar grid of the last `weeks` weeks, laid out Sunday-first and ending
-// with the week containing today. Rows are weeks (oldest first), each a run of
-// seven cells; days past today fill out the final week as `isFuture` blanks.
-// Built from parts so weekday alignment is correct in every timezone.
-export function activityCalendar(tasks: Task[], weeks = 5, today: string = todayStr()): CalendarCell[][] {
+// A calendar grid of the last `weeks` weeks, laid out from `weekStart` (0 =
+// Sunday-first, 1 = Monday-first) and ending with the week containing today.
+// Rows are weeks (oldest first), each a run of seven cells; days past today fill
+// out the final week as `isFuture` blanks. Built from parts so weekday
+// alignment is correct in every timezone.
+export function activityCalendar(tasks: Task[], weeks = 5, today: string = todayStr(), weekStart = 0): CalendarCell[][] {
   const counts = completionCounts(tasks)
   const [ty, tm, td] = today.split('-').map(Number)
-  // Saturday that closes today's week — the last cell of the grid's final row.
+  // The day that closes today's week — the last cell of the grid's final row.
   const end = new Date(ty, tm - 1, td)
-  end.setDate(end.getDate() + (6 - end.getDay()))
+  end.setDate(end.getDate() + (6 - ((end.getDay() - weekStart + 7) % 7)))
   const cursor = new Date(end)
   cursor.setDate(end.getDate() - (weeks * 7 - 1))
   const rows: CalendarCell[][] = []
