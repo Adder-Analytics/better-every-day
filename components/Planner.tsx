@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -642,6 +642,11 @@ export default function Planner() {
     toEstimate?: number
   } | null>(null)
   const movedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // A title edit that also set a schedule ("Call dentist 3pm tomorrow"): the
+  // task as it was before, and a plain note of what changed, held for the undo
+  // window so a phrase read by surprise is one tap from undone.
+  const [edited, setEdited] = useState<{ before: Task; text: string; summary: string } | null>(null)
+  const editedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
@@ -716,6 +721,16 @@ export default function Planner() {
   useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current) }, [])
   useEffect(() => () => { if (movedTimer.current) clearTimeout(movedTimer.current) }, [])
 
+  // Put a task back exactly as it was before a title edit that set a schedule.
+  const undoEdit = useCallback((): boolean => {
+    if (!edited) return false
+    setTasks(prev => prev.map(t => (t.id === edited.before.id ? edited.before : t)))
+    setEdited(null)
+    if (editedTimer.current) clearTimeout(editedTimer.current)
+    return true
+  }, [edited])
+  useEffect(() => () => { if (editedTimer.current) clearTimeout(editedTimer.current) }, [])
+
   // Jump to a task found in search: leave focus mode (so the full list is on
   // screen), scroll the row into view, and flash it so the eye lands on it.
   // The flash lifts on its own after a moment. A short delay lets the list
@@ -784,7 +799,7 @@ export default function Planner() {
       // move) while its undo window is open. Inputs are already excluded
       // above, so their native undo still works.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        if (undoDelete() || undoMove()) e.preventDefault()
+        if (undoDelete() || undoEdit() || undoMove()) e.preventDefault()
         return
       }
 
@@ -853,7 +868,7 @@ export default function Planner() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [focusMode, undoDelete, undoMove])
+  }, [focusMode, undoDelete, undoEdit, undoMove])
 
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
@@ -1250,8 +1265,27 @@ export default function Planner() {
     )
   }
 
+  // Save an edited title. Phrases the add box understands are read here too, so
+  // typing "3pm", "tomorrow", "for 1h", "by Fri", or "!" while editing sets that
+  // instead of sitting in the title. When something beyond the words changed, a
+  // toast names it and offers Undo.
   const editTask = (id: string, text: string) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, text } : t)))
+    const t = tasks.find(x => x.id === id)
+    if (!t) return
+    const edit = readTitleEdit(t, text)
+    setTasks(prev => prev.map(x => (x.id === id ? applyTitleEdit(x, edit) : x)))
+    if (!edit.applied) return
+    setEdited({ before: t, text: edit.text, summary: describeTitleEdit(edit.applied, hour12) })
+    if (editedTimer.current) clearTimeout(editedTimer.current)
+    editedTimer.current = setTimeout(() => setEdited(null), UNDO_WINDOW_MS)
+    if (edit.applied.date || edit.applied.someday || edit.applied.repeat) {
+      setRevealId(id)
+      setTimeout(() => {
+        document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }, 60)
+      if (revealTimer.current) clearTimeout(revealTimer.current)
+      revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+    }
   }
 
   const editNote = (id: string, note: string) => {
@@ -2046,7 +2080,7 @@ export default function Planner() {
     {/* Move confirmation — a swiped task or a bulk move — with the way back.
         Same home as the others; a delete's undo takes precedence while both
         are live. */}
-    {moved && deleted.length === 0 && !copied && (
+    {moved && deleted.length === 0 && !copied && !edited && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2074,7 +2108,32 @@ export default function Planner() {
       </div>
     )}
 
-    {listAdded !== null && deleted.length === 0 && !copied && !moved && (
+    {/* Edit confirmation — a title edit that also set a time, day, length,
+        deadline, or star — with the way back. Shares the bottom-center home. */}
+    {edited && deleted.length === 0 && !copied && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-1.5 pl-4 pr-1.5 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          <span className="min-w-0 truncate text-xs text-zinc-400 dark:text-zinc-500">
+            Set{' '}
+            <span className="font-medium text-white dark:text-zinc-900">“{stripTags(edited.text)}”</span>
+            {' '}to{' '}
+            <span className="font-medium text-white dark:text-zinc-900">{edited.summary}</span>
+          </span>
+          <button
+            onClick={undoEdit}
+            title="Undo edit (Ctrl+Z)"
+            className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    )}
+
+    {listAdded !== null && deleted.length === 0 && !copied && !moved && !edited && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2095,7 +2154,7 @@ export default function Planner() {
         the tap, so a phone raises its keyboard) and then scrolls it into view.
         Steps aside for the bottom toasts and while a field is being typed in. */}
     {(() => {
-      const show = !!addRowEl && addOffscreen && !typing && deleted.length === 0 && !copied && !moved && listAdded === null
+      const show = !!addRowEl && addOffscreen && !typing && deleted.length === 0 && !copied && !moved && !edited && listAdded === null
       return (
         <button
           type="button"

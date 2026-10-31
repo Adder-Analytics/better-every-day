@@ -1078,6 +1078,14 @@ export const changelog: ChangelogEntry[] = [
       'Weeks always began on Sunday. They now begin on the first day your browser’s language and region use, and a “Week starts Sun / Mon” switch under the Month calendar changes it; the command menu has the same choice. The setting applies to the Month grid, the History calendar, the weekly review, the weekday picker in the repeat menu, and the count for “times a week” routines. A weekly review note written before the change still shows on the week it was written for. Nothing in your saved tasks changes.',
     type: 'feature',
   },
+  {
+    day: 135,
+    date: '2026-10-31',
+    title: 'Edit a task the way you add one',
+    description:
+      'Editing a task’s title now reads the same phrases as the add box. Changing “Call dentist” to “Call dentist 3pm tomorrow” gives it a 3 PM time and moves it to tomorrow, instead of keeping those words in the title. Times, lengths, days, “someday”, deadlines (“by Fri”), repeats (“every Monday”), and a trailing “!” all work. While you edit, a line under the title shows what will be set. After saving, a toast names the change and has an Undo button; Ctrl+Z also works. A phrase is only read if the old title did not already say it, so fixing a typo in an older title leaves it as it was. A routine keeps its own days, so naming a day on one leaves the title as typed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

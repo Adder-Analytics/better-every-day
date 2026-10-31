@@ -143,7 +143,7 @@ export default function QuickAddTips() {
           <p className="border-t border-zinc-100 dark:border-zinc-800 px-3.5 py-2.5 text-[11px] text-zinc-400 dark:text-zinc-500">
             These stack, in any order —{' '}
             <code className="font-mono text-zinc-500 dark:text-zinc-300">Report tomorrow 2pm 30m #work !</code>{' '}
-            reads all of it at once.
+            reads all of it at once. They also work when you edit a task’s title.
           </p>
         </div>
       )}
