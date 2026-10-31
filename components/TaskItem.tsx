@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
@@ -461,6 +461,9 @@ export default function TaskItem({
   const tags = extractTags(task.text)
   const displayText = stripTags(task.text)
   const hour12 = useHour12()
+  // What saving the title being edited would set beyond its words, if anything.
+  const editApplied = editing ? readTitleEdit(task, editText).applied : null
+  const editPreview = editApplied ? describeTitleEdit(editApplied, hour12) : ''
   const weekStart = useWeekStart()
   // A timed task that also carries an estimate reads as a window ("9 – 11 AM")
   // rather than just its start; without one, it's simply the start time.
@@ -916,6 +919,16 @@ export default function TaskItem({
               )
             )}
           </div>
+
+          {/* While editing, what the new title will also set — the same phrases
+              the add box reads ("3pm", "tomorrow", "for 1h", "by Fri", "!") —
+              so it's clear before saving that they won't stay in the title. */}
+          {editing && editPreview && (
+            <div className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              <CalendarIcon className="h-3 w-3 flex-shrink-0" />
+              <span className="min-w-0 truncate">Sets {editPreview}</span>
+            </div>
+          )}
 
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on

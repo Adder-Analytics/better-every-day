@@ -1751,6 +1751,92 @@ export function parseQuickAdd(input: string): QuickAdd {
   return { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
 }
 
+// What an edited title changed beyond its words: the schedule phrases the add
+// box understands ("3pm", "tomorrow", "for 1h", "by Fri", "!", "every Monday"),
+// read from the new title. Only the fields actually applied are set, so the row
+// preview and the confirmation toast describe exactly what will happen.
+export type TitleEdit = {
+  text: string // the title as it will be saved
+  applied: QuickAdd | null // the recognized phrases that were applied, or null if none
+}
+
+const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
+
+// Read an edited task title the way the add box reads a new one. A phrase is
+// applied only when it says something the old title didn't — so fixing a typo
+// in an older title that happens to end in "monthly" or "Friday" leaves it as
+// plain words, exactly as before. A routine keeps its own days, so a title
+// naming a day or "someday" on one is saved as typed. A title that would be
+// emptied by the phrases (just "tomorrow") is also kept as typed.
+export function readTitleEdit(task: Task, input: string): TitleEdit {
+  const text = input.trim()
+  const before = parseQuickAdd(task.text)
+  const after = parseQuickAdd(text)
+  const present = (v: unknown) => v !== undefined && v !== false
+  // A routine keeps its own days: a title naming a day on one is saved as typed.
+  if (task.repeat && !after.repeat && (after.date || after.someday)) return { text, applied: null }
+  const isNew = EDIT_FIELDS.some(k => present(after[k]) && JSON.stringify(after[k]) !== JSON.stringify(before[k]))
+  if (!isNew || !after.text) return { text, applied: null }
+  const applied: QuickAdd = {
+    text: after.text,
+    timeMin: after.timeMin,
+    estimateMin: after.estimateMin,
+    dueDate: after.dueDate,
+    priority: after.priority || undefined,
+  }
+  if (after.repeat) {
+    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, schedule: after.schedule })
+  } else if (after.date || after.someday) {
+    Object.assign(applied, { date: after.date, someday: after.someday || undefined, schedule: after.schedule })
+  }
+  return { text: after.text, applied }
+}
+
+// Apply a title edit to a task: the new title, plus whatever schedule the edit
+// named. A one-off given a recurrence becomes a routine anchored to today, the
+// same as one typed into the add box; a day moves it there (out of Someday).
+export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
+  const next: Task = { ...task, text: edit.text }
+  const a = edit.applied
+  if (!a) return next
+  if (a.timeMin != null) next.timeMin = a.timeMin
+  if (a.estimateMin) next.estimateMin = a.estimateMin
+  if (a.dueDate) next.dueDate = a.dueDate
+  if (a.priority) next.priority = true
+  if (a.repeat) {
+    if (!task.repeat) {
+      next.createdDate = todayStr()
+      next.someday = undefined
+      next.done = false
+      next.completedDate = undefined
+      next.completedAt = undefined
+      next.completions = []
+    }
+    next.repeat = a.repeat
+    next.repeatDays = a.repeat === 'days' ? a.repeatDays : undefined
+    next.repeatEvery = a.repeat === 'interval' || a.repeat === 'perWeek' ? a.repeatEvery : undefined
+  } else if (a.date) {
+    next.createdDate = a.date
+    next.someday = undefined
+  } else if (a.someday) {
+    next.createdDate = todayStr()
+    next.someday = true
+  }
+  return next
+}
+
+// A short, plain description of an applied edit: "Tomorrow · 3 – 4 PM · due Fri".
+export function describeTitleEdit(a: QuickAdd, hour12 = true): string {
+  const parts: string[] = []
+  if (a.schedule) parts.push(a.schedule.label)
+  if (a.timeMin != null && a.estimateMin) parts.push(formatTimeRange(a.timeMin, a.estimateMin, hour12))
+  else if (a.timeMin != null) parts.push(formatTime(a.timeMin, hour12))
+  else if (a.estimateMin) parts.push(formatDuration(a.estimateMin))
+  if (a.dueDate) parts.push(formatDue(a.dueDate)?.label ?? `due ${formatDayLabel(a.dueDate)}`)
+  if (a.priority) parts.push('starred')
+  return parts.join(' · ')
+}
+
 // --- Backup & restore ---------------------------------------------------------
 // The planner lives only in this browser, so the one real risk is losing it:
 // clearing the browser, or switching to a new device. Export writes the tasks
