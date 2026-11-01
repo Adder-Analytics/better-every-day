@@ -1086,6 +1086,14 @@ export const changelog: ChangelogEntry[] = [
       'Editing a task’s title now reads the same phrases as the add box. Changing “Call dentist” to “Call dentist 3pm tomorrow” gives it a 3 PM time and moves it to tomorrow, instead of keeping those words in the title. Times, lengths, days, “someday”, deadlines (“by Fri”), repeats (“every Monday”), and a trailing “!” all work. While you edit, a line under the title shows what will be set. After saving, a toast names the change and has an Undo button; Ctrl+Z also works. A phrase is only read if the old title did not already say it, so fixing a typo in an older title leaves it as it was. A routine keeps its own days, so naming a day on one leaves the title as typed.',
     type: 'feature',
   },
+  {
+    day: 136,
+    date: '2026-11-01',
+    title: 'Repeat every other week',
+    description:
+      'Routines could repeat every N days but not every N weeks, so “Payroll every other Friday” became a one-off task called “Payroll every other” on the next Friday. The add box now reads “every other week”, “every 2 weeks” (up to 52), “biweekly”, “fortnightly”, and “every fortnight”, each with an optional “on Friday”, plus “every other Friday” and “every second Friday”. These make a routine that repeats that many weeks apart. When a weekday is named, the routine starts on the next one (today, if it is that day); otherwise it starts today. Routines a whole number of weeks apart (14 days or more) are labeled by week and weekday, such as “Every other Fri” or “Every 3 weeks on Tue”. Adding from Week and Month and editing a task title read the same phrases. “What you can type” lists the new form.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

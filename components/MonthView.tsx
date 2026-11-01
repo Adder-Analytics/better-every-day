@@ -8,6 +8,7 @@ import {
   savePlanner,
   newTask,
   parseQuickAdd,
+  routineStart,
   todayStr,
   isDueOn,
   isCompletedOn,
@@ -52,7 +53,7 @@ function repeatLabel(task: Task): string {
   if (task.repeat === 'weekly') return 'Weekly'
   if (task.repeat === 'monthly') return 'Monthly'
   if (task.repeat === 'yearly') return 'Yearly'
-  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
+  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2, task.createdDate)
   if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return ''
@@ -172,9 +173,10 @@ export default function MonthView() {
   const addForDay = () => {
     const text0 = draft.trim()
     if (!text0) return
-    const { text, date: typedDate, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority } = parseQuickAdd(text0)
+    const parsed = parseQuickAdd(text0)
+    const { text, date: typedDate, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority } = parsed
     if (!text) return
-    const base = newTask(text, repeat ? selected : typedDate ?? selected)
+    const base = newTask(text, repeat ? routineStart(parsed, selected) : typedDate ?? selected)
     const task: Task = {
       ...base,
       ...(repeat ? { repeat, repeatEvery, repeatDays } : {}),

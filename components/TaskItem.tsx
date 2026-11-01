@@ -579,7 +579,7 @@ export default function TaskItem({
   const repeatLabel = task.repeat === 'days'
     ? formatRepeatDays(task.repeatDays ?? [])
     : task.repeat === 'interval'
-      ? formatInterval(task.repeatEvery ?? 2)
+      ? formatInterval(task.repeatEvery ?? 2, task.createdDate)
       : task.repeat === 'perWeek'
         ? formatTimesPerWeek(perWeekTarget(task))
         : task.repeat
@@ -1421,7 +1421,7 @@ export default function TaskItem({
                     : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                 }`}
               >
-                {formatInterval(draftEvery)}
+                {formatInterval(draftEvery, task.createdDate)}
                 {isInterval && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
               <button

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -71,7 +71,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'weekly') return 'Weekly'
   if (task.repeat === 'monthly') return 'Monthly'
   if (task.repeat === 'yearly') return 'Yearly'
-  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2)
+  if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2, task.createdDate)
   if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return 'Today'
@@ -912,13 +912,14 @@ export default function Planner() {
   const buildTask = (line: string, preset?: number): Task => {
     const parsed = parseQuickAdd(line)
     const { date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
+    // A routine starts today, or on the weekday it names ("every other Friday").
     // Add-in-context: while the day is filtered to a tag, a task added here joins
     // that context automatically, unless the line already carries it. The tag is
     // appended to the stored text (where tags live), after any schedule phrase
     // parseQuickAdd already read, so it never changes how the line was parsed.
     const text =
       activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
+    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
     // Someday, either from a typed "someday" (saidSomeday, which already implies
     // no day was read) or the toggle — a real day typed on the line wins over both.
     if (!date && (saidSomeday || addFor === 'someday')) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
@@ -980,8 +981,9 @@ export default function Planner() {
   // its own thing, added the same way whatever the day's slice happens to be, so
   // "Add to today" always means today. A short toast confirms the batch.
   const buildListTask = (line: string): Task => {
-    const { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parseQuickAdd(line)
-    if (repeat) return { ...newTask(text, todayStr()), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
+    const parsed = parseQuickAdd(line)
+    const { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
+    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
     if (!date && saidSomeday) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     return { ...newTask(text, date ?? todayStr()), estimateMin, timeMin, dueDate, priority }
   }
