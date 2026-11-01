@@ -707,11 +707,28 @@ export function formatRepeatDays(days: number[]): string {
 }
 
 // A short label for an 'interval' routine's cadence: "Every other day" for a
-// two-day gap, "Every 3 days" beyond that. The shared wording for the task row,
-// the repeat menu, the routines page, and search.
-export function formatInterval(every: number): string {
+// two-day gap, "Every 3 days" beyond that. A gap of whole weeks (14 days or
+// more) reads in weeks, naming the weekday it falls on when the routine's start
+// date is given: "Every other Fri", "Every 3 weeks on Tue". The shared wording
+// for the task row, the repeat menu, the routines page, and search.
+export function formatInterval(every: number, anchor?: string): string {
   const n = Math.max(2, Math.round(every))
+  if (n >= 14 && n % 7 === 0) {
+    const weeks = n / 7
+    const day = anchor && /^\d{4}-\d{2}-\d{2}$/.test(anchor) ? WEEKDAY_ABBR[weekdayOf(anchor)] : ''
+    if (weeks === 2) return day ? `Every other ${day}` : 'Every other week'
+    return day ? `Every ${weeks} weeks on ${day}` : `Every ${weeks} weeks`
+  }
   return n === 2 ? 'Every other day' : `Every ${n} days`
+}
+
+// The day a routine read from the add box starts on. Most start on the day
+// they're added (`from`); one that names a weekday for a weeks-apart cadence
+// ("every other Friday") starts on the first such weekday on or after it, so
+// its every-two-weeks count lands on that weekday.
+export function routineStart(parsed: { repeatWeekday?: number }, from: string): string {
+  if (parsed.repeatWeekday == null) return from
+  return addDays(from, (parsed.repeatWeekday - weekdayOf(from) + 7) % 7)
 }
 
 function fmtDate(d: Date): string {
@@ -1091,6 +1108,7 @@ export type QuickAdd = {
   repeat?: RepeatRule // a recurrence read from the text
   repeatEvery?: number // the N of an 'interval' ("every 3 days") or 'perWeek' ("3 times a week") recurrence
   repeatDays?: number[] // the weekdays of a 'days' recurrence ("every Mon and Thu"), 0 = Sun … 6 = Sat
+  repeatWeekday?: number // the weekday a weeks-apart 'interval' starts on ("every other Fri"), 0 = Sun … 6 = Sat
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
@@ -1115,13 +1133,40 @@ const REPEAT_PHRASES: { re: RegExp; rule: RepeatRule; label: string }[] = [
 // daily. A bare "every day"/"daily" stays with the daily rule above.
 const INTERVAL_OTHER_RE = /\s+every\s+other\s+day\.?\s*$/i
 const INTERVAL_N_RE = /\s+every\s+(\d{1,3})\s+days?\.?\s*$/i
+// Weeks-apart phrases: "every other week", "every 2 weeks", "every 3 weeks",
+// "biweekly", "fortnightly", "every fortnight" — each optionally followed by
+// "on Friday" — and "every other Friday" / "every second Friday". These make
+// an interval routine of 7 × N days; a named weekday sets the day it starts on.
+const WEEKS_DOW = '(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)s?'
+const INTERVAL_WEEKS_RE = new RegExp(
+  `\\s+(?:every\\s+(other|\\d{1,2})\\s+weeks?|every\\s+fortnight|bi-?weekly|fortnightly)(?:\\s+on\\s+${WEEKS_DOW})?\\.?\\s*$`,
+  'i'
+)
+const INTERVAL_OTHER_DOW_RE = new RegExp(`\\s+every\\s+(?:other|second|2nd)\\s+${WEEKS_DOW}\\.?\\s*$`, 'i')
 
-// Strip a trailing every-N-days phrase and resolve it to an interval count
-// (2–365). Returns null when nothing is recognized, when stripping would empty
-// the title, or when the count is out of range.
-function parseTrailingInterval(text: string): { text: string; every: number } | null {
+// Strip a trailing every-N-days or every-N-weeks phrase and resolve it to an
+// interval count (2–365), plus the weekday it starts on when one is named.
+// Returns null when nothing is recognized, when stripping would empty the
+// title, or when the count is out of range.
+function parseTrailingInterval(text: string): { text: string; every: number; weekday?: number } | null {
   const other = text.replace(INTERVAL_OTHER_RE, '').trim()
   if (other && other !== text) return { text: other, every: 2 }
+
+  const otherDow = text.match(INTERVAL_OTHER_DOW_RE)
+  if (otherDow) {
+    const stripped = text.slice(0, otherDow.index).trim()
+    if (stripped) return { text: stripped, every: 14, weekday: DOW3[otherDow[1].slice(0, 3).toLowerCase()] }
+  }
+
+  const weeks = text.match(INTERVAL_WEEKS_RE)
+  if (weeks) {
+    const n = !weeks[1] || weeks[1].toLowerCase() === 'other' ? 2 : Number(weeks[1])
+    const stripped = text.slice(0, weeks.index).trim()
+    if (stripped && n >= 2 && n <= 52) {
+      const weekday = weeks[2] ? DOW3[weeks[2].slice(0, 3).toLowerCase()] : undefined
+      return { text: stripped, every: n * 7, weekday }
+    }
+  }
 
   const nDays = text.match(INTERVAL_N_RE)
   if (nDays) {
@@ -1568,6 +1613,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let repeat: RepeatRule | undefined
   let repeatEvery: number | undefined
   let repeatDays: number[] | undefined
+  let repeatWeekday: number | undefined
   let repeatLabel = ''
   let date: string | undefined
   let dueDate: string | undefined
@@ -1633,7 +1679,10 @@ export function parseQuickAdd(input: string): QuickAdd {
         text = interval.text
         repeat = 'interval'
         repeatEvery = interval.every
-        repeatLabel = formatInterval(interval.every)
+        repeatWeekday = interval.weekday
+        // A weeks-apart cadence names the weekday it will land on, counted
+        // from the day it starts (today, or the named weekday's next date).
+        repeatLabel = formatInterval(interval.every, interval.every % 7 === 0 ? routineStart({ repeatWeekday }, todayStr()) : undefined)
         continue
       }
       // Named weekdays ("every Mon and Thu") make a routine on just those days;
@@ -1748,7 +1797,7 @@ export function parseQuickAdd(input: string): QuickAdd {
         ? { kind: 'someday', label: 'Someday' }
         : undefined
 
-  return { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
+  return { text, date, repeat, repeatEvery, repeatDays, repeatWeekday, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
 }
 
 // What an edited title changed beyond its words: the schedule phrases the add
@@ -1760,7 +1809,7 @@ export type TitleEdit = {
   applied: QuickAdd | null // the recognized phrases that were applied, or null if none
 }
 
-const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
+const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'repeatWeekday', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
 
 // Read an edited task title the way the add box reads a new one. A phrase is
 // applied only when it says something the old title didn't — so fixing a typo
@@ -1785,7 +1834,7 @@ export function readTitleEdit(task: Task, input: string): TitleEdit {
     priority: after.priority || undefined,
   }
   if (after.repeat) {
-    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, schedule: after.schedule })
+    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, schedule: after.schedule })
   } else if (after.date || after.someday) {
     Object.assign(applied, { date: after.date, someday: after.someday || undefined, schedule: after.schedule })
   }
@@ -1805,7 +1854,7 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
   if (a.priority) next.priority = true
   if (a.repeat) {
     if (!task.repeat) {
-      next.createdDate = todayStr()
+      next.createdDate = routineStart(a, todayStr())
       next.someday = undefined
       next.done = false
       next.completedDate = undefined
@@ -1815,6 +1864,9 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
     next.repeat = a.repeat
     next.repeatDays = a.repeat === 'days' ? a.repeatDays : undefined
     next.repeatEvery = a.repeat === 'interval' || a.repeat === 'perWeek' ? a.repeatEvery : undefined
+    // An existing routine renamed to "every other Friday" keeps its start (and
+    // so its history), moved forward only as far as the first Friday after it.
+    if (task.repeat && a.repeatWeekday != null) next.createdDate = routineStart(a, task.createdDate)
   } else if (a.date) {
     next.createdDate = a.date
     next.someday = undefined

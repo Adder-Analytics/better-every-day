@@ -87,7 +87,7 @@ function cadenceLabel(task: Task): string {
     case 'yearly':
       return `Yearly on ${yearlyDateLabel(task)}`
     case 'interval':
-      return formatInterval(task.repeatEvery ?? 2)
+      return formatInterval(task.repeatEvery ?? 2, task.createdDate)
     case 'perWeek':
       return formatTimesPerWeek(task.repeatEvery ?? 3)
     case 'days':
