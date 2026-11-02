@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -69,7 +69,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'daily') return 'Every day'
   if (task.repeat === 'weekdays') return 'Weekdays'
   if (task.repeat === 'weekly') return 'Weekly'
-  if (task.repeat === 'monthly') return 'Monthly'
+  if (task.repeat === 'monthly') return monthlyLabel(task)
   if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2, task.createdDate)
   if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
@@ -919,7 +919,7 @@ export default function Planner() {
     // parseQuickAdd already read, so it never changes how the line was parsed.
     const text =
       activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
-    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
+    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, repeatNth: parsed.repeatNth, estimateMin, timeMin, dueDate, priority }
     // Someday, either from a typed "someday" (saidSomeday, which already implies
     // no day was read) or the toggle — a real day typed on the line wins over both.
     if (!date && (saidSomeday || addFor === 'someday')) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
@@ -983,7 +983,7 @@ export default function Planner() {
   const buildListTask = (line: string): Task => {
     const parsed = parseQuickAdd(line)
     const { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
-    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority }
+    if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, repeatNth: parsed.repeatNth, estimateMin, timeMin, dueDate, priority }
     if (!date && saidSomeday) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
     return { ...newTask(text, date ?? todayStr()), estimateMin, timeMin, dueDate, priority }
   }
@@ -1058,7 +1058,7 @@ export default function Planner() {
   // count). A 'days' routine carries its chosen weekday set and an 'interval'
   // one its every-N-days count; every other rule clears both, so the stored
   // shape stays clean.
-  const setRepeat = (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number) => {
+  const setRepeat = (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number, repeatNth?: number) => {
     setTasks(prev =>
       prev.map(t =>
         t.id === id
@@ -1067,6 +1067,9 @@ export default function Planner() {
               repeat,
               repeatDays: repeat === 'days' ? repeatDays : undefined,
               repeatEvery: repeat === 'interval' || repeat === 'perWeek' ? repeatEvery : undefined,
+              // A monthly routine on a weekday of the month ("the first Monday")
+              // keeps its week; any other choice, plain Monthly included, clears it.
+              repeatNth: repeat === 'monthly' ? repeatNth : undefined,
               completions: repeat ? (t.completions ?? []) : undefined,
               // Completion times follow the same split: a routine keeps its
               // per-date map, a one-off its single completedAt — the other clears,

@@ -1094,6 +1094,14 @@ export const changelog: ChangelogEntry[] = [
       'Routines could repeat every N days but not every N weeks, so “Payroll every other Friday” became a one-off task called “Payroll every other” on the next Friday. The add box now reads “every other week”, “every 2 weeks” (up to 52), “biweekly”, “fortnightly”, and “every fortnight”, each with an optional “on Friday”, plus “every other Friday” and “every second Friday”. These make a routine that repeats that many weeks apart. When a weekday is named, the routine starts on the next one (today, if it is that day); otherwise it starts today. Routines a whole number of weeks apart (14 days or more) are labeled by week and weekday, such as “Every other Fri” or “Every 3 weeks on Tue”. Adding from Week and Month and editing a task title read the same phrases. “What you can type” lists the new form.',
     type: 'feature',
   },
+  {
+    day: 137,
+    date: '2026-11-02',
+    title: 'Repeat on the first Monday of the month',
+    description:
+      'Monthly routines could only repeat on a date, such as the 15th. They can now repeat on a weekday of the month instead: the first, second, third, fourth, or last Monday (or any other weekday). The add box reads “every first Thu”, “every last Friday of the month”, “the 2nd Tuesday of every month”, and “monthly on the last Fri”, and the routine starts on the next matching day. A bare “every second Friday” still means every other week. The repeat menu has a new choice under Monthly, named from the task’s day (for example “Monthly on 1st Mon”); a day in the last week of a month past the fourth week offers the last one. Rows, Week, Month, Tags, Routines, and search show the new label, and editing a title reads the same phrases. Saved data is now version 19; older data loads as before.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

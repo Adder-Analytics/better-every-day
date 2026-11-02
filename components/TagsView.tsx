@@ -14,6 +14,7 @@ import {
   formatTime,
   formatInterval,
   formatTimesPerWeek,
+  monthlyLabel,
   formatRepeatDays,
   PLANNER_VERSION,
 } from '@/lib/planner'
@@ -51,7 +52,7 @@ function cadenceLabel(task: Task): string {
     case 'weekly':
       return 'Weekly'
     case 'monthly':
-      return 'Monthly'
+      return monthlyLabel(task)
     case 'yearly':
       return 'Yearly'
     case 'interval':
