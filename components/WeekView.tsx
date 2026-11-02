@@ -9,6 +9,7 @@ import {
   newTask,
   parseQuickAdd,
   routineStart,
+  monthlyLabel,
   todayStr,
   addDaysStr,
   isDueOn,
@@ -52,7 +53,7 @@ function repeatLabel(task: Task): string {
   if (task.repeat === 'daily') return 'Every day'
   if (task.repeat === 'weekdays') return 'Weekdays'
   if (task.repeat === 'weekly') return 'Weekly'
-  if (task.repeat === 'monthly') return 'Monthly'
+  if (task.repeat === 'monthly') return monthlyLabel(task)
   if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2, task.createdDate)
   if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
@@ -151,7 +152,7 @@ export default function WeekView() {
     if (!text) return
     const base = newTask(text, repeat ? routineStart(parsed, date) : typedDate ?? date)
     const task: Task = repeat
-      ? { ...base, repeat, repeatEvery, repeatDays, estimateMin, timeMin }
+      ? { ...base, repeat, repeatEvery, repeatDays, repeatNth: parsed.repeatNth, estimateMin, timeMin }
       : { ...base, estimateMin, timeMin }
     setTasks(prev => [...prev, task])
     setDrafts(prev => ({ ...prev, [date]: '' }))

@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
@@ -289,7 +289,7 @@ type Props = {
   // Set or clear this task's deadline (YYYY-MM-DD, or undefined to remove it).
   // Offered in the schedule menu, alongside the day the task sits on.
   onSetDue?: (id: string, dueDate: string | undefined) => void
-  onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number) => void
+  onSetRepeat?: (id: string, repeat: RepeatRule | undefined, repeatDays?: number[], repeatEvery?: number, repeatNth?: number) => void
   // Set or clear a routine's planned end date (the last day it's due). Offered
   // in the repeat menu, alongside the cadence, once the task repeats.
   onSetRepeatUntil?: (id: string, repeatUntil: string | undefined) => void
@@ -553,6 +553,17 @@ export default function TaskItem({
     else setDraftTimes(n)
   }
 
+  // Monthly on a weekday of the month, read from the task's day: a task on the
+  // 3rd Monday of its month offers "Monthly on 3rd Mon"; one in the month's
+  // last days past the fourth week offers the last one.
+  const monthNth = nthOfMonth(task.createdDate)
+  const isMonthlyNth = task.repeat === 'monthly' && task.repeatNth != null
+  const chooseMonthlyNth = () => {
+    setDraftDays(null)
+    onSetRepeat?.(task.id, 'monthly', undefined, undefined, monthNth)
+    setMenu(null)
+  }
+
   const chooseDate = (date: string) => {
     onSchedule?.(task.id, date)
     setMenu(null)
@@ -582,9 +593,11 @@ export default function TaskItem({
       ? formatInterval(task.repeatEvery ?? 2, task.createdDate)
       : task.repeat === 'perWeek'
         ? formatTimesPerWeek(perWeekTarget(task))
-        : task.repeat
-          ? REPEAT_LABEL[task.repeat]
-          : ''
+        : task.repeat === 'monthly'
+          ? monthlyLabel(task)
+          : task.repeat
+            ? REPEAT_LABEL[task.repeat]
+            : ''
   // The recurrence tooltip: a 'days' routine reads its weekday set as-is; a
   // monthly one names the day it lands on ("Repeats monthly on the 15th"); the
   // rest lower-case their word ("Repeats weekly", "Repeats every other day").
@@ -1339,9 +1352,9 @@ export default function TaskItem({
           role="menu"
           className="absolute right-3 top-12 z-30 w-48 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
         >
-          {REPEAT_OPTIONS.map(opt => {
-            const active = task.repeat === opt.value
-            return (
+          {REPEAT_OPTIONS.flatMap(opt => {
+            const active = task.repeat === opt.value && !(opt.value === 'monthly' && isMonthlyNth)
+            const item = (
               <button
                 key={opt.value}
                 role="menuitemradio"
@@ -1357,6 +1370,26 @@ export default function TaskItem({
                 {active && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
               </button>
             )
+            if (opt.value !== 'monthly') return [item]
+            // Right under Monthly: the same month, tied to a weekday instead of
+            // a date ("Monthly on 1st Mon"), for meetings and bills that move.
+            return [
+              item,
+              <button
+                key="monthly-nth"
+                role="menuitemradio"
+                aria-checked={isMonthlyNth}
+                onClick={chooseMonthlyNth}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
+                  isMonthlyNth
+                    ? 'font-medium text-zinc-900 dark:text-white'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {isMonthlyNth ? monthlyLabel(task) : formatMonthlyNth(monthNth, weekdayOf(task.createdDate))}
+                {isMonthlyNth && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>,
+            ]
           })}
 
           {/* Pick the exact weekdays a routine recurs on — for the habits that

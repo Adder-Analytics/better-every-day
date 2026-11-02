@@ -45,6 +45,12 @@ export type Task = {
   // 'perWeek' routine reuses it as its weekly count — the N in "3 times a
   // week" (1–6).
   repeatEvery?: number
+  // Which week of the month a 'monthly' routine lands on, for the ones tied to a
+  // weekday rather than a date — "the first Monday", "the last Friday": 1–4 for
+  // the first through fourth, -1 for the last. The weekday is the one its
+  // `createdDate` falls on. Absent means it recurs on a day-of-month as before.
+  // Only read when `repeat === 'monthly'`.
+  repeatNth?: number
   completions?: string[] // dates (YYYY-MM-DD) this routine was completed
   // The local time of day (minutes since midnight, 0–1439) a routine was
   // completed on a given date, keyed by that date. The per-day counterpart of a
@@ -109,10 +115,12 @@ export type Task = {
 // an optional `completionTimes` map (a routine's completion time per date).
 // v18: added the 'perWeek' repeat rule (N times a week, any days), which stores
 // its count in `repeatEvery` and so allows a count of 1.
+// v19: added an optional `repeatNth` (monthly routines on a weekday of the
+// month, like "the first Monday").
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v18 alike.
-export const PLANNER_VERSION = 18
+// loadPlanner reads v1–v19 alike.
+export const PLANNER_VERSION = 19
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -283,6 +291,7 @@ function isTask(value: unknown): value is Task {
     (t.repeatDays === undefined || isWeekdaySet(t.repeatDays)) &&
     (t.repeatEvery === undefined ||
       (typeof t.repeatEvery === 'number' && Number.isInteger(t.repeatEvery) && t.repeatEvery >= 1)) &&
+    (t.repeatNth === undefined || [1, 2, 3, 4, -1].includes(t.repeatNth as number)) &&
     (t.completions === undefined ||
       (Array.isArray(t.completions) && t.completions.every(c => typeof c === 'string'))) &&
     (t.skips === undefined ||
@@ -477,7 +486,7 @@ export function timeBlockConflicts(
 
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
 // parts so it's correct in every timezone (new Date('2026-06-14') is UTC).
-function weekdayOf(dateStr: string): number {
+export function weekdayOf(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).getDay()
 }
@@ -510,6 +519,9 @@ export function isDueOn(task: Task, dateStr: string): boolean {
   // than that day (a 31st routine in February) fall to the month's last day, so
   // it still fires once every month rather than skipping the short ones.
   if (task.repeat === 'monthly') {
+    // On a weekday of the month ("the first Monday"): the weekday its start date
+    // falls on, in the chosen week of each month.
+    if (task.repeatNth != null) return isNthWeekday(dateStr, weekdayOf(task.createdDate), task.repeatNth)
     const anchorDay = Number(task.createdDate.split('-')[2])
     const [y, m, d] = dateStr.split('-').map(Number)
     const lastDay = new Date(y, m, 0).getDate()
@@ -726,9 +738,47 @@ export function formatInterval(every: number, anchor?: string): string {
 // they're added (`from`); one that names a weekday for a weeks-apart cadence
 // ("every other Friday") starts on the first such weekday on or after it, so
 // its every-two-weeks count lands on that weekday.
-export function routineStart(parsed: { repeatWeekday?: number }, from: string): string {
+export function routineStart(parsed: { repeatWeekday?: number; repeatNth?: number }, from: string): string {
   if (parsed.repeatWeekday == null) return from
+  // A weekday of the month ("first Monday") starts on the next date that is one.
+  if (parsed.repeatNth != null) {
+    for (let date = from, i = 0; i < 400; date = addDays(date, 1), i++) {
+      if (isNthWeekday(date, parsed.repeatWeekday, parsed.repeatNth)) return date
+    }
+    return from
+  }
   return addDays(from, (parsed.repeatWeekday - weekdayOf(from) + 7) % 7)
+}
+
+// Whether a date is the nth (1–4) or last (-1) of a given weekday in its month.
+export function isNthWeekday(dateStr: string, weekday: number, nth: number): boolean {
+  if (weekdayOf(dateStr) !== weekday) return false
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (nth === -1) return d + 7 > new Date(y, m, 0).getDate()
+  return Math.ceil(d / 7) === nth
+}
+
+// Which week of its month a date falls in, as a monthly routine would name it:
+// 1–4, or -1 for a date in the month's last seven days past the fourth week.
+export function nthOfMonth(dateStr: string): number {
+  const n = Math.ceil(Number(dateStr.split('-')[2]) / 7)
+  return n > 4 ? -1 : n
+}
+
+const NTH_SHORT: Record<string, string> = { '1': '1st', '2': '2nd', '3': '3rd', '4': '4th', '-1': 'last' }
+const NTH_LONG: Record<string, string> = { '1': 'first', '2': 'second', '3': 'third', '4': 'fourth', '-1': 'last' }
+
+// A short label for a monthly-by-weekday cadence: "Monthly on 1st Mon",
+// "Monthly on last Fri".
+export function formatMonthlyNth(nth: number, weekday: number): string {
+  return `Monthly on ${NTH_SHORT[String(nth)] ?? `${nth}th`} ${WEEKDAY_ABBR[weekday]}`
+}
+
+// A monthly routine's short label: "Monthly", or "Monthly on 1st Mon" for one
+// tied to a weekday of the month. Shared by the task row, search, and every view.
+export function monthlyLabel(task: Task): string {
+  if (task.repeat !== 'monthly' || task.repeatNth == null) return 'Monthly'
+  return formatMonthlyNth(task.repeatNth, weekdayOf(task.createdDate))
 }
 
 function fmtDate(d: Date): string {
@@ -752,6 +802,9 @@ export function ordinalDay(n: number): string {
 // anchored to: "the 15th". Empty for any non-monthly task.
 export function monthlyDayLabel(task: Task): string {
   if (task.repeat !== 'monthly') return ''
+  if (task.repeatNth != null) {
+    return `the ${NTH_LONG[String(task.repeatNth)] ?? ''} ${WEEKDAY_FULL_NAMES[weekdayOf(task.createdDate)]}`
+  }
   return `the ${ordinalDay(Number(task.createdDate.split('-')[2]))}`
 }
 
@@ -843,9 +896,9 @@ export function loadPlanner(): PlannerData {
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
     // v15 (paused routines), v16 (routine end dates), v17 (completion times)
-    // and v18 (times-a-week routines) only add optional fields (or a repeat value old data never used), so every
+    // v18 (times-a-week routines) and v19 (monthly-by-weekday routines) only add optional fields (or a repeat value old data never used), so every
     // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -1108,7 +1161,8 @@ export type QuickAdd = {
   repeat?: RepeatRule // a recurrence read from the text
   repeatEvery?: number // the N of an 'interval' ("every 3 days") or 'perWeek' ("3 times a week") recurrence
   repeatDays?: number[] // the weekdays of a 'days' recurrence ("every Mon and Thu"), 0 = Sun … 6 = Sat
-  repeatWeekday?: number // the weekday a weeks-apart 'interval' starts on ("every other Fri"), 0 = Sun … 6 = Sat
+  repeatWeekday?: number // the weekday a weeks-apart 'interval' or a monthly-by-weekday routine starts on, 0 = Sun … 6 = Sat
+  repeatNth?: number // the week of the month a monthly routine lands on ("first Monday" is 1, "last" is -1)
   estimateMin?: number // a rough time estimate (minutes) read from the text
   timeMin?: number // a time of day (minutes since midnight) read from the text
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
@@ -1175,6 +1229,34 @@ function parseTrailingInterval(text: string): { text: string; every: number; wee
     if (stripped && n >= 2 && n <= 365) return { text: stripped, every: n }
   }
   return null
+}
+
+// Monthly-by-weekday phrases: "every first Monday", "every last Fri of the
+// month", "the 2nd Tuesday of every month", "first Thu of each month", "monthly
+// on the last Friday". These make a monthly routine on that week's weekday. A
+// bare "every second Friday" is left to the every-other-week reading above; it
+// only means the month's second Friday when the month is named.
+const NTH_WORD = '(first|1st|second|2nd|third|3rd|fourth|4th|last)'
+const MONTH_WORD = '(?:every|each)\\s+month|monthly'
+const NTH_EVERY_RE = new RegExp(`\\s+(?:every|each)\\s+${NTH_WORD}\\s+${WEEKS_DOW}(\\s+(?:of\\s+(?:the|every|each)\\s+month|monthly))?\\.?\\s*$`, 'i')
+const NTH_OF_MONTH_RE = new RegExp(`\\s+(?:on\\s+)?(?:the\\s+)?${NTH_WORD}\\s+${WEEKS_DOW}\\s+(?:of\\s+(?:every|each)\\s+month|${MONTH_WORD})\\.?\\s*$`, 'i')
+const MONTHLY_ON_NTH_RE = new RegExp(`\\s+(?:${MONTH_WORD})\\s+on\\s+(?:the\\s+)?${NTH_WORD}\\s+${WEEKS_DOW}\\.?\\s*$`, 'i')
+const NTH_VALUE: Record<string, number> = { first: 1, '1st': 1, second: 2, '2nd': 2, third: 3, '3rd': 3, fourth: 4, '4th': 4, last: -1 }
+
+// Strip a trailing monthly-by-weekday phrase and resolve it to the week of the
+// month (1–4, or -1 for last) and the weekday. Returns null when nothing is
+// recognized or when stripping would empty the title.
+function parseTrailingMonthlyNth(text: string): { text: string; nth: number; weekday: number } | null {
+  const every = text.match(NTH_EVERY_RE)
+  if (every && !(/^(?:second|2nd)$/i.test(every[1]) && !every[3])) {
+    const stripped = text.slice(0, every.index).trim()
+    if (stripped) return { text: stripped, nth: NTH_VALUE[every[1].toLowerCase()], weekday: DOW3[every[2].slice(0, 3).toLowerCase()] }
+  }
+  const m = text.match(NTH_OF_MONTH_RE) ?? text.match(MONTHLY_ON_NTH_RE)
+  if (!m) return null
+  const stripped = text.slice(0, m.index).trim()
+  if (!stripped) return null
+  return { text: stripped, nth: NTH_VALUE[m[1].toLowerCase()], weekday: DOW3[m[2].slice(0, 3).toLowerCase()] }
 }
 
 // Trailing named-weekday recurrences: "every Monday", "each Tue and Thu",
@@ -1614,6 +1696,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let repeatEvery: number | undefined
   let repeatDays: number[] | undefined
   let repeatWeekday: number | undefined
+  let repeatNth: number | undefined
   let repeatLabel = ''
   let date: string | undefined
   let dueDate: string | undefined
@@ -1672,6 +1755,17 @@ export function parseQuickAdd(input: string): QuickAdd {
         repeat = 'perWeek'
         repeatEvery = perWeek.times
         repeatLabel = formatTimesPerWeek(perWeek.times)
+        continue
+      }
+      // "every first Monday" is read before the weeks-apart phrases, so a named
+      // week of the month isn't taken as "every other Friday".
+      const monthlyNth = parseTrailingMonthlyNth(text)
+      if (monthlyNth) {
+        text = monthlyNth.text
+        repeat = 'monthly'
+        repeatNth = monthlyNth.nth
+        repeatWeekday = monthlyNth.weekday
+        repeatLabel = formatMonthlyNth(monthlyNth.nth, monthlyNth.weekday)
         continue
       }
       const interval = parseTrailingInterval(text)
@@ -1797,7 +1891,7 @@ export function parseQuickAdd(input: string): QuickAdd {
         ? { kind: 'someday', label: 'Someday' }
         : undefined
 
-  return { text, date, repeat, repeatEvery, repeatDays, repeatWeekday, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
+  return { text, date, repeat, repeatEvery, repeatDays, repeatWeekday, repeatNth, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
 }
 
 // What an edited title changed beyond its words: the schedule phrases the add
@@ -1809,7 +1903,7 @@ export type TitleEdit = {
   applied: QuickAdd | null // the recognized phrases that were applied, or null if none
 }
 
-const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'repeatWeekday', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
+const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'repeatWeekday', 'repeatNth', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
 
 // Read an edited task title the way the add box reads a new one. A phrase is
 // applied only when it says something the old title didn't — so fixing a typo
@@ -1834,7 +1928,7 @@ export function readTitleEdit(task: Task, input: string): TitleEdit {
     priority: after.priority || undefined,
   }
   if (after.repeat) {
-    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, schedule: after.schedule })
+    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, repeatNth: after.repeatNth, schedule: after.schedule })
   } else if (after.date || after.someday) {
     Object.assign(applied, { date: after.date, someday: after.someday || undefined, schedule: after.schedule })
   }
@@ -1864,6 +1958,7 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
     next.repeat = a.repeat
     next.repeatDays = a.repeat === 'days' ? a.repeatDays : undefined
     next.repeatEvery = a.repeat === 'interval' || a.repeat === 'perWeek' ? a.repeatEvery : undefined
+    next.repeatNth = a.repeat === 'monthly' ? a.repeatNth : undefined
     // An existing routine renamed to "every other Friday" keeps its start (and
     // so its history), moved forward only as far as the first Friday after it.
     if (task.repeat && a.repeatWeekday != null) next.createdDate = routineStart(a, task.createdDate)
