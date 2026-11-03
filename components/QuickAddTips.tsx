@@ -30,6 +30,7 @@ const GROUPS: Group[] = [
     title: 'Set a time',
     tips: [
       { example: '9am', does: 'a time of day' },
+      { example: 'at 6', does: 'no AM/PM: 1–6 is PM' },
       { example: 'noon', does: 'or say it in words' },
       { example: 'in 2 hours', does: 'a time from now' },
       { example: '9–11am', does: 'a time block' },
