@@ -1,4 +1,5 @@
 import { weekStartsOn } from './weekstart'
+import { isHour12 } from './timeformat'
 
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
 // chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
@@ -1550,16 +1551,27 @@ function parseTrailingTimeRange(
   return { text: stripped, timeMin: startMin, estimateMin }
 }
 
-// Trailing time-of-day phrases: "9am", "9:30 am", "at 2pm", "at 14:00". A
-// meridiem (am/pm) or a 24-hour "HH:MM" makes the intent unambiguous, so a bare
-// trailing number ("Read chapter 5", "Call 911") is never read as a time.
+// Trailing time-of-day phrases: "9am", "9:30 am", "at 2pm", "at 14:00", and
+// the clock-face forms people type without a meridiem: "3:30" and "at 6". A
+// bare trailing number with no "at" ("Read chapter 5", "Call 911") is never
+// read as a time.
 const TIME_AMPM_RE = /\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\s*$/i
 const TIME_24H_RE = /\s+(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\.?\s*$/i
+const TIME_AT_HOUR_RE = /\s+at\s+([01]?\d|2[0-3])\.?\s*$/i
+
+// A time typed without AM or PM on a 12-hour clock ("Coffee 3:30", "Call mom
+// at 6"): 1 to 6 are read as afternoon or evening, 7 to 11 as morning, and 12
+// as noon — the hours a day's plans usually fall in. A leading zero ("03:30"),
+// an hour past 12, or the 24-hour clock setting keeps the time exactly as typed.
+function guessMeridiem(h: number, raw: string, hour12: boolean): number {
+  if (!hour12 || raw.startsWith('0') || h < 1 || h > 6) return h
+  return h + 12
+}
 
 // Strip a trailing time of day and resolve it to minutes since midnight.
 // Returns null when nothing is recognized, or when stripping would empty the
 // title (so a bare "9am" stays a literal task).
-function parseTrailingTime(text: string): { text: string; timeMin: number } | null {
+function parseTrailingTime(text: string, hour12 = false): { text: string; timeMin: number } | null {
   const ampm = text.match(TIME_AMPM_RE)
   if (ampm) {
     let h = Number(ampm[1])
@@ -1574,10 +1586,20 @@ function parseTrailingTime(text: string): { text: string; timeMin: number } | nu
   const h24 = text.match(TIME_24H_RE)
   if (h24) {
     const stripped = text.replace(TIME_24H_RE, '').trim()
-    if (stripped) return { text: stripped, timeMin: Number(h24[1]) * 60 + Number(h24[2]) }
+    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(h24[1]), h24[1], hour12) * 60 + Number(h24[2]) }
+  }
+  const atHour = text.match(TIME_AT_HOUR_RE)
+  if (atHour) {
+    const stripped = text.replace(TIME_AT_HOUR_RE, '').trim()
+    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(atHour[1]), atHour[1], hour12) * 60 }
   }
   return null
 }
+
+// A trailing "today" is read only when the line also gives a time or a length
+// ("Call 3pm today", "Pick up kids at 3:15 today"), so a title that merely ends in the word
+// ("What did I get done today") keeps it.
+const TRAILING_TODAY_RE = /\s+today\.?\s*$/i
 
 // Trailing named times of day: "noon", "midnight", "morning", "tonight". People
 // reach for the word before the clock face — "Lunch noon", "Call mom tonight",
@@ -1691,6 +1713,8 @@ export function parseQuickAdd(input: string): QuickAdd {
   // The wall clock, read once so every relative phrase in this pass ("in 2
   // hours") resolves against the same moment.
   const now = currentMin()
+  // The clock setting decides how a time typed without AM or PM is read.
+  const hour12 = isHour12()
 
   let repeat: RepeatRule | undefined
   let repeatEvery: number | undefined
@@ -1840,8 +1864,26 @@ export function parseQuickAdd(input: string): QuickAdd {
         continue
       }
     }
+    // "today" next to a time: read with the time, not left on the title.
+    if (date === undefined) {
+      const stripped = text.replace(TRAILING_TODAY_RE, '').trim()
+      if (
+        stripped &&
+        stripped !== text &&
+        (timeMin !== undefined ||
+          estimateMin !== undefined ||
+          parseTrailingEstimate(stripped) ||
+          parseTrailingTimeRange(stripped) ||
+          parseTrailingTime(stripped, hour12) ||
+          parseTrailingNamedTime(stripped))
+      ) {
+        text = stripped
+        date = todayStr()
+        continue
+      }
+    }
     if (timeMin === undefined) {
-      const time = parseTrailingTime(text)
+      const time = parseTrailingTime(text, hour12)
       if (time) {
         text = time.text
         timeMin = time.timeMin

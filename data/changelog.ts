@@ -1102,6 +1102,14 @@ export const changelog: ChangelogEntry[] = [
       'Monthly routines could only repeat on a date, such as the 15th. They can now repeat on a weekday of the month instead: the first, second, third, fourth, or last Monday (or any other weekday). The add box reads “every first Thu”, “every last Friday of the month”, “the 2nd Tuesday of every month”, and “monthly on the last Fri”, and the routine starts on the next matching day. A bare “every second Friday” still means every other week. The repeat menu has a new choice under Monthly, named from the task’s day (for example “Monthly on 1st Mon”); a day in the last week of a month past the fourth week offers the last one. Rows, Week, Month, Tags, Routines, and search show the new label, and editing a title reads the same phrases. Saved data is now version 19; older data loads as before.',
     type: 'feature',
   },
+  {
+    day: 138,
+    date: '2026-11-03',
+    title: 'Type “at 6” or “3:30” for a time',
+    description:
+      'Quick-add read a time without AM or PM as a 24-hour time, so “Coffee 3:30” became a 3:30 AM task, and “Call mom at 6” was not read as a time at all. With the 12-hour clock, a time typed without AM or PM now reads 1 to 6 as PM, 7 to 11 as AM, and 12 as noon: “Coffee 3:30” is 3:30 PM and “Call mom at 6” is 6 PM. “at” followed by an hour (“at 6”, “at 14”) is now a time; a number without “at” (“Read chapter 3”) stays in the title. A leading zero (“03:30”) or an hour past 12 is kept as typed, and with the 24-hour clock setting every time is kept as typed. A trailing “today” was left on the title and hid a time before it, so “Call 3pm today” got no time; “today” next to a time or a length is now read and removed. A title that only ends in “today” is unchanged. Adding from Week and Month and editing a title read the same forms, and “What you can type” lists the new one.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
