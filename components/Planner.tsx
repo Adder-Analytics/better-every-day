@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -283,6 +283,14 @@ function CommandIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+    </svg>
+  )
+}
+// Heroicons "chat-bubble-left-right" — copy a standup update.
+function ChatBubblesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
     </svg>
   )
 }
@@ -621,7 +629,8 @@ export default function Planner() {
   // Transient feedback after copying today's plan to the clipboard — a brief
   // toast so the action (from the header or the command palette, which closes
   // on run) is confirmed. Null when idle.
-  const [copied, setCopied] = useState<'ok' | 'fail' | null>(null)
+  // What was just copied (the plan or a standup update) and whether it worked.
+  const [copied, setCopied] = useState<{ what: 'plan' | 'standup'; ok: boolean } | null>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // A brief note that a quick list's tasks landed on today, so adding a whole
   // list gets the same acknowledgement a single add's appearing row does.
@@ -1437,18 +1446,25 @@ export default function Planner() {
   // be pasted into a standup note, a message, or a journal. Reads the full day,
   // not a tag-filtered slice, to match the counts and the tab. A short toast
   // confirms it, since the palette closes on run and leaves no other signal.
-  const copyTodayPlan = useCallback(async (ordered: Task[]) => {
-    if (ordered.length === 0) return
+  const copyText = useCallback(async (text: string, what: 'plan' | 'standup') => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
-    const text = formatPlanText(ordered, formatDate(), isHour12())
     try {
       await navigator.clipboard.writeText(text)
-      setCopied('ok')
+      setCopied({ what, ok: true })
     } catch {
-      setCopied('fail')
+      setCopied({ what, ok: false })
     }
     copiedTimer.current = setTimeout(() => setCopied(null), 2200)
   }, [])
+  const copyTodayPlan = useCallback((ordered: Task[]) => {
+    if (ordered.length === 0) return
+    copyText(formatPlanText(ordered, formatDate(), isHour12()), 'plan')
+  }, [copyText])
+  // Copy a standup update: what got finished on the last day anything was
+  // (yesterday, or Friday on a Monday), then today's list. Tags are left out so
+  // it pastes cleanly into a team chat.
+  const copyStandup = () => copyText(formatStandupText(tasks, [...todayActive, ...todayDone], isHour12()), 'standup')
+  const hasPastDone = tasks.some(t => (t.repeat ? (t.completions?.length ?? 0) > 0 : t.done && !!t.completedDate && t.completedDate < today))
   // Hand today's timed tasks to a real calendar (.ics) so their alarms reach you
   // even when this tab is closed — the one thing the in-app reminders can't do.
   // Only timed, still-to-do tasks become events; the file is built locally and
@@ -1557,6 +1573,7 @@ export default function Planner() {
     ...(todayTasks.length > 0
       ? [
           { id: 'copy', label: 'Copy plan as text', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) },
+          { id: 'standup', label: 'Copy standup update', icon: <ChatBubblesIcon className="h-4 w-4" />, run: copyStandup },
           { id: 'print', label: 'Print plan', icon: <PrinterIcon className="h-4 w-4" />, run: printTodayPlan },
         ]
       : []),
@@ -1982,7 +1999,10 @@ export default function Planner() {
       run: () => weekStartStore.set(weekStart === 1 ? 0 : 1),
     },
     ...(todayTasks.length > 0
-      ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share standup text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
+      ? [{ id: 'copy-plan', label: 'Copy today’s plan', keywords: 'clipboard share text list', icon: <ClipboardIcon className="h-4 w-4" />, run: () => copyTodayPlan([...todayActive, ...todayDone]) }]
+      : []),
+    ...(todayTasks.length > 0 || hasPastDone
+      ? [{ id: 'copy-standup', label: 'Copy standup update', keywords: 'clipboard share standup yesterday today scrum status update team slack', icon: <ChatBubblesIcon className="h-4 w-4" />, run: copyStandup }]
       : []),
     ...(todayTasks.length > 0
       ? [{ id: 'print-plan', label: 'Print today’s plan', keywords: 'printer paper sheet checklist hardcopy pin up', icon: <PrinterIcon className="h-4 w-4" />, run: printTodayPlan }]
@@ -2063,7 +2083,7 @@ export default function Planner() {
           role="status"
           className="flex items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-2 pl-3.5 pr-4 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
         >
-          {copied === 'ok' ? (
+          {copied.ok ? (
             <svg className="w-4 h-4 flex-shrink-0 text-emerald-400 dark:text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
@@ -2073,7 +2093,7 @@ export default function Planner() {
             </svg>
           )}
           <span className="text-xs font-medium text-white dark:text-zinc-900">
-            {copied === 'ok' ? 'Copied today’s plan' : 'Couldn’t copy — try again'}
+            {copied.ok ? (copied.what === 'standup' ? 'Copied standup update' : 'Copied today’s plan') : 'Couldn’t copy — try again'}
           </span>
         </div>
       </div>

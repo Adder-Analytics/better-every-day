@@ -1,5 +1,6 @@
 import { weekStartsOn } from './weekstart'
 import { isHour12 } from './timeformat'
+import { stripTags } from './tags'
 
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
 // chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
@@ -1144,6 +1145,30 @@ export function formatPlanText(tasks: Task[], heading: string, hour12 = true): s
     return `${box} ${time}${t.text}${estimate}`
   })
   return lines.length ? `${heading}\n\n${lines.join('\n')}` : heading
+}
+
+// A standup-style update: what got done on the last day anything was finished
+// (usually yesterday; Friday on a Monday), then what's on today. Plain bullets
+// with tags stripped, since the text is meant for a team chat. Today's list is
+// the day in display order, with routines already resolved to today's done
+// state; anything finished is marked "(done)". The look-back reaches two weeks;
+// with nothing finished in that time, the update is just today's list.
+export function formatStandupText(tasks: Task[], todayItems: Task[], hour12 = true): string {
+  const today = todayStr()
+  const last = historyByDay(tasks, 14).find(d => d.date < today)
+  const line = (t: Task, suffix = '') => {
+    const time = t.timeMin != null ? `${formatTime(t.timeMin, hour12)} · ` : ''
+    return `- ${time}${stripTags(t.text)}${suffix}`
+  }
+  const sections: string[] = []
+  if (last) {
+    const seen = new Set<string>()
+    const items = last.items.filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)))
+    sections.push(`${formatPastDayLabel(last.date)}\n${items.map(t => `- ${stripTags(t.text)}`).join('\n')}`)
+  }
+  const todayLines = todayItems.map(t => line(t, t.done ? ' (done)' : ''))
+  sections.push(`Today\n${todayLines.length ? todayLines.join('\n') : '- Nothing planned yet'}`)
+  return sections.join('\n\n')
 }
 
 // --- Quick add parsing --------------------------------------------------------
