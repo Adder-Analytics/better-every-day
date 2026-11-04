@@ -1110,6 +1110,14 @@ export const changelog: ChangelogEntry[] = [
       'Quick-add read a time without AM or PM as a 24-hour time, so “Coffee 3:30” became a 3:30 AM task, and “Call mom at 6” was not read as a time at all. With the 12-hour clock, a time typed without AM or PM now reads 1 to 6 as PM, 7 to 11 as AM, and 12 as noon: “Coffee 3:30” is 3:30 PM and “Call mom at 6” is 6 PM. “at” followed by an hour (“at 6”, “at 14”) is now a time; a number without “at” (“Read chapter 3”) stays in the title. A leading zero (“03:30”) or an hour past 12 is kept as typed, and with the 24-hour clock setting every time is kept as typed. A trailing “today” was left on the title and hid a time before it, so “Call 3pm today” got no time; “today” next to a time or a length is now read and removed. A title that only ends in “today” is unchanged. Adding from Week and Month and editing a title read the same forms, and “What you can type” lists the new one.',
     type: 'fix',
   },
+  {
+    day: 139,
+    date: '2026-11-04',
+    title: 'Copy a standup update',
+    description:
+      'The day menu (the three dots by the done count) and the command menu have a new “Copy standup update” action. It copies two short lists to the clipboard: what you finished on the most recent earlier day with anything finished (headed “Yesterday”, or the weekday name, so a Monday picks up Friday), then today’s tasks in the order shown, with times where set and “(done)” on anything already finished. Tags are left out. The look-back covers the last two weeks; if nothing was finished in that time, only the Today list is copied. It reads the completion history the planner already keeps. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
