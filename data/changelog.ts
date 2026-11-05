@@ -1118,6 +1118,14 @@ export const changelog: ChangelogEntry[] = [
       'The day menu (the three dots by the done count) and the command menu have a new “Copy standup update” action. It copies two short lists to the clipboard: what you finished on the most recent earlier day with anything finished (headed “Yesterday”, or the weekday name, so a Monday picks up Friday), then today’s tasks in the order shown, with times where set and “(done)” on anything already finished. Tags are left out. The look-back covers the last two weeks; if nothing was finished in that time, only the Today list is copied. It reads the completion history the planner already keeps. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 140,
+    date: '2026-11-05',
+    title: 'Deadlines show in the week',
+    description:
+      'The Week view now lists deadlines on the day they fall. A day with a task due on it has a “Due this day” list naming each task and where it is planned (“planned today”, “planned Saturday”, “planned for Someday”), and the day’s header counts how many are due. Before, a day with only a deadline read “Nothing planned yet”. A task listed under a day now shows its own deadline on its row (“due Mon”), colored as it is on Today. Finished tasks and routines are left out. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

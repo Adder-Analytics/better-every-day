@@ -21,6 +21,9 @@ import {
   formatRepeatDays,
   formatInterval,
   formatTimesPerWeek,
+  formatDue,
+  formatDueFull,
+  formatDayLabel,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
@@ -140,6 +143,28 @@ export default function WeekView() {
   // relative to the fullest one. At least 1 to avoid dividing by zero.
   const maxCount = Math.max(1, ...days.map(d => d.items.length))
 
+  // Deadlines that land on each day, so a day with something due says so even
+  // when nothing is scheduled on it (the Month view marks the same days). Only
+  // unfinished one-off tasks count down; a routine's deadline isn't a thing.
+  const dueByDay = new Map<string, Task[]>()
+  for (const t of tasks) {
+    if (t.dueDate && !t.done && !t.repeat) {
+      const list = dueByDay.get(t.dueDate)
+      if (list) list.push(t)
+      else dueByDay.set(t.dueDate, [t])
+    }
+  }
+
+  // Where a task due on some day actually sits: Someday, today (where anything
+  // unfinished from earlier days is carried), or the day it's scheduled for.
+  // Reads as a phrase: "planned today", "planned Saturday", "planned for Someday".
+  const sitsOn = (t: Task): string => {
+    if (t.someday) return 'planned for Someday'
+    if (t.createdDate <= today) return 'planned today'
+    const label = formatDayLabel(t.createdDate)
+    return `planned ${label === 'Tomorrow' ? 'tomorrow' : label}`
+  }
+
   // Add a task under a given day. The column sets the default day; a schedule
   // typed into the text still wins (an explicit "next week" overrides the
   // column), and a recognized recurrence becomes a routine that starts that day.
@@ -194,6 +219,9 @@ export default function WeekView() {
         const isToday = offset === 0
         const weekend = isWeekend(date)
         const remaining = items.filter(i => !i.done).length
+        // Due this day but planned elsewhere; a task already listed under this
+        // day shows its deadline on its own row instead.
+        const dueHere = (dueByDay.get(date) ?? []).filter(t => !items.some(i => i.task.id === t.id))
         const plannedMin = items.filter(i => !i.done).reduce((sum, i) => sum + (i.task.estimateMin ?? 0), 0)
 
         const dragged = dragId ? tasks.find(t => t.id === dragId) : undefined
@@ -238,9 +266,9 @@ export default function WeekView() {
                 </h2>
                 <span className="text-xs tabular-nums text-zinc-400">{heading.date}</span>
               </div>
-              {items.length > 0 && (
+              {(items.length > 0 || dueHere.length > 0) && (
                 <span className="flex-shrink-0 text-xs tabular-nums text-zinc-400">
-                  {remaining > 0 ? (
+                  {items.length === 0 ? null : remaining > 0 ? (
                     <>
                       <span className="font-semibold text-zinc-600 dark:text-zinc-300">{remaining}</span> left
                     </>
@@ -248,6 +276,12 @@ export default function WeekView() {
                     <span className="text-emerald-600 dark:text-emerald-400">all done</span>
                   )}
                   {plannedMin > 0 && <span className="text-zinc-300 dark:text-zinc-600"> · {formatDuration(plannedMin)}</span>}
+                  {dueHere.length > 0 && (
+                    <span className="text-rose-500/90">
+                      {items.length > 0 ? ' · ' : ''}
+                      {dueHere.length} due
+                    </span>
+                  )}
                 </span>
               )}
             </div>
@@ -316,7 +350,7 @@ export default function WeekView() {
                             </svg>
                           )}
                         </div>
-                        {(tags.length > 0 || task.estimateMin != null || task.repeat || carriedFrom) && (
+                        {(tags.length > 0 || task.estimateMin != null || task.repeat || carriedFrom || (task.dueDate && !task.repeat && !done)) && (
                           <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                             {task.repeat && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-zinc-400">
@@ -327,6 +361,12 @@ export default function WeekView() {
                             {carriedFrom && (
                               <span className="text-[11px] text-amber-600/80 dark:text-amber-500/80">carried over</span>
                             )}
+                            {task.dueDate && !task.repeat && !done && (() => {
+                              const d = formatDue(task.dueDate)
+                              if (!d) return null
+                              const tone = d.tone === 'overdue' ? 'text-rose-500' : d.tone === 'soon' ? 'text-amber-600 dark:text-amber-500' : 'text-zinc-400'
+                              return <span className={`text-[11px] ${tone}`} title={formatDueFull(task.dueDate)}>{d.label}</span>
+                            })()}
                             {task.estimateMin != null && task.timeMin == null && (
                               <span className="text-[11px] tabular-nums text-zinc-400">{formatDuration(task.estimateMin)}</span>
                             )}
@@ -398,8 +438,30 @@ export default function WeekView() {
               </ul>
             )}
 
-            {items.length === 0 && (
+            {items.length === 0 && dueHere.length === 0 && (
               <p className="mt-2.5 text-xs text-zinc-400 dark:text-zinc-500">Nothing planned yet.</p>
+            )}
+
+            {/* Deadlines landing on this day for tasks planned on another day,
+                so the day they're due doesn't read as empty. Read-only: each
+                is managed from where it's planned. */}
+            {dueHere.length > 0 && (
+              <div className={items.length > 0 ? 'mt-2.5 border-t border-zinc-100 pt-2 dark:border-zinc-800' : 'mt-2.5'}>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-rose-500/80">Due this day</p>
+                <ul className="mt-1 space-y-1">
+                  {dueHere.map(t => (
+                    <li key={t.id} className="flex items-start gap-2 py-0.5">
+                      <span className="mt-1 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
+                        <span className="h-1.5 w-1.5 rounded-full ring-1 ring-rose-400 dark:ring-rose-500" />
+                      </span>
+                      <div className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                        <span className="text-sm break-words text-zinc-700 dark:text-zinc-200">{stripTags(t.text)}</span>
+                        <span className="text-[11px] text-zinc-400">{sitsOn(t)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {/* Per-day quick-add — drop a task straight onto this day. */}
