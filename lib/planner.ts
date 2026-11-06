@@ -740,8 +740,9 @@ export function formatInterval(every: number, anchor?: string): string {
 // they're added (`from`); one that names a weekday for a weeks-apart cadence
 // ("every other Friday") starts on the first such weekday on or after it, so
 // its every-two-weeks count lands on that weekday.
-export function routineStart(parsed: { repeatWeekday?: number; repeatNth?: number }, from: string): string {
-  if (parsed.repeatWeekday == null) return from
+export function routineStart(parsed: { repeatWeekday?: number; repeatNth?: number; date?: string }, from: string): string {
+  // A day typed with it ("monthly on the 1st", "weekly Friday") is where it starts.
+  if (parsed.repeatWeekday == null) return parsed.date ?? from
   // A weekday of the month ("first Monday") starts on the next date that is one.
   if (parsed.repeatNth != null) {
     for (let date = from, i = 0; i < 400; date = addDays(date, 1), i++) {
@@ -1367,6 +1368,41 @@ const MONTH_NAME =
 const MONTH_DAY_RE = new RegExp(`\\s+(?:on\\s+)?${MONTH_NAME}\\s+(\\d{1,2})(?:st|nd|rd|th)?\\.?\\s*$`, 'i')
 const DAY_MONTH_RE = new RegExp(`\\s+(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?${MONTH_NAME}\\.?\\s*$`, 'i')
 
+// A trailing day of the month with no month named: "on the 15th", "on 1st",
+// "on the 3". "on" is required (with "the" the ordinal suffix may be left
+// off), so "Celebrate the 4th" or "Read chapter 3rd" stay plain titles. "due
+// the 15th" and "by the 1st" are read by the deadline pass below.
+const ON_MONTH_DAY_RE = /\s+on\s+(?:the\s+(\d{1,2})(?:st|nd|rd|th)?|(\d{1,2})(?:st|nd|rd|th))\.?\s*$/i
+const THE_MONTH_DAY_RE = /\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\.?\s*$/i
+// A monthly routine on a day of the month: "on the 1st of every month", "the
+// 15th of each month", "every 15th".
+const MONTHLY_DAY_RE = /\s+(?:(?:on\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(?:every|each)\s+month|(?:every|each)\s+(\d{1,2})(?:st|nd|rd|th)(?:\s+of\s+the\s+month)?)\.?\s*$/i
+
+// Resolve a day of the month (1–31) to the next date that lands on it: this
+// month if the day hasn't passed, otherwise the next month that has that day
+// (so "the 31st" late in November is December 31). Null for a day no month has.
+function nextDateOnDayOfMonth(day: number, from: string = todayStr()): string | null {
+  if (day < 1 || day > 31) return null
+  const [fy, fm] = from.split('-').map(Number)
+  for (let i = 0; i < 13; i++) {
+    const y = fy + Math.floor((fm - 1 + i) / 12)
+    const m0 = (fm - 1 + i) % 12
+    if (day > daysInMonth(y, m0)) continue
+    const candidate = `${y}-${String(m0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    if (candidate >= from) return candidate
+  }
+  return null
+}
+
+// Strip a trailing day-of-month phrase matched by `re` and resolve it.
+function parseTrailingDayOfMonth(text: string, re: RegExp): { text: string; date: string } | null {
+  const m = text.match(re)
+  if (!m) return null
+  const stripped = text.slice(0, m.index).trim()
+  const date = nextDateOnDayOfMonth(Number(m[1] ?? m[2]))
+  return stripped && date ? { text: stripped, date } : null
+}
+
 // Days in a given month (0 = Jan … 11 = Dec) of a given year — day 0 of the
 // next month is the last day of this one, so February's length follows the
 // year's leap rule.
@@ -1430,6 +1466,9 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
     const date = nextDateOnMonthDay(MONTH3[dayMonth[2].slice(0, 3).toLowerCase()], Number(dayMonth[1]))
     if (stripped && date) return { text: stripped, date }
   }
+  // A day of this month or the next: "on the 15th".
+  const onDay = parseTrailingDayOfMonth(text, ON_MONTH_DAY_RE)
+  if (onDay) return onDay
 
   // "this weekend" / "next weekend" — checked before a weekday name so the word
   // "weekend" is read whole rather than clipped at a stray weekday prefix.
@@ -1476,6 +1515,12 @@ function parseTrailingDue(text: string): { text: string; date: string } | null {
   if (today) {
     const title = dueTitle(text.slice(0, today.index))
     if (title) return { text: title, date: todayStr() }
+  }
+  // "due the 15th", "by the 1st" — a bare day of the month after "due" or "by".
+  const theDay = parseTrailingDayOfMonth(text, THE_MONTH_DAY_RE)
+  if (theDay) {
+    const title = dueTitle(theDay.text)
+    if (title) return { text: title, date: theDay.date }
   }
   const parsed = parseTrailingDate(text)
   if (!parsed) return null
@@ -1817,6 +1862,14 @@ export function parseQuickAdd(input: string): QuickAdd {
         repeatLabel = formatMonthlyNth(monthlyNth.nth, monthlyNth.weekday)
         continue
       }
+      // "the 15th of every month", "every 1st": monthly, starting on that day.
+      const monthlyDay = date === undefined ? parseTrailingDayOfMonth(text, MONTHLY_DAY_RE) : null
+      if (monthlyDay) {
+        text = monthlyDay.text
+        repeat = 'monthly'
+        date = monthlyDay.date
+        continue
+      }
       const interval = parseTrailingInterval(text)
       if (interval) {
         text = interval.text
@@ -1946,6 +1999,16 @@ export function parseQuickAdd(input: string): QuickAdd {
   // drive the tag filter — only the schedule phrase between them was removed.
   if (trailingTags.length > 0) text = `${text} ${trailingTags.join(' ')}`.trim()
 
+  // A day typed with a routine is the day it starts ("Rent monthly on the 1st",
+  // "Review weekly from Friday"), so the label names that day.
+  if (repeat && date && repeatWeekday === undefined) {
+    const [y, m, d] = date.split('-').map(Number)
+    if (repeat === 'monthly') repeatLabel = `Monthly on the ${ordinalDay(d)}`
+    else if (repeat === 'yearly') repeatLabel = `Yearly on ${new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    else if (repeat === 'interval' && repeatEvery && repeatEvery % 7 === 0) repeatLabel = formatInterval(repeatEvery, date)
+    else repeatLabel = `${repeatLabel}, from ${formatDayLabel(date).replace(/^(Today|Tomorrow)$/, w => w.toLowerCase())}`
+  }
+
   // A real day or recurrence wins over "someday" — a task with a day to sit on
   // isn't a backlog item — so the someday flag only stands when neither was read.
   const isSomeday = !!someday && !repeat && !date
@@ -1995,7 +2058,7 @@ export function readTitleEdit(task: Task, input: string): TitleEdit {
     priority: after.priority || undefined,
   }
   if (after.repeat) {
-    Object.assign(applied, { repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, repeatNth: after.repeatNth, schedule: after.schedule })
+    Object.assign(applied, { date: after.date, repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, repeatNth: after.repeatNth, schedule: after.schedule })
   } else if (after.date || after.someday) {
     Object.assign(applied, { date: after.date, someday: after.someday || undefined, schedule: after.schedule })
   }
@@ -2029,6 +2092,8 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
     // An existing routine renamed to "every other Friday" keeps its start (and
     // so its history), moved forward only as far as the first Friday after it.
     if (task.repeat && a.repeatWeekday != null) next.createdDate = routineStart(a, task.createdDate)
+    // A routine renamed with a day ("monthly on the 1st") moves to start there.
+    else if (task.repeat && a.date) next.createdDate = a.date
   } else if (a.date) {
     next.createdDate = a.date
     next.someday = undefined

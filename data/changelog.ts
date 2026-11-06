@@ -1126,6 +1126,14 @@ export const changelog: ChangelogEntry[] = [
       'The Week view now lists deadlines on the day they fall. A day with a task due on it has a “Due this day” list naming each task and where it is planned (“planned today”, “planned Saturday”, “planned for Someday”), and the day’s header counts how many are due. Before, a day with only a deadline read “Nothing planned yet”. A task listed under a day now shows its own deadline on its row (“due Mon”), colored as it is on Today. Finished tasks and routines are left out. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 141,
+    date: '2026-11-06',
+    title: 'Say “on the 15th” for a day of the month',
+    description:
+      'The add box read a date only with a month name (“Aug 20”), so “Pay rent on the 1st” stayed a task named that, on today. It now reads “on the 15th”, “on 1st”, and “on the 3” as the next date with that day: this month if it has not passed, otherwise the next month that has it. “due the 15th” and “by the 1st” set a deadline the same way. “Celebrate the 4th” without “on” stays as typed. A routine now starts on a day typed with it, where before the day was dropped and the routine started today: “Rent monthly on the 1st”, “the 15th of every month”, and “every 15th” make a monthly routine on that date, “yearly on Mar 3” a yearly one, and “daily tomorrow” a daily one from tomorrow. The preview names the day (“Monthly on the 1st”). Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists them. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
