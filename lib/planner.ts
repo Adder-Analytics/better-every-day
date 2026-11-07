@@ -1638,10 +1638,19 @@ function guessMeridiem(h: number, raw: string, hour12: boolean): number {
   return h + 12
 }
 
+// An hour typed without AM or PM that could fall in either half of the day.
+function isBareHour(raw: string): boolean {
+  const h = Number(raw)
+  return !raw.startsWith('0') && h >= 1 && h <= 12
+}
+
 // Strip a trailing time of day and resolve it to minutes since midnight.
 // Returns null when nothing is recognized, or when stripping would empty the
 // title (so a bare "9am" stays a literal task).
-function parseTrailingTime(text: string, hour12 = false): { text: string; timeMin: number } | null {
+// `bare` is set when the hour was typed without AM or PM and could be either
+// (1 to 12, no leading zero), so a part of the day said with it ("at 10
+// tonight", "tomorrow morning at 6") can settle which half of the day it means.
+function parseTrailingTime(text: string, hour12 = false): { text: string; timeMin: number; bare?: boolean } | null {
   const ampm = text.match(TIME_AMPM_RE)
   if (ampm) {
     let h = Number(ampm[1])
@@ -1656,12 +1665,12 @@ function parseTrailingTime(text: string, hour12 = false): { text: string; timeMi
   const h24 = text.match(TIME_24H_RE)
   if (h24) {
     const stripped = text.replace(TIME_24H_RE, '').trim()
-    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(h24[1]), h24[1], hour12) * 60 + Number(h24[2]) }
+    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(h24[1]), h24[1], hour12) * 60 + Number(h24[2]), bare: isBareHour(h24[1]) }
   }
   const atHour = text.match(TIME_AT_HOUR_RE)
   if (atHour) {
     const stripped = text.replace(TIME_AT_HOUR_RE, '').trim()
-    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(atHour[1]), atHour[1], hour12) * 60 }
+    if (stripped) return { text: stripped, timeMin: guessMeridiem(Number(atHour[1]), atHour[1], hour12) * 60, bare: isBareHour(atHour[1]) }
   }
   return null
 }
@@ -1673,31 +1682,69 @@ const TRAILING_TODAY_RE = /\s+today\.?\s*$/i
 
 // Trailing named times of day: "noon", "midnight", "morning", "tonight". People
 // reach for the word before the clock face — "Lunch noon", "Call mom tonight",
-// "Meds midnight" — so quick-add reads these the same way it reads "9am", and
-// maps each to a round hour. "noon" and "midnight" are exact; the vaguer words
-// take a conventional time (previewed before you commit, so the exact minute is
-// never a surprise, and the time menu can nudge it after). An optional leading
-// "at" ("at noon") or "this" ("this morning") is tolerated. Most specific first
-// so "tonight" wins before a bare "night". A leading \s keeps a one-word task
-// like "Morning" literal, and each phrase must leave a non-empty title behind.
-const NAMED_TIME_PHRASES: { re: RegExp; timeMin: number }[] = [
+// "Meds midnight" — so quick-add reads these the same way it reads "9am".
+// "noon" and "midnight" are exact times. The vaguer words name a part of the
+// day: on their own they take a conventional time (previewed before you commit,
+// so the exact minute is never a surprise, and the time menu can nudge it
+// after); next to a clock time ("tonight at 10", "at 6 tomorrow morning") they
+// only settle whether that time is AM or PM. "this morning", "in the morning",
+// and "at night" are tolerated, and "every morning", "each evening", or
+// "nightly" also make the task a daily routine. A leading \s keeps a one-word
+// task like "Morning" literal, and each phrase must leave a non-empty title.
+const EXACT_TIME_PHRASES: { re: RegExp; timeMin: number }[] = [
   { re: /\s+(?:at\s+)?midnight\.?\s*$/i, timeMin: 0 },
   { re: /\s+(?:at\s+)?noon\.?\s*$/i, timeMin: 12 * 60 },
-  { re: /\s+(?:this\s+)?morning\.?\s*$/i, timeMin: 9 * 60 },
-  { re: /\s+(?:this\s+)?afternoon\.?\s*$/i, timeMin: 14 * 60 },
-  { re: /\s+(?:this\s+)?evening\.?\s*$/i, timeMin: 18 * 60 },
-  { re: /\s+(?:tonight|(?:at\s+|this\s+)?night)\.?\s*$/i, timeMin: 21 * 60 },
 ]
 
-// Strip a trailing named time of day and resolve it to minutes since midnight.
-// Returns null when nothing is recognized, or when stripping would empty the
-// title (so a bare "noon" stays a literal task).
-function parseTrailingNamedTime(text: string): { text: string; timeMin: number } | null {
-  for (const { re, timeMin } of NAMED_TIME_PHRASES) {
+type DayPart = 'morning' | 'afternoon' | 'evening' | 'night'
+const DAY_PART_TIME: Record<DayPart, number> = { morning: 9 * 60, afternoon: 14 * 60, evening: 18 * 60, night: 21 * 60 }
+const DAY_PART_RE = /\s+(?:(every|each)\s+|this\s+|in\s+the\s+|at\s+(?=night))?(morning|afternoon|evening|night)\.?\s*$/i
+const TONIGHT_RE = /\s+(tonight|nightly)\.?\s*$/i
+
+// Strip a trailing part of the day. `daily` is set when it was said as a habit
+// ("every morning", "nightly"). Returns null when nothing is recognized or the
+// title would be left empty.
+function parseTrailingDayPart(text: string): { text: string; part: DayPart; daily: boolean } | null {
+  const m = text.match(DAY_PART_RE)
+  if (m) {
+    const stripped = text.slice(0, m.index).trim()
+    if (stripped) return { text: stripped, part: m[2].toLowerCase() as DayPart, daily: !!m[1] }
+  }
+  const t = text.match(TONIGHT_RE)
+  if (t) {
+    const stripped = text.slice(0, t.index).trim()
+    if (stripped) return { text: stripped, part: 'night', daily: t[1].toLowerCase() === 'nightly' }
+  }
+  return null
+}
+
+// Settle an hour typed without AM or PM by the part of the day said with it:
+// "morning at 6" is 6 AM, "tonight at 10" is 10 PM, "tonight at 1" is 1 AM.
+// "12" is left as already read (noon), since "night at 12" could mean either.
+function applyDayPart(timeMin: number, part: DayPart): number {
+  const h = Math.floor(timeMin / 60) % 12 // 1–11, or 0 for 12
+  const m = timeMin % 60
+  if (h === 0) return timeMin
+  const pm = part === 'afternoon' || part === 'evening' || (part === 'night' && h >= 5)
+  return (pm ? h + 12 : h) * 60 + m
+}
+
+// Strip a trailing named time of day ("noon", "tonight") and resolve it to
+// minutes since midnight. Returns null when nothing is recognized, or when
+// stripping would empty the title (so a bare "noon" stays a literal task).
+function parseTrailingExactTime(text: string): { text: string; timeMin: number } | null {
+  for (const { re, timeMin } of EXACT_TIME_PHRASES) {
     const stripped = text.replace(re, '').trim()
     if (stripped && stripped !== text) return { text: stripped, timeMin }
   }
   return null
+}
+
+function parseTrailingNamedTime(text: string): { text: string; timeMin: number } | null {
+  const exactTime = parseTrailingExactTime(text)
+  if (exactTime) return exactTime
+  const part = parseTrailingDayPart(text)
+  return part ? { text: part.text, timeMin: DAY_PART_TIME[part.part] } : null
 }
 
 // Trailing relative near-term times: "in 30 min", "in 2 hours", "in an hour",
@@ -1798,6 +1845,11 @@ export function parseQuickAdd(input: string): QuickAdd {
   let estimateMin: number | undefined
   let priority: boolean | undefined
   let someday: boolean | undefined
+  // A part of the day ("tonight", "every morning"), and whether the clock time
+  // was typed without AM or PM — read together after the loop, so "at 10
+  // tonight" and "tonight at 10" both land at 10 PM.
+  let dayPart: DayPart | undefined
+  let bareTime = false
   // Hashtags peeled off the end, newest first, so a schedule phrase sitting
   // behind them can be read. Reattached after the loop in their original order.
   const trailingTags: string[] = []
@@ -1965,6 +2017,7 @@ export function parseQuickAdd(input: string): QuickAdd {
       if (time) {
         text = time.text
         timeMin = time.timeMin
+        bareTime = !!time.bare
         continue
       }
       // A relative near-term time — "in 30 min", "in 2 hours" — resolves to a
@@ -1976,11 +2029,26 @@ export function parseQuickAdd(input: string): QuickAdd {
         timeMin = relative.timeMin
         continue
       }
-      // A named time — "noon", "tonight" — reads the same slot as a clock time.
-      const named = parseTrailingNamedTime(text)
-      if (named) {
-        text = named.text
-        timeMin = named.timeMin
+      // "noon" and "midnight" read the same slot as a clock time.
+      const exact = parseTrailingExactTime(text)
+      if (exact) {
+        text = exact.text
+        timeMin = exact.timeMin
+        continue
+      }
+    }
+    // A part of the day — "tonight", "tomorrow morning", "every evening" — is
+    // read whether or not a clock time was given, so neither is left on the
+    // title. Its time (or AM/PM) is settled after the loop.
+    if (dayPart === undefined) {
+      const part = parseTrailingDayPart(text)
+      if (part) {
+        text = part.text
+        dayPart = part.part
+        if (part.daily && repeat === undefined) {
+          repeat = 'daily'
+          repeatLabel = 'Every day'
+        }
         continue
       }
     }
@@ -1993,6 +2061,13 @@ export function parseQuickAdd(input: string): QuickAdd {
       }
     }
     break
+  }
+
+  // A part of the day alone takes its usual time; with a clock time typed
+  // without AM or PM, it decides which half of the day that time falls in.
+  if (dayPart) {
+    if (timeMin === undefined) timeMin = DAY_PART_TIME[dayPart]
+    else if (bareTime) timeMin = applyDayPart(timeMin, dayPart)
   }
 
   // Put the peeled tags back on the title, so they still render as chips and
