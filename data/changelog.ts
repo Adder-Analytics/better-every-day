@@ -1134,6 +1134,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box read a date only with a month name (“Aug 20”), so “Pay rent on the 1st” stayed a task named that, on today. It now reads “on the 15th”, “on 1st”, and “on the 3” as the next date with that day: this month if it has not passed, otherwise the next month that has it. “due the 15th” and “by the 1st” set a deadline the same way. “Celebrate the 4th” without “on” stays as typed. A routine now starts on a day typed with it, where before the day was dropped and the routine started today: “Rent monthly on the 1st”, “the 15th of every month”, and “every 15th” make a monthly routine on that date, “yearly on Mar 3” a yearly one, and “daily tomorrow” a daily one from tomorrow. The preview names the day (“Monthly on the 1st”). Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists them. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 142,
+    date: '2026-11-07',
+    title: 'Say “tonight at 10” or “every morning”',
+    description:
+      'A part of the day said together with a clock time was misread: “Read tonight at 10” became a 10 AM task named “Read tonight”, and “Run tomorrow morning at 6” a 6 PM one. The add box now reads morning, afternoon, evening, night, and tonight next to a time in either order, removes them from the title, and uses them to settle a time typed without AM or PM: “tonight at 10” is 10 PM, “at 6 tomorrow morning” is 6 AM. A time with AM or PM is kept as typed. “every morning”, “each evening”, “every night”, and “nightly” used to leave “every” on the title and make a one-off task; they now make a daily routine at that time (9 AM, 6 PM, 9 PM unless a time is given), so “Meds every night at 10” repeats daily at 10 PM. “Standup every weekday morning” and “Gym every Monday evening” keep their days and take the time. “in the morning” is read as well. Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists two of them. No stored data changed.',
+    type: 'fix',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
