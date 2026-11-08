@@ -214,6 +214,10 @@ export default function WeekView() {
         <span className="text-zinc-500 dark:text-zinc-300">every day</span>.
       </p>
 
+      {/* One column on a phone; on a large screen today runs across the top
+          and the six days after it sit in pairs, so the whole week fits on
+          screen without a long scroll. */}
+      <div className="grid gap-3 lg:grid-cols-2">
       {days.map(({ offset, date, items }) => {
         const heading = dayHeading(date, offset)
         const isToday = offset === 0
@@ -247,7 +251,7 @@ export default function WeekView() {
               setDragId(null)
               setDropDate(null)
             }}
-            className={`rounded-2xl border px-4 py-3.5 transition-colors ${
+            className={`flex flex-col rounded-2xl border px-4 py-3.5 transition-colors ${isToday ? 'lg:col-span-2' : ''} ${
               dropping
                 ? 'border-zinc-400 bg-zinc-100 ring-2 ring-zinc-300 dark:border-zinc-500 dark:bg-zinc-800/80 dark:ring-zinc-600'
                 : isToday
@@ -464,7 +468,9 @@ export default function WeekView() {
               </div>
             )}
 
-            {/* Per-day quick-add — drop a task straight onto this day. */}
+            {/* Per-day quick-add — drop a task straight onto this day. Pinned to
+                the card's foot, so paired cards keep their add boxes level. */}
+            <div className="mt-auto pt-2.5">
             <input
               type="text"
               value={drafts[date] ?? ''}
@@ -475,11 +481,13 @@ export default function WeekView() {
               }}
               placeholder={`Add to ${heading.label}…`}
               aria-label={`Add a task to ${heading.label}, ${heading.date}`}
-              className="mt-2.5 w-full rounded-lg border border-transparent bg-zinc-50 dark:bg-zinc-800/50 px-2.5 py-1.5 text-sm text-zinc-800 placeholder-zinc-400 transition-colors hover:border-zinc-200 focus:border-zinc-300 focus:bg-white focus:outline-none dark:text-zinc-100 dark:hover:border-zinc-700 dark:focus:border-zinc-600 dark:focus:bg-zinc-900"
+              className="w-full rounded-lg border border-transparent bg-zinc-50 dark:bg-zinc-800/50 px-2.5 py-1.5 text-sm text-zinc-800 placeholder-zinc-400 transition-colors hover:border-zinc-200 focus:border-zinc-300 focus:bg-white focus:outline-none dark:text-zinc-100 dark:hover:border-zinc-700 dark:focus:border-zinc-600 dark:focus:bg-zinc-900"
             />
+            </div>
           </section>
         )
       })}
+      </div>
 
       <div className="pt-1 text-center">
         <Link

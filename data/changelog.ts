@@ -1142,6 +1142,14 @@ export const changelog: ChangelogEntry[] = [
       'A part of the day said together with a clock time was misread: “Read tonight at 10” became a 10 AM task named “Read tonight”, and “Run tomorrow morning at 6” a 6 PM one. The add box now reads morning, afternoon, evening, night, and tonight next to a time in either order, removes them from the title, and uses them to settle a time typed without AM or PM: “tonight at 10” is 10 PM, “at 6 tomorrow morning” is 6 AM. A time with AM or PM is kept as typed. “every morning”, “each evening”, “every night”, and “nightly” used to leave “every” on the title and make a one-off task; they now make a daily routine at that time (9 AM, 6 PM, 9 PM unless a time is given), so “Meds every night at 10” repeats daily at 10 PM. “Standup every weekday morning” and “Gym every Monday evening” keep their days and take the time. “in the morning” is read as well. Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists two of them. No stored data changed.',
     type: 'fix',
   },
+  {
+    day: 143,
+    date: '2026-11-08',
+    title: 'The week fits a wide screen',
+    description:
+      'On screens 1024px and wider, the Week page now uses the extra width: today runs across the top and the six days after it sit in pairs, two to a row, so the whole week shows with far less scrolling. Each day’s add box stays at the bottom of its card, so cards side by side keep them lined up. Phones and narrow windows keep the single column. Dragging a task to another day works the same in both layouts. No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

@@ -56,14 +56,18 @@ export default function AppHeader({
   title,
   subtitle,
   current,
+  wide = false,
 }: {
   title: string
   subtitle: string
   current?: string
+  // Pages that spread out on a large screen (the Week board) widen the header
+  // with them, so its edges line up with the content below.
+  wide?: boolean
 }) {
   return (
     <header className="sticky top-0 z-10 bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-200 dark:border-zinc-800">
-      <div className="max-w-xl mx-auto px-4 pt-4 pb-2">
+      <div className={`${wide ? 'max-w-xl lg:max-w-4xl' : 'max-w-xl'} mx-auto px-4 pt-4 pb-2`}>
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="whitespace-nowrap text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{title}</h1>

@@ -10,13 +10,13 @@ export const metadata: Metadata = {
 export default function WeekPage() {
   return (
     <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <AppHeader title="The week ahead" subtitle="Plan the next seven days" current="/week" />
+      <AppHeader title="The week ahead" subtitle="Plan the next seven days" current="/week" wide />
 
-      <div className="max-w-xl mx-auto px-4 py-4">
+      <div className="max-w-xl lg:max-w-4xl mx-auto px-4 py-4">
         <WeekView />
       </div>
 
-      <footer className="max-w-xl mx-auto px-4 py-10 text-center">
+      <footer className="max-w-xl lg:max-w-4xl mx-auto px-4 py-10 text-center">
         <p className="text-xs text-zinc-400">Plans live in your browser. Nothing is sent anywhere.</p>
       </footer>
     </main>
