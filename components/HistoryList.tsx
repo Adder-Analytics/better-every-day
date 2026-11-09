@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useSyncExternalStore } from 'react'
-import { historyByDay, loadPlanner, addDaysStr, HISTORY_WINDOW_DAYS, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
+import { type Task, historyByDay, loadPlanner, savePlanner, newTask, todayStr, PLANNER_VERSION, addDaysStr, HISTORY_WINDOW_DAYS, formatPastDayLabel, formatTime, formatTimeRange, formatDuration, completionMinuteOn, routineStreak, bestRoutineStreak, streakUnitOf } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { stripTags } from '@/lib/tags'
 import { loadDayNotes } from '@/lib/daynotes'
@@ -60,12 +60,15 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 
 // The look-back: everything completed, grouped by day, newest first. It opens
 // on the last 30 days and pages further back on request; search reaches the
-// whole year the planner keeps. Read-only — it never writes the planner, it just shows what
-// the planner already remembers.
+// whole year the planner keeps. It writes the planner only when you ask to do a
+// finished task again, which adds a fresh copy to today.
 export default function HistoryList() {
   const mounted = useHydrated()
   const hour12 = useHour12()
-  const [tasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
+  const [tasks, setTasks] = useState(() => (typeof window === 'undefined' ? [] : loadPlanner().tasks))
+  // Ids of history rows put back on today during this visit, so the row can
+  // say so instead of offering the same copy twice.
+  const [againIds, setAgainIds] = useState<Set<string>>(() => new Set())
   const [dayNotes] = useState(() => (typeof window === 'undefined' ? {} : loadDayNotes()))
   const [query, setQuery] = useState('')
   // How many days back the unfiltered list reaches. Grows a window at a time.
@@ -83,6 +86,37 @@ export default function HistoryList() {
       .map(day => ({ date: day.date, items: day.items.filter(t => t.text.toLowerCase().includes(q)) }))
       .filter(day => day.items.length > 0)
   }, [allDays, q])
+  // Titles of tasks still open on today or a later day (or in Someday). A
+  // finished task already planned again reads "Planned" rather than offering
+  // another copy.
+  const openTexts = useMemo(
+    () => new Set(tasks.filter(t => !t.done && !t.repeat).map(t => t.text.trim().toLowerCase())),
+    [tasks]
+  )
+
+  // Put a finished one-off back on today as a fresh task. It keeps what
+  // describes the work (title and tags, note, estimate, star, steps reset to
+  // unchecked) and drops what belonged to that one occasion: its time of day
+  // and deadline. Reads storage fresh so a change made in another tab isn't
+  // overwritten.
+  const doAgain = (src: Task) => {
+    const stored = loadPlanner().tasks
+    const base = newTask(src.text, todayStr())
+    const copy: Task = {
+      ...base,
+      ...(src.note ? { note: src.note } : {}),
+      ...(src.estimateMin ? { estimateMin: src.estimateMin } : {}),
+      ...(src.priority ? { priority: true } : {}),
+      ...(src.subtasks?.length
+        ? { subtasks: src.subtasks.map((st, i) => ({ ...st, id: `s${base.id.slice(1)}${i}`, done: false })) }
+        : {}),
+    }
+    const next = [...stored, copy]
+    savePlanner({ version: PLANNER_VERSION, tasks: next })
+    setTasks(next)
+    setAgainIds(prev => new Set(prev).add(src.id))
+  }
+
   const matchCount = useMemo(() => days.reduce((sum, d) => sum + d.items.length, 0), [days])
 
   if (!mounted) {
@@ -276,6 +310,29 @@ export default function HistoryList() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992V4.356M2.985 19.644v-4.992h4.992m-4.681-2.72a7.5 7.5 0 0112.548-3.364l3.18 3.182m0 0V9.349m0 2.401a7.5 7.5 0 01-12.548 3.364l-3.18-3.182" />
                     </svg>
+                  )}
+                  {!task.repeat && (
+                    againIds.has(task.id) || openTexts.has(task.text.trim().toLowerCase()) ? (
+                      <span className="ml-auto flex flex-shrink-0 items-center gap-1 pl-2 text-xs text-zinc-400 dark:text-zinc-500">
+                        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                        </svg>
+                        {againIds.has(task.id) ? 'Added to today' : 'Planned'}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => doAgain(task)}
+                        aria-label={`Do “${stripTags(task.text)}” again today`}
+                        title="Add a fresh copy to today"
+                        className="ml-auto -my-1 flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
+                      >
+                        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                        </svg>
+                        Again
+                      </button>
+                    )
                   )}
                 </li>
                 )

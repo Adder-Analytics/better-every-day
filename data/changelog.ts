@@ -1150,6 +1150,14 @@ export const changelog: ChangelogEntry[] = [
       'On screens 1024px and wider, the Week page now uses the extra width: today runs across the top and the six days after it sit in pairs, two to a row, so the whole week shows with far less scrolling. Each day’s add box stays at the bottom of its card, so cards side by side keep them lined up. Phones and narrow windows keep the single column. Dragging a task to another day works the same in both layouts. No stored data changed.',
     type: 'design',
   },
+  {
+    day: 144,
+    date: '2026-11-09',
+    title: 'Do a finished task again',
+    description:
+      'Each finished one-off task on the History page now has an “Again” button. It adds a fresh copy of the task to today, keeping its title and tags, note, estimate, star, and steps (unchecked), and leaving off the time of day and deadline it had before. The row then reads “Added to today”. A task whose title matches one that is still open on today, a later day, or Someday reads “Planned” instead of offering a second copy. Routines are left out, since they already come back on their own. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
