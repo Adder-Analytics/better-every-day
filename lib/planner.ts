@@ -1345,6 +1345,22 @@ const TOMORROW_RE = /\s+(?:tomorrow|tmrw|tmw)\.?\s*$/i
 const NEXT_WEEK_RE = /\s+next\s+week\.?\s*$/i
 const IN_DAYS_RE = /\s+in\s+(\d{1,3})\s+days?\.?\s*$/i
 const IN_WEEKS_RE = /\s+in\s+(\d{1,2})\s+weeks?\.?\s*$/i
+// "the day after tomorrow" — read whole, before TOMORROW_RE would claim its last
+// word and leave "the day after" on the title.
+const DAY_AFTER_TOMORROW_RE = /\s+(?:the\s+)?day\s+after\s+(?:tomorrow|tmrw|tmw)\.?\s*$/i
+// "in a week" (the spelled-out form of "in 1 week").
+const IN_A_WEEK_RE = /\s+in\s+(?:a|one)\s+week\.?\s*$/i
+// "in a month", "in 3 months": the same day of the month that many months on,
+// pulled back to the month's last day when it's shorter (Jan 31 → Feb 28).
+const IN_MONTHS_RE = /\s+in\s+(a|one|\d{1,2})\s+months?\.?\s*$/i
+// "next month": the 1st of next month — the start of that month, not a guess at
+// a day within it.
+const NEXT_MONTH_RE = /\s+next\s+month\.?\s*$/i
+// "end of the month" / "end of month": the last day of this month.
+const END_OF_MONTH_RE = /\s+(?:at\s+)?(?:the\s+)?end\s+of\s+(?:the\s+|this\s+)?month\.?\s*$/i
+// "end of the week" / "end of week": the coming Friday, the end of the working
+// week — today when it's Friday, the following Friday on a weekend.
+const END_OF_WEEK_RE = /\s+(?:at\s+)?(?:the\s+)?end\s+of\s+(?:the\s+|this\s+)?week\.?\s*$/i
 const WEEKDAY_RE =
   /\s+(?:(?:on|next|this)\s+)?(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:s|nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\.?\s*$/i
 // A trailing "weekend": "this weekend", "next weekend", "on the weekend", or a
@@ -1426,11 +1442,51 @@ function nextDateOnMonthDay(month0: number, day: number): string | null {
   return null
 }
 
+// The last day of the current month (YYYY-MM-DD).
+function endOfMonthStr(): string {
+  const d = new Date()
+  const last = daysInMonth(d.getFullYear(), d.getMonth())
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`
+}
+
+// N months from today (YYYY-MM-DD): the same day of the month, clamped to the
+// target month's last day. With `first`, the 1st of that month instead.
+function addMonthsStr(n: number, first = false): string {
+  const d = new Date()
+  const total = d.getMonth() + n
+  const y = d.getFullYear() + Math.floor(total / 12)
+  const m0 = total % 12
+  const day = first ? 1 : Math.min(d.getDate(), daysInMonth(y, m0))
+  return `${y}-${String(m0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 // Strip a trailing day phrase ("tomorrow", "friday", "this weekend", "in 3
 // days", "next week", "in 2 weeks", "Aug 20", "20 August") and resolve it to an
 // absolute date. Returns null when nothing is recognized, or when stripping
 // would empty the title (so "friday" or "August" typed alone stays a literal task).
 function parseTrailingDate(text: string): { text: string; date: string } | null {
+  const dayAfter = text.replace(DAY_AFTER_TOMORROW_RE, '').trim()
+  if (dayAfter && dayAfter !== text) return { text: dayAfter, date: addDaysStr(2) }
+
+  const endOfMonth = text.replace(END_OF_MONTH_RE, '').trim()
+  if (endOfMonth && endOfMonth !== text) return { text: endOfMonth, date: endOfMonthStr() }
+
+  const endOfWeek = text.replace(END_OF_WEEK_RE, '').trim()
+  if (endOfWeek && endOfWeek !== text) return { text: endOfWeek, date: new Date().getDay() === 5 ? todayStr() : nextWeekdayStr(5) }
+
+  const nextMonth = text.replace(NEXT_MONTH_RE, '').trim()
+  if (nextMonth && nextMonth !== text) return { text: nextMonth, date: addMonthsStr(1, true) }
+
+  const inMonths = text.match(IN_MONTHS_RE)
+  if (inMonths) {
+    const n = /^\d+$/.test(inMonths[1]) ? Number(inMonths[1]) : 1
+    const stripped = text.replace(IN_MONTHS_RE, '').trim()
+    if (stripped && n >= 1 && n <= 24) return { text: stripped, date: addMonthsStr(n) }
+  }
+
+  const inAWeek = text.replace(IN_A_WEEK_RE, '').trim()
+  if (inAWeek && inAWeek !== text) return { text: inAWeek, date: addDaysStr(7) }
+
   const tomorrow = text.replace(TOMORROW_RE, '').trim()
   if (tomorrow && tomorrow !== text) return { text: tomorrow, date: addDaysStr(1) }
 
