@@ -1158,6 +1158,14 @@ export const changelog: ChangelogEntry[] = [
       'Each finished one-off task on the History page now has an “Again” button. It adds a fresh copy of the task to today, keeping its title and tags, note, estimate, star, and steps (unchecked), and leaving off the time of day and deadline it had before. The row then reads “Added to today”. A task whose title matches one that is still open on today, a later day, or Someday reads “Planned” instead of offering a second copy. Routines are left out, since they already come back on their own. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 145,
+    date: '2026-11-10',
+    title: 'Say “end of the month” or “next month”',
+    description:
+      'The add box now reads more ways of naming a day. “end of the month” (or “end of month”) puts the task on the last day of this month, and “end of the week” on the coming Friday, or today on a Friday. “next month” puts it on the 1st of next month. “in a month” and “in 3 months” use the same date that many months on, moved back to the last day when the month is shorter. “in a week” works like “in 1 week”. “the day after tomorrow” used to land on tomorrow and leave “the day after” in the title; it now lands two days out. After “by” or “due” these set a deadline, so “Taxes by the end of the month” is due on the 30th. Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists two of them. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

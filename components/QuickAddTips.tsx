@@ -24,6 +24,8 @@ const GROUPS: Group[] = [
       { example: 'Aug 20', does: 'a calendar date' },
       { example: 'on the 15th', does: 'that day of the month' },
       { example: 'in 3 days', does: 'a few days out' },
+      { example: 'end of the month', does: 'its last day' },
+      { example: 'next month', does: 'the 1st of next month' },
       { example: 'someday', does: 'keep it, no day yet' },
     ],
   },
