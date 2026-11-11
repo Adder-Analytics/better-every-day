@@ -727,6 +727,30 @@ export default function TaskItem({
     }
   }
 
+  const hasDetails = !!(upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0)
+  // Opens the schedule menu (where the time lives) when editable.
+  const timeChip = (where: string) =>
+    task.timeMin != null && !editing && (
+              canSetTime && !task.done ? (
+                <button
+                  onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
+                  aria-haspopup="menu"
+                  aria-expanded={menu === 'schedule'}
+                  title={task.estimateMin ? 'Change time block' : 'Change time'}
+                  className={`${where} mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors`}
+                >
+                  {timeLabel}
+                </button>
+              ) : (
+                <span
+                  title={task.estimateMin ? 'Scheduled block' : 'Scheduled time'}
+                  className={`${where} mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
+                >
+                  {timeLabel}
+                </span>
+              )
+            )
+
   return (
     <div className="relative">
       {/* What a swipe will do, revealed under the row as it slides aside. */}
@@ -842,28 +866,11 @@ export default function TaskItem({
             rather than crowding the title off-screen on a narrow phone. */}
         <div className="min-w-0 flex-1 flex flex-col gap-1">
           <div className="flex items-start gap-2 min-w-0">
-            {/* Time of day — a quiet agenda timestamp that leads the task.
-                Opens the schedule menu (where the time lives) when editable. */}
-            {task.timeMin != null && !editing && (
-              canSetTime && !task.done ? (
-                <button
-                  onClick={() => setMenu(m => (m === 'schedule' ? null : 'schedule'))}
-                  aria-haspopup="menu"
-                  aria-expanded={menu === 'schedule'}
-                  title={task.estimateMin ? 'Change time block' : 'Change time'}
-                  className="mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                >
-                  {timeLabel}
-                </button>
-              ) : (
-                <span
-                  title={task.estimateMin ? 'Scheduled block' : 'Scheduled time'}
-                  className={`mt-px flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-zinc-500 dark:text-zinc-400 ${task.done ? 'opacity-60' : ''}`}
-                >
-                  {timeLabel}
-                </span>
-              )
-            )}
+            {/* Time of day — a quiet agenda timestamp that leads the task. On a
+                wide row it sits before the title; on a narrow one (a phone) it
+                moves to the head of the details line, so the title keeps the
+                full width instead of wrapping into a thin column. */}
+            {timeChip('hidden @sm:inline-block')}
 
             {editing ? (
               <input
@@ -946,8 +953,11 @@ export default function TaskItem({
           {/* The details line: what's coming, what's late, a streak, a repeat
               cadence, an estimate, step progress. Wraps instead of pushing on
               the title, and is absent when a task carries none of them. */}
-          {!editing && (upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0) && (
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          {!editing && (hasDetails || task.timeMin != null) && (
+            <div className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 ${hasDetails ? '' : '@sm:hidden'}`}>
+              {/* On a narrow row, the time of day leads the details. */}
+              {timeChip('@sm:hidden')}
+
               {/* The live "starts in" hint on today's next timed task. */}
               {upNextLabel && (
                 <span className="rounded-full bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
