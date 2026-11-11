@@ -1166,6 +1166,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now reads more ways of naming a day. “end of the month” (or “end of month”) puts the task on the last day of this month, and “end of the week” on the coming Friday, or today on a Friday. “next month” puts it on the 1st of next month. “in a month” and “in 3 months” use the same date that many months on, moved back to the last day when the month is shorter. “in a week” works like “in 1 week”. “the day after tomorrow” used to land on tomorrow and leave “the day after” in the title; it now lands two days out. After “by” or “due” these set a deadline, so “Taxes by the end of the month” is due on the 30th. Adding from Week and Month and editing a title read the same phrases, and “What you can type” lists two of them. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 146,
+    date: '2026-11-11',
+    title: 'Timed task names fit on a phone',
+    description:
+      'On a narrow row, such as on a phone, a task’s time of day used to sit in front of its name, which left the name a thin column that wrapped over three lines. On a narrow row the time now starts the line of details under the name, and the name uses the full width. Tapping the time still opens the schedule menu. Wide rows look the same as before. No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
