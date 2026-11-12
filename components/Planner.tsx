@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -1008,26 +1008,7 @@ export default function Planner() {
   const toggleTask = (id: string) => {
     const today = todayStr()
     const now = currentMin()
-    setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== id) return t
-        // A routine records completion per day, so it returns fresh tomorrow. The
-        // time of day it was finished rides alongside in completionTimes, keyed by
-        // today, and drops out again when the completion is undone.
-        if (t.repeat) {
-          const done = (t.completions ?? []).includes(today)
-          const completions = done
-            ? (t.completions ?? []).filter(c => c !== today)
-            : [...(t.completions ?? []), today]
-          const times = { ...(t.completionTimes ?? {}) }
-          if (done) delete times[today]
-          else times[today] = now
-          return { ...t, completions, completionTimes: Object.keys(times).length ? times : undefined }
-        }
-        // A one-off records the minute it was checked off, cleared when unchecked.
-        return { ...t, done: !t.done, completedDate: t.done ? undefined : today, completedAt: t.done ? undefined : now }
-      })
-    )
+    setTasks(prev => prev.map(t => (t.id === id ? toggledToday(t, today, now) : t)))
   }
 
   // Take a rest day: mark a routine as skipped today, so it steps out of

@@ -1174,6 +1174,14 @@ export const changelog: ChangelogEntry[] = [
       'On a narrow row, such as on a phone, a task’s time of day used to sit in front of its name, which left the name a thin column that wrapped over three lines. On a narrow row the time now starts the line of details under the name, and the name uses the full width. Tapping the time still opens the schedule menu. Wide rows look the same as before. No stored data changed.',
     type: 'design',
   },
+  {
+    day: 147,
+    date: '2026-11-12',
+    title: 'Check off today’s tasks from the week',
+    description:
+      'Tasks on the Today card in the Week view now have a checkbox, where they used to show only a dot. Checking one off there is the same as checking it off on the home page: a routine records today’s completion and its streak updates, and a one-off records the time it was finished. Tap again to un-check. Tasks on later days still show a dot, since those days are for planning. A task carried over from an earlier day and finished today now stays on the Today card, struck through, instead of disappearing. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

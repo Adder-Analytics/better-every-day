@@ -24,6 +24,8 @@ import {
   formatDue,
   formatDueFull,
   formatDayLabel,
+  currentMin,
+  toggledToday,
   PLANNER_VERSION,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
@@ -86,8 +88,9 @@ function isWeekend(dateStr: string): boolean {
 type DayTask = { task: Task; done: boolean; carriedFrom?: string }
 
 // Everything planned for a given date: routines due (and not rested) that day,
-// plus one-off tasks scheduled for it. Today also gathers the unfinished tasks
-// carried over from earlier days, since those are really today's load.
+// plus one-off tasks scheduled for it. Today also gathers the tasks carried over
+// from earlier days (unfinished, or finished today), since those are really
+// today's load.
 function tasksForDay(tasks: Task[], date: string, today: string): DayTask[] {
   const out: DayTask[] = []
   for (const t of tasks) {
@@ -95,8 +98,10 @@ function tasksForDay(tasks: Task[], date: string, today: string): DayTask[] {
       if (isDueOn(t, date) && !isSkippedOn(t, date)) out.push({ task: t, done: isCompletedOn(t, date) })
     } else if (!t.someday && t.createdDate === date) {
       out.push({ task: t, done: t.done })
-    } else if (date === today && !t.someday && t.createdDate < today && !t.done) {
-      out.push({ task: t, done: false, carriedFrom: t.createdDate })
+    } else if (date === today && !t.someday && t.createdDate < today && (!t.done || t.completedDate === today)) {
+      // Carried in unfinished — or finished today, so checking one off here
+      // (or on the home page) leaves it on today's card, struck through.
+      out.push({ task: t, done: t.done, carriedFrom: t.createdDate })
     }
   }
   // Timed tasks lead in time order; still-to-do above finished, matching the
@@ -190,6 +195,15 @@ export default function WeekView() {
     setMovingId(null)
   }
 
+  // Check a task off today's card, or un-check it — the same change the home
+  // page's checkbox makes, so a routine's streak and a one-off's finish time
+  // read the same wherever it was ticked. Only today's card offers it: the
+  // other days are for planning, not for marking things done ahead of time.
+  const toggleTask = (id: string) => {
+    const now = currentMin()
+    setTasks(prev => prev.map(t => (t.id === id ? toggledToday(t, today, now) : t)))
+  }
+
   // Remove a one-off task from the plan. Only offered for one-offs — a routine
   // spans many days, so deleting it from a single column would be a surprise;
   // routines are managed from the task's own row on the home page.
@@ -208,7 +222,7 @@ export default function WeekView() {
   return (
     <div className="space-y-3">
       <p className="px-1 text-xs leading-relaxed text-zinc-400">
-        Your next seven days at a glance. Add a task under any day to plan ahead, or move one to another day — add a time like{' '}
+        Your next seven days at a glance. Check off today’s tasks, add a task under any day to plan ahead, or move one to another day — add a time like{' '}
         <span className="text-zinc-500 dark:text-zinc-300">9am</span>, a block like{' '}
         <span className="text-zinc-500 dark:text-zinc-300">9–11am</span>, or make it repeat with{' '}
         <span className="text-zinc-500 dark:text-zinc-300">every day</span>.
@@ -323,6 +337,27 @@ export default function WeekView() {
                       className={`rounded-md ${movable ? 'cursor-grab active:cursor-grabbing' : ''} ${dragId === task.id ? 'opacity-40' : ''}`}
                     >
                     <div className="group flex items-start gap-2 py-0.5">
+                      {isToday ? (
+                        // Today's tasks can be checked off right here. The
+                        // after: inset widens the touch target past the circle.
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={done}
+                          onClick={() => toggleTask(task.id)}
+                          aria-label={done ? `Mark “${title}” not done` : `Mark “${title}” done`}
+                          title={done ? 'Mark not done' : 'Mark done'}
+                          className={`relative mt-[3px] flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors after:absolute after:-inset-2.5 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-zinc-900 ${
+                            done
+                              ? 'border-emerald-500 bg-emerald-500 text-white'
+                              : 'border-zinc-300 text-transparent hover:border-emerald-500 dark:border-zinc-600 dark:hover:border-emerald-500'
+                          }`}
+                        >
+                          <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5} aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        </button>
+                      ) : (
                       <span className="mt-1 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
                         {done ? (
                           <svg className="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
@@ -334,6 +369,7 @@ export default function WeekView() {
                           <span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600" />
                         )}
                       </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                           {task.timeMin != null && (
