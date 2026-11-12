@@ -650,6 +650,26 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
   return !!task.repeat && (task.completions ?? []).includes(dateStr)
 }
 
+// A task checked off (or un-checked) today, at minute `now`. A routine records
+// completion per day, so it returns fresh tomorrow; the time of day it was
+// finished rides alongside in completionTimes, keyed by today, and drops out
+// again when the completion is undone. A one-off records the minute it was
+// checked off, cleared when unchecked. Shared by Today and the Week view so both
+// write the same shape.
+export function toggledToday(t: Task, today: string, now: number): Task {
+  if (t.repeat) {
+    const done = (t.completions ?? []).includes(today)
+    const completions = done
+      ? (t.completions ?? []).filter(c => c !== today)
+      : [...(t.completions ?? []), today]
+    const times = { ...(t.completionTimes ?? {}) }
+    if (done) delete times[today]
+    else times[today] = now
+    return { ...t, completions, completionTimes: Object.keys(times).length ? times : undefined }
+  }
+  return { ...t, done: !t.done, completedDate: t.done ? undefined : today, completedAt: t.done ? undefined : now }
+}
+
 // The local time of day (minutes since midnight) a task was completed on a given
 // date, or null when none was recorded. A routine reads its per-date map; a
 // one-off reads its single completedAt, but only for the day it was finished, so
