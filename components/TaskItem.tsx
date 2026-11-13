@@ -336,6 +336,10 @@ type Props = {
   onFilterTag?: (tag: string) => void
   activeTag?: string | null
   carryover?: boolean
+  // A carried-over row that can be checked off where it sits: it gets the
+  // usual checkbox, and "Do today" moves to a small button on the right. Set
+  // for tasks carried over from a past day (not Someday ones, which have no day).
+  checkable?: boolean
   // Marks this row as the keyboard selection — draws a focus ring and scrolls
   // the row into view. Driven from the parent's list navigation.
   selected?: boolean
@@ -382,6 +386,7 @@ export default function TaskItem({
   onFilterTag,
   activeTag,
   carryover = false,
+  checkable = false,
   selected = false,
   highlight = false,
   onDoToday,
@@ -832,7 +837,7 @@ export default function TaskItem({
           </div>
         )}
 
-        {carryover ? (
+        {carryover && !checkable ? (
           <button
             onClick={() => onDoToday?.(task.id)}
             className="flex-shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
@@ -1268,6 +1273,20 @@ export default function TaskItem({
                 className="hidden pointer-coarse:block @max-md:block flex-shrink-0 p-1 rounded text-zinc-400 dark:text-zinc-500"
               >
                 <EllipsisIcon className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* A checkable carryover keeps its "Do today" one tap away, beside
+                the row's other actions, now that the checkbox has the left. */}
+            {carryover && checkable && onDoToday && !confirmDelete && (
+              <button
+                onClick={() => onDoToday(task.id)}
+                aria-label="Do today"
+                title="Move to today"
+                className="flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+              >
+                <ArrowDownIcon className="h-3.5 w-3.5" />
+                <span className="@max-sm:sr-only">Do today</span>
               </button>
             )}
 
