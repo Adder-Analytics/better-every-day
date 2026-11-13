@@ -1382,9 +1382,15 @@ export default function Planner() {
   // Today = one-off tasks created today, plus any routines due today. Someday
   // tasks are held out — they wait in their own list until scheduled. A routine
   // taken as a rest day today is held out too (see the Skipped section below).
+  // A task carried over from a past day and checked off today joins today's
+  // finished list, so checking it off where it sits reads like any other.
   // Filtering the full array preserves order, so drag-reordering still works.
   const todayTasks = tasks
-    .filter(t => (t.repeat ? isDueOn(t, today) && !isSkippedOn(t, today) : t.createdDate === today && !t.someday))
+    .filter(t =>
+      t.repeat
+        ? isDueOn(t, today) && !isSkippedOn(t, today)
+        : !t.someday && (t.createdDate === today || (t.done && t.completedDate === today && t.createdDate < today))
+    )
     .map(view)
   // Routines rested today — due, but deliberately skipped. Held out of every
   // count and the agenda above (so a rest day never nags or blocks "all done"),
@@ -2517,6 +2523,7 @@ export default function Planner() {
                   key={task.id}
                   task={task}
                   carryover
+                  checkable
                   focusedSec={focusSeconds(focusLog, task.id)}
                   highlight={task.id === revealId}
                   onFilterTag={setActiveTag}

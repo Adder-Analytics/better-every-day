@@ -1182,6 +1182,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks on the Today card in the Week view now have a checkbox, where they used to show only a dot. Checking one off there is the same as checking it off on the home page: a routine records today’s completion and its streak updates, and a one-off records the time it was finished. Tap again to un-check. Tasks on later days still show a dot, since those days are for planning. A task carried over from an earlier day and finished today now stays on the Today card, struck through, instead of disappearing. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 148,
+    date: '2026-11-13',
+    title: 'Check off a carried-over task where it is',
+    description:
+      'Tasks carried over from an earlier day now have a checkbox on the home page. Before, the only action on the left was "Do today", so finishing one took two taps: move it, then check it. "Do today" is still there, as a small button on the right of the row (an arrow on narrow screens). A carried-over task checked off today moves to today’s Completed list and counts toward today’s total; un-checking it puts it back under the day it came from. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
