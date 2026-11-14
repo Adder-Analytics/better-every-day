@@ -493,9 +493,13 @@ function FocusSteps({ subtasks, onChange }: { subtasks: Subtask[]; onChange: (ne
 // The live "now" marker that sits in the agenda at the current time — a small
 // pulsing dot, the clock, and a hairline. It quietly answers "where am I in my
 // day?" by separating what's already passed from what's still ahead.
-function NowLine({ min }: { min: number }) {
+// When the next timed task is a while off, the line also offers the untimed
+// tasks whose estimate fits in the free time before it — tapping one opens
+// Focus on that task.
+type FreeSlot = { untilMin: number; fits: Task[]; onPick: (id: string) => void }
+function NowLine({ min, free }: { min: number; free?: FreeSlot }) {
   const hour12 = useHour12()
-  return (
+  const line = (
     <div className="flex items-center gap-2 py-0.5 pl-1.5 pr-1" aria-label={`Now, ${formatTime(min, hour12)}`}>
       <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
@@ -505,6 +509,35 @@ function NowLine({ min }: { min: number }) {
         {formatTime(min, hour12)}
       </span>
       <span className="h-px flex-1 rounded-full bg-gradient-to-r from-emerald-500/30 to-transparent" />
+    </div>
+  )
+  if (!free || free.fits.length === 0) return line
+  const untilLabel = formatTime(free.untilMin, hour12)
+  return (
+    <div>
+      {line}
+      <div className="flex flex-wrap items-center gap-1.5 pb-1 pl-5 pr-1 pt-1">
+        <span className="mr-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+          <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+            {formatDuration(free.untilMin - min)}
+          </span>{' '}
+          free until {untilLabel} · fits:
+        </span>
+        {free.fits.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => free.onPick(t.id)}
+            title={`Focus on this until ${untilLabel}`}
+            aria-label={`Focus on ${stripTags(t.text)}, ${formatDuration(t.estimateMin!)}`}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-zinc-200 bg-white py-1 pl-2 pr-2.5 text-xs text-zinc-700 transition-colors hover:border-emerald-500/50 hover:text-zinc-900 active:scale-[0.97] dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:border-emerald-500/40 dark:hover:text-zinc-100"
+          >
+            <TargetIcon className="h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="min-w-0 max-w-[13rem] truncate">{stripTags(t.text)}</span>
+            <span className="flex-shrink-0 tabular-nums text-zinc-400 dark:text-zinc-500">{formatDuration(t.estimateMin!)}</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -1590,6 +1623,36 @@ export default function Planner() {
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
   const vCarryovers = carryovers.filter(matchesTag)
+  // The free stretch from now until the next timed task, and the untimed tasks
+  // (today's and carried-over, within any tag filter) whose estimate fits in
+  // it: starred first, then the nearest deadline, then list order — up to three.
+  // The next task is read from the whole day so a hidden one still bounds the
+  // gap. Nothing is offered while a timed block is running, when the gap is
+  // under 10 minutes, or once focus mode is on.
+  const freeSlot: FreeSlot | undefined = (() => {
+    if (!mounted || focusMode) return undefined
+    const inBlock = todayActive.some(
+      t => t.timeMin != null && t.estimateMin && t.timeMin <= nowMin && nowMin < t.timeMin + t.estimateMin
+    )
+    if (inBlock) return undefined
+    const ahead = todayActive.filter(t => t.timeMin != null && t.timeMin > nowMin).map(t => t.timeMin!)
+    if (ahead.length === 0) return undefined
+    const untilMin = Math.min(...ahead)
+    const gap = untilMin - nowMin
+    if (gap < 10) return undefined
+    const fits = [...vTodayActive, ...vCarryovers]
+      .filter(t => t.timeMin == null && !!t.estimateMin && t.estimateMin <= gap)
+      .map((t, i) => ({ t, i }))
+      .sort(
+        (a, b) =>
+          (b.t.priority ? 1 : 0) - (a.t.priority ? 1 : 0) ||
+          (a.t.dueDate ?? '9999').localeCompare(b.t.dueDate ?? '9999') ||
+          a.i - b.i
+      )
+      .slice(0, 3)
+      .map(x => x.t)
+    return { untilMin, fits, onPick: startFocusOn }
+  })()
   // Grouped by the day each was meant for, most-recent day first, so a task's
   // real age is honest — one left over from last week no longer hides under
   // "yesterday". Mirrors the upcoming section; within a day, byPriorityTime
@@ -2656,7 +2719,7 @@ export default function Planner() {
             />
           )
         })
-        if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} />)
+        if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} free={freeSlot} />)
         return nodes
       })()}
       {/* Wrap up the day — sweep the still-to-do tasks to tomorrow in one move,

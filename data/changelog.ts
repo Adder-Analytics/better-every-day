@@ -1190,6 +1190,14 @@ export const changelog: ChangelogEntry[] = [
       'Tasks carried over from an earlier day now have a checkbox on the home page. Before, the only action on the left was "Do today", so finishing one took two taps: move it, then check it. "Do today" is still there, as a small button on the right of the row (an arrow on narrow screens). A carried-over task checked off today moves to today’s Completed list and counts toward today’s total; un-checking it puts it back under the day it came from. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 149,
+    date: '2026-11-14',
+    title: 'See what fits before your next task',
+    description:
+      'When the next timed task on today’s list is at least 10 minutes away, a line under the “now” marker gives the free time until it (“1h 50m free until 9 AM”) and lists up to three untimed tasks whose estimate fits in that time, from today and carried over. Starred tasks come first, then the nearest deadline, then list order. Tapping one opens Focus on that task. The line is hidden while a timed block is running, when no estimated task fits, and in focus mode. A tag filter narrows the list. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
