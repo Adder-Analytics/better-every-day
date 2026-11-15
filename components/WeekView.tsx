@@ -241,6 +241,12 @@ export default function WeekView() {
         // day shows its deadline on its own row instead.
         const dueHere = (dueByDay.get(date) ?? []).filter(t => !items.some(i => i.task.id === t.id))
         const plannedMin = items.filter(i => !i.done).reduce((sum, i) => sum + (i.task.estimateMin ?? 0), 0)
+        // Later days fold their routines into one compact line under the
+        // day's own tasks, so the same daily habits repeated on every card
+        // don't bury what's actually planned for that day. Today keeps them
+        // as full rows, since they're checked off there.
+        const listed = isToday ? items : items.filter(i => !i.task.repeat)
+        const folded = isToday ? [] : items.filter(i => i.task.repeat)
 
         const dragged = dragId ? tasks.find(t => t.id === dragId) : undefined
         // A drop only means something on a day the task isn't already on.
@@ -315,9 +321,9 @@ export default function WeekView() {
               />
             </div>
 
-            {items.length > 0 && (
+            {listed.length > 0 && (
               <ul className="mt-2.5 space-y-1">
-                {items.map(({ task, done, carriedFrom }) => {
+                {listed.map(({ task, done, carriedFrom }) => {
                   const tags = extractTags(task.text)
                   const title = stripTags(task.text)
                   const movable = !task.repeat && !done
@@ -486,7 +492,7 @@ export default function WeekView() {
                 so the day they're due doesn't read as empty. Read-only: each
                 is managed from where it's planned. */}
             {dueHere.length > 0 && (
-              <div className={items.length > 0 ? 'mt-2.5 border-t border-zinc-100 pt-2 dark:border-zinc-800' : 'mt-2.5'}>
+              <div className={listed.length > 0 ? 'mt-2 border-t border-zinc-100 pt-2 dark:border-zinc-800' : 'mt-2.5'}>
                 <p className="text-[11px] font-medium uppercase tracking-wide text-rose-500/80">Due this day</p>
                 <ul className="mt-1 space-y-1">
                   {dueHere.map(t => (
@@ -498,6 +504,36 @@ export default function WeekView() {
                         <span className="text-sm break-words text-zinc-700 dark:text-zinc-200">{stripTags(t.text)}</span>
                         <span className="text-[11px] text-zinc-400">{sitsOn(t)}</span>
                       </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {folded.length > 0 && (
+              <div
+                className={`flex items-start gap-2 ${listed.length > 0 || dueHere.length > 0 ? 'mt-2 border-t border-zinc-100 pt-2 dark:border-zinc-800' : 'mt-2.5'}`}
+              >
+                <span className="mt-[3px] flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
+                  <RepeatMark className="h-3 w-3 text-zinc-300 dark:text-zinc-600" />
+                </span>
+                <p className="sr-only">
+                  {folded.length === 1 ? '1 routine' : `${folded.length} routines`}:
+                </p>
+                <ul className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  {folded.map(({ task, done }, i) => (
+                    <li
+                      key={task.id}
+                      title={`${stripTags(task.text)} · ${repeatLabel(task)}`}
+                      className="inline-flex min-w-0 items-baseline gap-1"
+                    >
+                      <span className={`break-words ${done ? 'line-through text-zinc-400 dark:text-zinc-600' : ''}`}>
+                        {stripTags(task.text)}
+                      </span>
+                      {task.timeMin != null && (
+                        <span className="tabular-nums text-zinc-400 dark:text-zinc-500">{formatTime(task.timeMin, hour12)}</span>
+                      )}
+                      {i < folded.length - 1 && <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-600">·</span>}
                     </li>
                   ))}
                 </ul>
