@@ -1198,6 +1198,14 @@ export const changelog: ChangelogEntry[] = [
       'When the next timed task on today’s list is at least 10 minutes away, a line under the “now” marker gives the free time until it (“1h 50m free until 9 AM”) and lists up to three untimed tasks whose estimate fits in that time, from today and carried over. Starred tasks come first, then the nearest deadline, then list order. Tapping one opens Focus on that task. The line is hidden while a timed block is running, when no estimated task fits, and in focus mode. A tag filter narrows the list. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 150,
+    date: '2026-11-15',
+    title: 'Routines fold into one line in the week',
+    description:
+      'In the Week view, the days after today now list routines on a single line at the bottom of each card (name and time, separated by dots) instead of as full rows. Before, every daily routine repeated as its own row on all six cards, pushing that day’s one-off tasks and deadlines out of view. Hovering a routine shows how often it repeats. The Today card is unchanged, since routines are checked off there. Counts and load bars are unchanged. No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
