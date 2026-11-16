@@ -1206,6 +1206,14 @@ export const changelog: ChangelogEntry[] = [
       'In the Week view, the days after today now list routines on a single line at the bottom of each card (name and time, separated by dots) instead of as full rows. Before, every daily routine repeated as its own row on all six cards, pushing that day’s one-off tasks and deadlines out of view. Hovering a routine shows how often it repeats. The Today card is unchanged, since routines are checked off there. Counts and load bars are unchanged. No stored data changed.',
     type: 'design',
   },
+  {
+    day: 151,
+    date: '2026-11-16',
+    title: 'Type a date like 11/20',
+    description:
+      'The add box now reads a date written in numbers at the end of a task: “Dentist 11/20”, “Party 1/2/27”, or “Trip 2026-12-24”. The slash form follows the order your browser’s language writes dates, so 3/4 is March 4 in the US and 3 April in the UK. Without a year, a date already past this year means next year. It works with “due” and “by” for deadlines (“Rent due 12/1”), with a time (“Dentist 11/20 at 3pm”), and when editing a task. An impossible or past date stays in the task name. “What you can type” lists the new form. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
