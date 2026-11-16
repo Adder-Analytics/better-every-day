@@ -1462,6 +1462,59 @@ function nextDateOnMonthDay(month0: number, day: number): string | null {
   return null
 }
 
+// A trailing date written in numbers: "11/20", "on 11/20/26", "2026-11-20".
+// The slash form is read in the order the browser's locale writes dates, so
+// "3/4" is March 4 in the US and 3 April in the UK. Without a year it points
+// forward like "Aug 20" (a day already past rolls to next year); with a year
+// it must be today or later. An impossible or past date stays in the title.
+const SLASH_DATE_RE = /\s+(?:on\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?\.?\s*$/
+const ISO_DATE_RE = /\s+(?:on\s+)?(\d{4})-(\d{2})-(\d{2})\.?\s*$/
+
+let dayFirstCache: boolean | undefined
+function localeDayFirst(): boolean {
+  if (dayFirstCache === undefined) {
+    try {
+      const parts = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'numeric', day: 'numeric' })
+        .formatToParts(new Date(2000, 11, 31))
+      const types = parts.map(p => p.type)
+      dayFirstCache = types.indexOf('day') < types.indexOf('month')
+    } catch {
+      dayFirstCache = false
+    }
+  }
+  return dayFirstCache
+}
+
+function exactDateStr(year: number, month0: number, day: number): string | null {
+  if (month0 < 0 || month0 > 11 || day < 1 || day > daysInMonth(year, month0)) return null
+  const candidate = `${year}-${String(month0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return candidate >= todayStr() ? candidate : null
+}
+
+function parseTrailingNumericDate(text: string): { text: string; date: string } | null {
+  const iso = text.match(ISO_DATE_RE)
+  if (iso) {
+    const stripped = text.slice(0, iso.index).trim()
+    const date = exactDateStr(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    return stripped && date ? { text: stripped, date } : null
+  }
+  const slash = text.match(SLASH_DATE_RE)
+  if (!slash) return null
+  const stripped = text.slice(0, slash.index).trim()
+  if (!stripped) return null
+  const [a, b] = [Number(slash[1]), Number(slash[2])]
+  const [month, day] = localeDayFirst() ? [b, a] : [a, b]
+  if (month < 1 || month > 12) return null
+  let date: string | null
+  if (slash[3]) {
+    const year = slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3])
+    date = exactDateStr(year, month - 1, day)
+  } else {
+    date = nextDateOnMonthDay(month - 1, day)
+  }
+  return date ? { text: stripped, date } : null
+}
+
 // The last day of the current month (YYYY-MM-DD).
 function endOfMonthStr(): string {
   const d = new Date()
@@ -1542,6 +1595,9 @@ function parseTrailingDate(text: string): { text: string; date: string } | null 
     const date = nextDateOnMonthDay(MONTH3[dayMonth[2].slice(0, 3).toLowerCase()], Number(dayMonth[1]))
     if (stripped && date) return { text: stripped, date }
   }
+  // A date in numbers: "11/20", "11/20/26", "2026-11-20".
+  const numeric = parseTrailingNumericDate(text)
+  if (numeric) return numeric
   // A day of this month or the next: "on the 15th".
   const onDay = parseTrailingDayOfMonth(text, ON_MONTH_DAY_RE)
   if (onDay) return onDay
