@@ -345,7 +345,15 @@ type Reminders = {
   setLead: (min: number) => void
 }
 
-function useReminders(timedTasks: ReminderTask[]): Reminders {
+// How long "Remind me later" on a notification waits before nudging again.
+const REMIND_AGAIN_MIN = 10
+
+type ReminderActions = {
+  onDone: (id: string) => void
+  onOpen: (id: string) => void
+}
+
+function useReminders(timedTasks: ReminderTask[], actions: ReminderActions): Reminders {
   // These read the browser directly at init. That's hydration-safe here because
   // the toggle only ever renders after mount (Planner shows a spinner until
   // then), so there's no server HTML for it to mismatch.
@@ -371,7 +379,83 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
   // the signature below is what decides when to reschedule. Kept current in its
   // own effect (declared before the scheduler, so it runs first).
   const tasksRef = useRef(timedTasks)
-  useEffect(() => { tasksRef.current = timedTasks })
+  const actionsRef = useRef(actions)
+  useEffect(() => { tasksRef.current = timedTasks; actionsRef.current = actions })
+  // "Remind me later" timers, kept apart from the scheduled ones so a
+  // reschedule never cancels a nudge the user explicitly asked for.
+  const againTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
+
+  // Show one reminder. Through the service worker when there is one: that is
+  // the only way notifications work on Android (the plain constructor throws
+  // there), and the only way to offer Done / Remind me later buttons. Falls
+  // back to a plain notification (development, or no worker yet), where a
+  // click still brings the planner forward.
+  const notify = useCallback((t: ReminderTask, body: string, tag: string) => {
+    const title = stripTags(t.text) || t.text
+    const plain = () => {
+      try {
+        const n = new Notification(title, { body, tag, icon: '/icon-192.png' })
+        n.onclick = () => { window.focus(); actionsRef.current.onOpen(t.id); n.close() }
+      } catch {}
+    }
+    const sw = 'serviceWorker' in navigator ? navigator.serviceWorker : null
+    if (!sw) return plain()
+    sw.getRegistration()
+      .then(reg => {
+        if (!reg) return plain()
+        const options = {
+          body,
+          tag,
+          icon: '/icon-192.png',
+          data: { taskId: t.id },
+          actions: [
+            { action: 'done', title: 'Done' },
+            { action: 'later', title: `Remind me in ${REMIND_AGAIN_MIN} min` },
+          ],
+        }
+        return reg.showNotification(title, options as NotificationOptions)
+      })
+      .catch(plain)
+  }, [])
+
+  // Snooze a reminder (not the task): nudge again in a few minutes, unless the
+  // task has been finished, removed, or rescheduled off today by then.
+  const remindAgain = useCallback((id: string) => {
+    const timer = setTimeout(() => {
+      againTimers.current.delete(timer)
+      const t = tasksRef.current.find(x => x.id === id)
+      if (!t) return
+      notify(t, `Reminder, scheduled for ${formatTime(t.timeMin, isHour12())}.`, `again:${t.id}:${Date.now()}`)
+    }, REMIND_AGAIN_MIN * 60_000)
+    againTimers.current.add(timer)
+  }, [notify])
+
+  useEffect(() => {
+    const timers = againTimers.current
+    return () => timers.forEach(clearTimeout)
+  }, [])
+
+  // Notification buttons and clicks arrive from the service worker (sw.js).
+  // Done only checks off a task that is still to do here; onDone itself never
+  // un-checks, so a duplicate message can't toggle it back.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    const sw = navigator.serviceWorker
+    const onMessage = (e: MessageEvent) => {
+      const msg = e.data
+      if (!msg || msg.type !== 'bed-reminder' || typeof msg.taskId !== 'string') return
+      const active = tasksRef.current.some(t => t.id === msg.taskId)
+      if (msg.action === 'done') {
+        if (active) actionsRef.current.onDone(msg.taskId)
+      } else if (msg.action === 'later') {
+        if (active) remindAgain(msg.taskId)
+      } else {
+        actionsRef.current.onOpen(msg.taskId)
+      }
+    }
+    sw.addEventListener('message', onMessage)
+    return () => sw.removeEventListener('message', onMessage)
+  }, [remindAgain])
 
   const enabled = supported && pref && permission === 'granted'
   const blocked = supported && pref && permission === 'denied'
@@ -420,21 +504,19 @@ function useReminders(timedTasks: ReminderTask[]): Reminders {
       timers.push(
         setTimeout(() => {
           firedRef.current.add(key)
-          try {
-            const h12 = isHour12()
-            new Notification(t.text, {
-              body: leadMin > 0
-                ? `Starts in ${leadMin} min, at ${formatTime(t.timeMin, h12)}.`
-                : `It’s ${formatTime(t.timeMin, h12)} — time to start.`,
-              tag: key, // collapse duplicates at the OS level too
-              icon: '/favicon.ico',
-            })
-          } catch {}
+          const h12 = isHour12()
+          notify(
+            t,
+            leadMin > 0
+              ? `Starts in ${leadMin} min, at ${formatTime(t.timeMin, h12)}.`
+              : `It’s ${formatTime(t.timeMin, h12)} — time to start.`,
+            key // collapse duplicates at the OS level too
+          )
         }, delay)
       )
     }
     return () => timers.forEach(clearTimeout)
-  }, [enabled, signature, today, leadMin])
+  }, [enabled, signature, today, leadMin, notify])
 
   return { supported, enabled, blocked, toggle, leadMin, setLead }
 }
@@ -1584,7 +1666,28 @@ export default function Planner() {
   // Reminders watch today's still-to-do timed tasks: finishing, deleting, or
   // rescheduling one cancels its pending notification automatically.
   const reminders = useReminders(
-    timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text }))
+    timedActive.map(t => ({ id: t.id, timeMin: t.timeMin!, text: t.text })),
+    {
+      // Only ever checks off (never back on), so a repeated message is harmless.
+      onDone: id => {
+        const today = todayStr()
+        const now = currentMin()
+        setTasks(prev => prev.map(t => {
+          if (t.id !== id) return t
+          const done = t.repeat ? (t.completions ?? []).includes(today) : t.done
+          return done ? t : toggledToday(t, today, now)
+        }))
+      },
+      // A click on the notification itself: show the task in the list.
+      onOpen: id => {
+        setRevealId(id)
+        setTimeout(() => {
+          document.getElementById(`task-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        }, 60)
+        if (revealTimer.current) clearTimeout(revealTimer.current)
+        revealTimer.current = setTimeout(() => setRevealId(null), 1800)
+      },
+    }
   )
   // The day header's "More" menu — each entry only when it has something to act
   // on. Reminders reads as a checkbox item with its On/Off state, since the
