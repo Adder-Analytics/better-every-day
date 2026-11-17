@@ -111,3 +111,28 @@ self.addEventListener('fetch', event => {
     })()
   )
 })
+
+// Reminder notifications (shown from the page through this worker) carry two
+// buttons: Done and Remind me later. The worker can't touch the planner's data
+// (it lives in the page's localStorage), so it hands the choice to the open
+// planner tab(s) and lets the page act. A click on the notification body brings
+// the planner forward, opening it if no tab is left.
+self.addEventListener('notificationclick', event => {
+  const taskId = event.notification.data && event.notification.data.taskId
+  event.notification.close()
+  if (!taskId) return
+  const action = event.action || 'open'
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of windows) client.postMessage({ type: 'bed-reminder', action, taskId })
+      if (action !== 'open') return
+      const client = windows[0]
+      if (client) {
+        try { await client.focus() } catch { /* focus not allowed — nothing more to do */ }
+      } else {
+        await self.clients.openWindow('/')
+      }
+    })()
+  )
+})

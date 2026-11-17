@@ -1214,6 +1214,14 @@ export const changelog: ChangelogEntry[] = [
       'The add box now reads a date written in numbers at the end of a task: “Dentist 11/20”, “Party 1/2/27”, or “Trip 2026-12-24”. The slash form follows the order your browser’s language writes dates, so 3/4 is March 4 in the US and 3 April in the UK. Without a year, a date already past this year means next year. It works with “due” and “by” for deadlines (“Rent due 12/1”), with a time (“Dentist 11/20 at 3pm”), and when editing a task. An impossible or past date stays in the task name. “What you can type” lists the new form. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 152,
+    date: '2026-11-17',
+    title: 'Check off a task from its reminder',
+    description:
+      'Reminder notifications now have two buttons: Done, which checks the task off, and “Remind me in 10 min”, which sends the reminder again in ten minutes unless the task is finished or moved off today by then. Clicking the notification brings the planner forward and highlights the task. Reminders are now shown through the app’s service worker, so they also work in Chrome on Android, where they did not appear before. Tags are left out of the notification title. Buttons depend on the browser; where they are not supported, the notification works as before. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
