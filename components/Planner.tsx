@@ -37,6 +37,7 @@ import DayComplete from '@/components/DayComplete'
 import DaySpread from '@/components/DaySpread'
 import QuickLists, { openQuickLists } from '@/components/QuickLists'
 import { useLists } from '@/lib/lists'
+import { readPastedLines } from '@/lib/paste'
 
 const emptySubscribe = () => () => {}
 
@@ -1052,16 +1053,35 @@ export default function Planner() {
     return { ...newTask(text, day), estimateMin, timeMin: finalTime, dueDate, priority }
   }
 
+  // A task that already happened, anchored to today as done. A logged item's
+  // schedule (tomorrow, someday, a repeat) is dropped; its tags, time, estimate,
+  // and "!" are kept, since those still describe what got done.
+  const asLogged = (t: Task): Task => {
+    const today = todayStr()
+    return {
+      ...newTask(t.text, today),
+      done: true,
+      completedDate: today,
+      // No completedAt: a logged item already happened at some earlier, unknown
+      // moment, so "now" would misstate it — and it must not override a time the
+      // line itself named. The look-back reads its planned time, if any, as before.
+      timeMin: t.timeMin,
+      estimateMin: t.estimateMin,
+      priority: t.priority,
+    }
+  }
+
   const addTask = () => {
     // A brain dump: each non-empty line becomes its own task, so a pasted or
     // Shift+Enter'd list is captured in one go. A single line is the common
-    // case and behaves exactly as before.
-    const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-    if (lines.length === 0) return
+    // case and behaves exactly as before. A pasted list's bullets, numbers, and
+    // headings are dropped, and a checked item ("- [x]") lands as done today.
+    const items = readPastedLines(newText)
+    if (items.length === 0) return
     // A slot picked from the timeline applies to a single task — spreading one
     // start time across a pasted list would just stack them at the same minute.
-    const preset = lines.length === 1 ? presetTime ?? undefined : undefined
-    const created = lines.map(line => buildTask(line, preset))
+    const preset = items.length === 1 ? presetTime ?? undefined : undefined
+    const created = items.map(({ text, done }) => (done ? asLogged(buildTask(text)) : buildTask(text, preset)))
     setTasks(prev => [...prev, ...created])
     setNewText('')
     setPresetTime(null)
@@ -1075,23 +1095,9 @@ export default function Planner() {
   // repeat) is dropped and it's anchored to today as done; its tags, time,
   // estimate, and "!" are kept, since those still describe what got done.
   const logDone = () => {
-    const lines = newText.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-    if (lines.length === 0) return
-    const today = todayStr()
-    const created = lines.map(line => {
-      const t = buildTask(line)
-      return {
-        ...newTask(t.text, today),
-        done: true,
-        completedDate: today,
-        // No completedAt: a logged item already happened at some earlier, unknown
-        // moment, so "now" would misstate it — and it must not override a time the
-        // line itself named. The look-back reads its planned time, if any, as before.
-        timeMin: t.timeMin,
-        estimateMin: t.estimateMin,
-        priority: t.priority,
-      }
-    })
+    const items = readPastedLines(newText)
+    if (items.length === 0) return
+    const created = items.map(({ text }) => asLogged(buildTask(text)))
     setTasks(prev => [...prev, ...created])
     setNewText('')
     setPresetTime(null)
@@ -1903,7 +1909,11 @@ export default function Planner() {
   // the box holds several lines it's a brain dump, so the preview switches to a
   // plain count of how many tasks will be added instead.
   const addLineCount = newText.split(/\r?\n/).filter(l => l.trim()).length
-  const parsed = parseQuickAdd(newText)
+  // The tasks the box will actually create: a pasted list's bullets and
+  // headings dropped, checked items counted apart as already done.
+  const addItems = readPastedLines(newText)
+  const addDoneCount = addItems.filter(i => i.done).length
+  const parsed = parseQuickAdd(addLineCount < 2 ? addItems[0]?.text ?? newText : newText)
   // Tags recognized in a single-line entry, previewed as chips so a "#work"
   // typed inline is seen before it's added.
   const previewTags = extractTags(newText)
@@ -3032,7 +3042,7 @@ export default function Planner() {
             <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
-            {addLineCount >= 2 ? `Log ${addLineCount} as already done` : 'Log as already done'}
+            {addLineCount >= 2 ? `Log ${addItems.length} as already done` : 'Log as already done'}
           </button>
         </div>
       )}
@@ -3164,7 +3174,12 @@ export default function Planner() {
           <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" />
           </svg>
-          <span>Adds <span className="font-medium text-zinc-500 dark:text-zinc-300 tabular-nums">{addLineCount}</span> tasks</span>
+          <span>
+            Adds <span className="font-medium text-zinc-500 dark:text-zinc-300 tabular-nums">{addItems.length}</span> {addItems.length === 1 ? 'task' : 'tasks'}
+            {addDoneCount > 0 && (
+              <>, <span className="font-medium text-zinc-500 dark:text-zinc-300 tabular-nums">{addDoneCount}</span> already done</>
+            )}
+          </span>
         </div>
       )}
 
