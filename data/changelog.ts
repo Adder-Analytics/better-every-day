@@ -1222,6 +1222,14 @@ export const changelog: ChangelogEntry[] = [
       'Reminder notifications now have two buttons: Done, which checks the task off, and “Remind me in 10 min”, which sends the reminder again in ten minutes unless the task is finished or moved off today by then. Clicking the notification brings the planner forward and highlights the task. Reminders are now shown through the app’s service worker, so they also work in Chrome on Android, where they did not appear before. Tags are left out of the notification title. Buttons depend on the browser; where they are not supported, the notification works as before. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 153,
+    date: '2026-11-18',
+    title: 'Paste a checklist from anywhere',
+    description:
+      'A list pasted into the add box no longer keeps its list syntax in the task names. Leading bullets (“-”, “*”, “•”), numbers (“1.”, “2)”), and checkboxes (“[ ]”, “☐”) are removed. A checked item (“[x]”, “☑”) is added to today as already done. A heading above the list, such as “Monday” or “To do:”, is skipped. The text from “Copy today’s plan” reads back with its times and estimates, so “- [ ] 9 AM · Write report (1h)” becomes “Write report” at 9 AM for 1 hour. The count under the box shows how many tasks will be added and how many are already done. Lines without list markers are added as before. “What you can type” lists the new forms. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

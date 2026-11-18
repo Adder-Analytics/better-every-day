@@ -67,6 +67,14 @@ const GROUPS: Group[] = [
       { example: 'end with !', does: 'marks it important' },
     ],
   },
+  {
+    title: 'Paste a list',
+    tips: [
+      { example: 'one per line', does: 'each line is its own task' },
+      { example: '- [ ] or 1.', does: 'list markers are dropped' },
+      { example: '- [x]', does: 'added as already done' },
+    ],
+  },
 ]
 
 function LightbulbIcon({ className }: { className?: string }) {
