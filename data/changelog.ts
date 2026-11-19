@@ -1230,6 +1230,14 @@ export const changelog: ChangelogEntry[] = [
       'A list pasted into the add box no longer keeps its list syntax in the task names. Leading bullets (“-”, “*”, “•”), numbers (“1.”, “2)”), and checkboxes (“[ ]”, “☐”) are removed. A checked item (“[x]”, “☑”) is added to today as already done. A heading above the list, such as “Monday” or “To do:”, is skipped. The text from “Copy today’s plan” reads back with its times and estimates, so “- [ ] 9 AM · Write report (1h)” becomes “Write report” at 9 AM for 1 hour. The count under the box shows how many tasks will be added and how many are already done. Lines without list markers are added as before. “What you can type” lists the new forms. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 154,
+    date: '2026-11-19',
+    title: 'Select several tasks at once',
+    description:
+      '“Select tasks” in the menu behind the three dots beside today’s count (or in the command menu) turns on selection mode. Tapping a task picks it instead of opening or checking it, and a bar at the bottom acts on every picked task at once: Done (or Not done, when all of them are finished), Tomorrow, Pick day, Someday, and Delete. “Select all” picks every task currently shown, so a tag filter or a folded Completed section narrows it; Ctrl+A does the same and Esc leaves selection mode. Routines can be checked off or deleted this way but keep their own schedule, so moves apply to one-off tasks only. Each bulk action shows a toast with Undo (or Ctrl+Z) that restores every affected task as it was. No stored data changed.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

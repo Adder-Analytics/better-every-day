@@ -38,6 +38,8 @@ import DaySpread from '@/components/DaySpread'
 import QuickLists, { openQuickLists } from '@/components/QuickLists'
 import { useLists } from '@/lib/lists'
 import { readPastedLines } from '@/lib/paste'
+import SelectableRow from '@/components/SelectableRow'
+import SelectionBar from '@/components/SelectionBar'
 
 const emptySubscribe = () => () => {}
 
@@ -314,6 +316,14 @@ function ListsIcon({ className }: { className?: string }) {
 }
 
 // Heroicons "printer" — print today's plan as a clean paper sheet.
+// Heroicons "check-circle" in outline, for picking out several tasks at once.
+function SelectIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
 function PrinterIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -772,6 +782,16 @@ export default function Planner() {
   // window so a phrase read by surprise is one tap from undone.
   const [edited, setEdited] = useState<{ before: Task; text: string; summary: string } | null>(null)
   const editedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Selection mode: tapping a row picks it instead of acting on it, and a bar
+  // at the bottom applies one action to every picked task at once. `picked`
+  // holds ids; only the ones still on screen are acted on (see pickedTasks).
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(() => new Set())
+  // The last bulk action, held for the undo window: each affected task as it
+  // was (and where it sat, so a deleted one goes back in place), plus a plain
+  // note of what happened for the toast.
+  const [bulk, setBulk] = useState<{ before: { task: Task; index: number }[]; summary: string } | null>(null)
+  const bulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevAllDone = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   // Latest values read by the global key handler without re-binding it every
@@ -779,6 +799,8 @@ export default function Planner() {
   // selection, and the toggle/delete actions. Assigned in the render body once
   // each is computed below.
   const navRef = useRef<Task[]>([])
+  const selectingRef = useRef(false)
+  const selectAllRef = useRef<() => void>(() => {})
   const selectedRef = useRef<string | null>(null)
   const actionsRef = useRef<{
     toggle: (id: string) => void
@@ -856,6 +878,25 @@ export default function Planner() {
   }, [edited])
   useEffect(() => () => { if (editedTimer.current) clearTimeout(editedTimer.current) }, [])
 
+  // Put every task from the last bulk action back exactly as it was: changed
+  // ones are restored in place, deleted ones are re-inserted where they sat.
+  const undoBulk = useCallback((): boolean => {
+    if (!bulk) return false
+    setTasks(prev => {
+      const byId = new Map(bulk.before.map(b => [b.task.id, b.task]))
+      const next = prev.map(t => byId.get(t.id) ?? t)
+      const present = new Set(next.map(t => t.id))
+      for (const b of [...bulk.before].sort((a, c) => a.index - c.index)) {
+        if (!present.has(b.task.id)) next.splice(Math.min(b.index, next.length), 0, b.task)
+      }
+      return next
+    })
+    setBulk(null)
+    if (bulkTimer.current) clearTimeout(bulkTimer.current)
+    return true
+  }, [bulk])
+  useEffect(() => () => { if (bulkTimer.current) clearTimeout(bulkTimer.current) }, [])
+
   // Jump to a task found in search: leave focus mode (so the full list is on
   // screen), scroll the row into view, and flash it so the eye lands on it.
   // The flash lifts on its own after a moment. A short delay lets the list
@@ -924,7 +965,14 @@ export default function Planner() {
       // move) while its undo window is open. Inputs are already excluded
       // above, so their native undo still works.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
-        if (undoDelete() || undoEdit() || undoMove()) e.preventDefault()
+        if (undoBulk() || undoDelete() || undoEdit() || undoMove()) e.preventDefault()
+        return
+      }
+      // In selection mode, Esc leaves it and Ctrl/Cmd+A picks every visible
+      // task; the list's own keys stand down so they can't act behind it.
+      if (selectingRef.current) {
+        if (e.key === 'Escape') { e.preventDefault(); setSelecting(false); setPicked(new Set()); return }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAllRef.current(); return }
         return
       }
 
@@ -993,7 +1041,7 @@ export default function Planner() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [focusMode, undoDelete, undoEdit, undoMove])
+  }, [focusMode, undoBulk, undoDelete, undoEdit, undoMove])
 
   useEffect(() => {
     savePlanner({ version: PLANNER_VERSION, tasks })
@@ -1706,6 +1754,9 @@ export default function Planner() {
           { id: 'print', label: 'Print plan', icon: <PrinterIcon className="h-4 w-4" />, run: printTodayPlan },
         ]
       : []),
+    ...(todayTasks.length > 0
+      ? [{ id: 'select', label: 'Select tasks', icon: <SelectIcon className="h-4 w-4" />, run: () => startSelecting() }]
+      : []),
     ...(timedActive.length > 0
       ? [{ id: 'ics', label: 'Add timed tasks to calendar', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
       : []),
@@ -1882,6 +1933,82 @@ export default function Planner() {
   // Only truly "in focus" when there's something to focus on; this guarantees
   // exactly one of the two views below renders, with no auto-exit effect.
   const inFocus = focusMode && !!focusTask
+
+  // --- Selection mode ------------------------------------------------------
+  // Everything currently drawn as a row can be picked: today's tasks (finished
+  // ones too, while shown), carried-over, upcoming, and Someday. A tag filter or
+  // a folded Completed section narrows it, so "Select all" means what you see.
+  const selectMode = selecting && !inFocus
+  const selectable = [...vTodayActive, ...(showCompleted ? vTodayDone : []), ...vCarryovers, ...vUpcoming, ...vSomeday]
+  const pickedTasks = selectMode ? selectable.filter(t => picked.has(t.id)) : []
+  const pickedMovable = pickedTasks.filter(t => !t.repeat)
+  const pickedAllDone = pickedTasks.length > 0 && pickedTasks.every(t => t.done)
+  const isPicked = (id: string) => selectMode && picked.has(id)
+  const togglePick = (id: string) =>
+    setPicked(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const selectAll = () => setPicked(new Set(selectable.map(t => t.id)))
+  const startSelecting = (firstId?: string) => {
+    setSelectedId(null)
+    setFocusMode(false)
+    setPicked(new Set(firstId ? [firstId] : []))
+    setSelecting(true)
+  }
+  const stopSelecting = () => {
+    setSelecting(false)
+    setPicked(new Set())
+  }
+  useEffect(() => {
+    selectingRef.current = selectMode
+    selectAllRef.current = selectAll
+  })
+
+  // Apply one change to every picked task, remembering each as it was so the
+  // toast's Undo (or Ctrl+Z) puts them all back. Selection mode ends after.
+  const applyBulk = (targets: Task[], change: (t: Task) => Task | null, summary: string) => {
+    if (targets.length === 0) return
+    const ids = new Set(targets.map(t => t.id))
+    const before = tasks.flatMap((task, index) => (ids.has(task.id) ? [{ task, index }] : []))
+    setTasks(prev => prev.flatMap(t => {
+      if (!ids.has(t.id)) return [t]
+      const next = change(t)
+      return next ? [next] : []
+    }))
+    setDeleted([])
+    setMoved(null)
+    setEdited(null)
+    setBulk({ before, summary })
+    if (bulkTimer.current) clearTimeout(bulkTimer.current)
+    bulkTimer.current = setTimeout(() => setBulk(null), UNDO_WINDOW_MS)
+    stopSelecting()
+  }
+  const countLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
+  const bulkDone = () => {
+    const today = todayStr()
+    const now = currentMin()
+    // Mark not done only when every pick is already done; otherwise check off
+    // the ones still open and leave the finished ones as they are.
+    const undo = pickedAllDone
+    const targets = undo ? pickedTasks : pickedTasks.filter(t => !t.done)
+    applyBulk(targets, t => toggledToday(t, today, now), `${undo ? 'Marked' : 'Checked off'} ${countLabel(targets.length)}${undo ? ' not done' : ''}`)
+  }
+  const bulkMoveTo = (date: string) => {
+    const label = date === tomorrowStr() ? 'tomorrow' : date === todayStr() ? 'today' : formatDayLabel(date)
+    applyBulk(pickedMovable, t => ({ ...t, createdDate: date, someday: undefined }), `Moved ${countLabel(pickedMovable.length)} to ${label}`)
+  }
+  const bulkSomeday = () =>
+    applyBulk(pickedMovable, t => ({ ...t, someday: true, createdDate: todayStr() }), `Moved ${countLabel(pickedMovable.length)} to Someday`)
+  const bulkDelete = () => applyBulk(pickedTasks, () => null, `Deleted ${countLabel(pickedTasks.length)}`)
+  // Wrap a task row so selection mode can pick it.
+  const pickable = (task: Task, row: React.ReactNode) => (
+    <SelectableRow key={task.id} active={selectMode} selected={isPicked(task.id)} text={task.text} onToggle={() => togglePick(task.id)}>
+      {row}
+    </SelectableRow>
+  )
 
   // Surface what's left in the browser tab, so a pinned or background tab
   // tells you how many tasks remain at a glance — no need to switch to it.
@@ -2091,6 +2218,16 @@ export default function Planner() {
       : focusQueue.length > 0
         ? [{ id: 'focus-enter', label: 'Enter focus mode', hint: 'one at a time', keywords: 'focus concentrate single', icon: <TargetIcon className="h-4 w-4" />, run: () => { setSelectedId(null); setFocusStartId(null); setFocusMode(true) } }]
         : []),
+    ...(!inFocus && selectable.length > 0
+      ? [{
+          id: 'select',
+          label: selectMode ? 'Stop selecting tasks' : 'Select tasks',
+          hint: 'act on several at once',
+          keywords: 'select multiple bulk batch several many choose pick',
+          icon: <SelectIcon className="h-4 w-4" />,
+          run: () => (selectMode ? stopSelecting() : startSelecting()),
+        }]
+      : []),
     ...(carryovers.length > 0
       ? [{
           id: 'carryovers',
@@ -2211,10 +2348,48 @@ export default function Planner() {
     <ShortcutsHelp />
     <QuickLists onApply={applyList} todayTexts={todayActive.map(t => t.text)} />
 
+    {/* Selection mode's action bar, and the toast that follows a bulk action
+        with the way back. Both share the bottom-center home; the others stand
+        aside while either is up. */}
+    {selectMode && (
+      <SelectionBar
+        count={pickedTasks.length}
+        visible={selectable.length}
+        movable={pickedMovable.length}
+        allDone={pickedAllDone}
+        minDate={today}
+        onSelectAll={selectAll}
+        onClearAll={() => setPicked(new Set())}
+        onDone={bulkDone}
+        onTomorrow={() => bulkMoveTo(tomorrowStr())}
+        onPickDate={bulkMoveTo}
+        onSomeday={bulkSomeday}
+        onDelete={bulkDelete}
+        onClose={stopSelecting}
+      />
+    )}
+    {bulk && !selectMode && (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+        <div
+          role="status"
+          className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full bg-zinc-900 dark:bg-white py-1.5 pl-4 pr-1.5 shadow-lg shadow-zinc-900/20 dark:shadow-black/40 animate-[toast-in_150ms_ease-out]"
+        >
+          <span className="min-w-0 truncate text-xs font-medium text-white dark:text-zinc-900">{bulk.summary}</span>
+          <button
+            onClick={undoBulk}
+            title="Undo (Ctrl+Z)"
+            className="flex-shrink-0 rounded-full bg-white/15 dark:bg-zinc-900/10 px-3 py-1.5 text-xs font-semibold text-white dark:text-zinc-900 hover:bg-white/25 dark:hover:bg-zinc-900/20 transition-colors"
+          >
+            Undo
+          </button>
+        </div>
+      </div>
+    )}
+
     {/* Undo toast — a deleted task's way back, for the few seconds it exists.
         Fixed above the bottom edge (safe-area aware for the installed app) and
         announced politely to screen readers via role="status". */}
-    {deleted.length > 0 && (
+    {deleted.length > 0 && !bulk && !selectMode && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2240,7 +2415,7 @@ export default function Planner() {
     {/* Copy confirmation — a brief note that today's plan reached the clipboard
         (or that the browser wouldn't allow it). Same bottom-center home as the
         undo toast; deleting and copying rarely coincide. */}
-    {copied && deleted.length === 0 && (
+    {copied && deleted.length === 0 && !bulk && !selectMode && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2268,7 +2443,7 @@ export default function Planner() {
     {/* Move confirmation — a swiped task or a bulk move — with the way back.
         Same home as the others; a delete's undo takes precedence while both
         are live. */}
-    {moved && deleted.length === 0 && !copied && !edited && (
+    {moved && deleted.length === 0 && !copied && !edited && !bulk && !selectMode && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2298,7 +2473,7 @@ export default function Planner() {
 
     {/* Edit confirmation — a title edit that also set a time, day, length,
         deadline, or star — with the way back. Shares the bottom-center home. */}
-    {edited && deleted.length === 0 && !copied && (
+    {edited && deleted.length === 0 && !copied && !bulk && !selectMode && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2321,7 +2496,7 @@ export default function Planner() {
       </div>
     )}
 
-    {listAdded !== null && deleted.length === 0 && !copied && !moved && !edited && (
+    {listAdded !== null && deleted.length === 0 && !copied && !moved && !edited && !bulk && !selectMode && (
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
         <div
           role="status"
@@ -2342,7 +2517,7 @@ export default function Planner() {
         the tap, so a phone raises its keyboard) and then scrolls it into view.
         Steps aside for the bottom toasts and while a field is being typed in. */}
     {(() => {
-      const show = !!addRowEl && addOffscreen && !typing && deleted.length === 0 && !copied && !moved && !edited && listAdded === null
+      const show = !!addRowEl && addOffscreen && !typing && deleted.length === 0 && !copied && !moved && !edited && listAdded === null && !bulk && !selectMode
       return (
         <button
           type="button"
@@ -2695,7 +2870,7 @@ export default function Planner() {
                 )}
               </div>
               {group.items.map(task => (
-                <TaskItem
+                pickable(task, <TaskItem
                   key={task.id}
                   task={task}
                   carryover
@@ -2720,7 +2895,7 @@ export default function Planner() {
                   onSetSomeday={setSomeday}
                   onDuplicate={duplicateTask}
                   onFocus={startFocusOn}
-                />
+                />)
               ))}
             </div>
           ))}
@@ -2790,7 +2965,7 @@ export default function Planner() {
                   ? formatOverdue(nowMin - task.timeMin)
                   : undefined
           return (
-            <TaskItem
+            pickable(task, <TaskItem
               key={task.id}
               task={task}
               selected={task.id === selectedId}
@@ -2829,7 +3004,7 @@ export default function Planner() {
               onDragEnd={draggable ? handleDragEnd : undefined}
               isDragging={dragId === task.id}
               isDragOver={dragOverId === task.id}
-            />
+            />)
           )
         })
         if (showNowLine) nodes.splice(startedCount, 0, <NowLine key="now-line" min={nowMin} free={freeSlot} />)
@@ -2884,7 +3059,7 @@ export default function Planner() {
           </button>
           {showCompleted &&
             vTodayDone.map(task => (
-              <TaskItem
+              pickable(task, <TaskItem
                 key={task.id}
                 task={task}
                 selected={task.id === selectedId}
@@ -2898,7 +3073,7 @@ export default function Planner() {
                 onEditNote={editNote}
                 onSetRepeat={setRepeat}
                 onSetRepeatUntil={setRepeatUntil}
-              />
+              />)
             ))}
         </div>
       )}
@@ -3301,7 +3476,7 @@ export default function Planner() {
         <div key={group.date} className="space-y-2.5">
           <p className="text-xs font-medium text-zinc-400 px-1 pt-2">{formatDayLabel(group.date)}</p>
           {group.items.map(task => (
-            <TaskItem
+            pickable(task, <TaskItem
               key={task.id}
               task={task}
               highlight={task.id === revealId}
@@ -3320,7 +3495,7 @@ export default function Planner() {
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
               onDuplicate={duplicateTask}
-            />
+            />)
           ))}
         </div>
       ))}
@@ -3338,7 +3513,7 @@ export default function Planner() {
             <span className="text-xs tabular-nums text-zinc-300 dark:text-zinc-600">{vSomeday.length}</span>
           </div>
           {vSomeday.map(task => (
-            <TaskItem
+            pickable(task, <TaskItem
               key={task.id}
               task={task}
               carryover
@@ -3357,7 +3532,7 @@ export default function Planner() {
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
               onDuplicate={duplicateTask}
-            />
+            />)
           ))}
         </div>
       )}
