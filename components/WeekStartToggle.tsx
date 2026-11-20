@@ -11,7 +11,7 @@ const OPTIONS: { value: WeekStart; label: string; title: string }[] = [
 ]
 
 // A small labeled segmented control for the week-start preference, styled
-// after the clock toggle. Reads the shared store so every week layout follows
+// after the settings menu. Reads the shared store so every week layout follows
 // it at once, and holds off its active pill until hydration so it never
 // flickers on load.
 export default function WeekStartToggle() {

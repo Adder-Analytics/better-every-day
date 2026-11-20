@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { changelog, currentDay } from '@/data/changelog'
-import ThemeToggle from '@/components/ThemeToggle'
+import SettingsMenu from '@/components/SettingsMenu'
 
 export const metadata: Metadata = {
   title: 'Changelog',
@@ -25,13 +25,13 @@ export default function ChangelogPage() {
             <p className="text-xs text-zinc-400">What changed, day by day</p>
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <Link
               href="/"
               className="text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
             >
               Back to today
             </Link>
+            <SettingsMenu />
           </div>
         </div>
       </header>

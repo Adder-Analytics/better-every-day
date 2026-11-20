@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import ThemeToggle from '@/components/ThemeToggle'
-import TimeFormatToggle from '@/components/TimeFormatToggle'
+import SettingsMenu from '@/components/SettingsMenu'
 
 // The app's views, in the order you'd move out from today. Each icon is the
 // inner paths of a 24px Heroicons outline glyph.
@@ -48,8 +47,8 @@ const NAV: { href: string; label: string; title: string; icon: React.ReactNode }
   },
 ]
 
-// The sticky header every view shares: the page's name, the clock and theme
-// toggles, and the row of views, so any view is one tap from any other.
+// The sticky header every view shares: the page's name, the settings menu,
+// and the row of views, so any view is one tap from any other.
 // `current` is the view to mark as the open page; pages outside the row
 // (History, Review) leave it unset.
 export default function AppHeader({
@@ -73,9 +72,8 @@ export default function AppHeader({
             <h1 className="whitespace-nowrap text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{title}</h1>
             <p className="hidden truncate text-xs text-zinc-400 sm:block">{subtitle}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <TimeFormatToggle />
-            <ThemeToggle />
+          <div className="-mr-1.5 shrink-0">
+            <SettingsMenu />
           </div>
         </div>
         <nav aria-label="Views" className="mt-3 flex gap-1 sm:-mx-1">

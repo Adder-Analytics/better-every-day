@@ -813,7 +813,7 @@ export default function Planner() {
   })
   const router = useRouter()
   // The live theme preference, so the palette can flag the active one and set
-  // the others. Shared with the header switcher via the same store.
+  // the others. Shared with the header settings menu via the same store.
   const theme = useSyncExternalStore(themeStore.subscribe, themeStore.get, () => 'system' as Theme)
   // The saved per-tag colors, read once here so every chip the planner draws can
   // resolve its tint without a hook of its own; empty until just after hydration.
