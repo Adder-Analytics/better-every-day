@@ -1,4 +1,4 @@
-// The theme preference, shared by the header switcher and the command palette
+// The theme preference, shared by the settings menu and the command palette
 // so both stay in sync. A tiny external store over the saved value lets
 // components read it via useSyncExternalStore — no setState-in-effect, and
 // hydration-safe (the inline layout script applies the class before first paint).

@@ -1238,6 +1238,14 @@ export const changelog: ChangelogEntry[] = [
       '“Select tasks” in the menu behind the three dots beside today’s count (or in the command menu) turns on selection mode. Tapping a task picks it instead of opening or checking it, and a bar at the bottom acts on every picked task at once: Done (or Not done, when all of them are finished), Tomorrow, Pick day, Someday, and Delete. “Select all” picks every task currently shown, so a tag filter or a folded Completed section narrows it; Ctrl+A does the same and Esc leaves selection mode. Routines can be checked off or deleted this way but keep their own schedule, so moves apply to one-off tasks only. Each bulk action shows a toast with Undo (or Ctrl+Z) that restores every affected task as it was. No stored data changed.',
     type: 'feature',
   },
+  {
+    day: 155,
+    date: '2026-11-20',
+    title: 'Settings in one place',
+    description:
+      'The 12h/24h and theme switches that sat in every page header are replaced by one settings button (a gear icon). It opens a small panel with Theme (Light, Auto, Dark), Clock (shown as “2:30 PM” or “14:30”), and Week starts (Sunday or Monday). The week-start choice was previously only on the Month page, where it still is. Esc or a tap outside closes the panel. The changelog page uses the same button. Choices are kept in the same places as before, so existing preferences carry over. No stored data changed.',
+    type: 'design',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
