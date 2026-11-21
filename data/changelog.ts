@@ -1246,6 +1246,14 @@ export const changelog: ChangelogEntry[] = [
       'The 12h/24h and theme switches that sat in every page header are replaced by one settings button (a gear icon). It opens a small panel with Theme (Light, Auto, Dark), Clock (shown as “2:30 PM” or “14:30”), and Week starts (Sunday or Monday). The week-start choice was previously only on the Month page, where it still is. Esc or a tap outside closes the panel. The changelog page uses the same button. Choices are kept in the same places as before, so existing preferences carry over. No stored data changed.',
     type: 'design',
   },
+  {
+    day: 156,
+    date: '2026-11-21',
+    title: 'Recently deleted',
+    description:
+      'Deleted tasks are now kept for 30 days on a new Recently deleted page, reached from the “Your data” card or the command menu. Before, a deleted task could only be brought back during the few seconds the Undo toast was showing. Each entry shows where the task was (today, a later day, Someday, a routine, or finished) and when it was deleted. Restore puts it back exactly as it was, with its note, steps, schedule, and routine history; “Restore all” and “Empty” act on the whole list, and the trash icon removes one entry for good. It covers deletes from every page, bulk deletes, and a task overwritten by an older tab. One-off tasks finished more than a year ago, which the planner already removes on its own, are not kept. Deleted tasks are stored under a separate key; the planner’s stored data is unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

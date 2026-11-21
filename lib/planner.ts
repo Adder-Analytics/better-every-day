@@ -1,6 +1,7 @@
 import { weekStartsOn } from './weekstart'
 import { isHour12 } from './timeformat'
 import { stripTags } from './tags'
+import { recordRemovals } from './trash'
 
 // How often a task repeats. Absent means it's a one-off. 'days' recurs on a
 // chosen set of weekdays (see `repeatDays`); 'monthly' recurs on the same
@@ -937,7 +938,26 @@ export function loadPlanner(): PlannerData {
 }
 
 export function savePlanner(data: PlannerData): void {
+  // Anything the user removed since the last save is kept for 30 days in
+  // Recently deleted (lib/trash). One-offs finished over a year ago are aged
+  // out by loadPlanner on purpose, so they're left out.
+  try {
+    const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
+    recordRemovals(localStorage.getItem(STORAGE_KEY), data.tasks, t => !(!t.repeat && t.done && (t.completedDate ?? t.createdDate) < cutoff))
+  } catch {
+    // Never let the safety net stand in the way of saving.
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+}
+
+// Put deleted tasks back exactly as they were. Returns how many returned
+// (a task whose id is already in the planner is skipped).
+export function restoreTasks(restored: Task[]): number {
+  const { tasks } = loadPlanner()
+  const have = new Set(tasks.map(t => t.id))
+  const add = restored.filter(t => !have.has(t.id))
+  if (add.length) savePlanner({ version: PLANNER_VERSION, tasks: [...tasks, ...add] })
+  return add.length
 }
 
 // The last `n` calendar dates (local time), oldest first, ending with today.
