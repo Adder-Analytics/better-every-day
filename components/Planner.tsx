@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -76,6 +76,7 @@ function repeatContext(task: Task): string {
   if (task.repeat === 'yearly') return 'Yearly'
   if (task.repeat === 'interval') return formatInterval(task.repeatEvery ?? 2, task.createdDate)
   if (task.repeat === 'perWeek') return formatTimesPerWeek(task.repeatEvery ?? 3)
+  if (task.repeat === 'after') return formatAfterDone(task.repeatEvery ?? 7)
   if (task.repeat === 'days') return formatRepeatDays(task.repeatDays ?? [])
   return 'Today'
 }
@@ -1233,7 +1234,7 @@ export default function Planner() {
               ...t,
               repeat,
               repeatDays: repeat === 'days' ? repeatDays : undefined,
-              repeatEvery: repeat === 'interval' || repeat === 'perWeek' ? repeatEvery : undefined,
+              repeatEvery: repeat === 'interval' || repeat === 'perWeek' || repeat === 'after' ? repeatEvery : undefined,
               // A monthly routine on a weekday of the month ("the first Monday")
               // keeps its week; any other choice, plain Monthly included, clears it.
               repeatNth: repeat === 'monthly' ? repeatNth : undefined,

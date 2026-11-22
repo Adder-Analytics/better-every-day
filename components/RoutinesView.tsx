@@ -17,6 +17,7 @@ import {
   formatRepeatDays,
   formatInterval,
   formatTimesPerWeek,
+  formatAfterDone,
   streakUnitOf,
   monthlyDayLabel,
   yearlyDateLabel,
@@ -90,6 +91,8 @@ function cadenceLabel(task: Task): string {
       return formatInterval(task.repeatEvery ?? 2, task.createdDate)
     case 'perWeek':
       return formatTimesPerWeek(task.repeatEvery ?? 3)
+    case 'after':
+      return formatAfterDone(task.repeatEvery ?? 7)
     case 'days':
       return formatRepeatDays(task.repeatDays ?? [])
     default:

@@ -1254,6 +1254,14 @@ export const changelog: ChangelogEntry[] = [
       'Deleted tasks are now kept for 30 days on a new Recently deleted page, reached from the “Your data” card or the command menu. Before, a deleted task could only be brought back during the few seconds the Undo toast was showing. Each entry shows where the task was (today, a later day, Someday, a routine, or finished) and when it was deleted. Restore puts it back exactly as it was, with its note, steps, schedule, and routine history; “Restore all” and “Empty” act on the whole list, and the trash icon removes one entry for good. It covers deletes from every page, bulk deletes, and a task overwritten by an older tab. One-off tasks finished more than a year ago, which the planner already removes on its own, are not kept. Deleted tasks are stored under a separate key; the planner’s stored data is unchanged.',
     type: 'feature',
   },
+  {
+    day: 157,
+    date: '2026-11-22',
+    title: 'Repeat after it’s done',
+    description:
+      'A routine can now repeat a set number of days after it was last done, instead of on a fixed schedule. Type it in the add box (“Change sheets 2 weeks after done”, “Water plants 4 days after done”, “Haircut 6 weeks after finishing”, “Call home 10 days since last time”), or pick “After it’s done” in the repeat menu, where − and + step through 1 day to 1 year. The task appears on its due day and stays on today until it is checked off; the next one is counted from the day it was actually done, so doing it late moves the next one later. Its row shows how long ago it was last done, or when it comes back once it is done today. Past days it was not done on are not shown as missed. Its streak counts completions made within the gap of the one before. A rest day restarts the count like a completion. Stored data is now version 20, which adds the new repeat type; existing data loads unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

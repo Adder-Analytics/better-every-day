@@ -57,6 +57,7 @@ const GROUPS: Group[] = [
       { example: 'monthly on the 1st', does: 'once a month, on that date' },
       { example: 'every first Mon', does: 'once a month, on that day' },
       { example: '3x a week', does: 'any days, 3 a week' },
+      { example: '2 weeks after done', does: 'counts from each time you do it' },
       { example: 'yearly', does: 'once a year' },
     ],
   },
