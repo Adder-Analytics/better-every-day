@@ -10,8 +10,11 @@ import { recordRemovals } from './trash'
 // Feb 28 in a non-leap year); 'interval' recurs every N days counting from the
 // day it was created (see `repeatEvery`) — the rest are fixed weekly/daily
 // cadences. 'perWeek' is the flexible one: N times a week on whichever days
-// (see `repeatEvery`), due each day until that week's count is met.
-export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly' | 'yearly' | 'interval' | 'perWeek'
+// (see `repeatEvery`), due each day until that week's count is met. 'after'
+// counts from the last time it was done rather than from a fixed start: N days
+// (see `repeatEvery`) after each completion, it's due again, and it stays on
+// today until it's done — for the chores whose clock restarts when you do them.
+export type RepeatRule = 'daily' | 'weekdays' | 'weekly' | 'days' | 'monthly' | 'yearly' | 'interval' | 'perWeek' | 'after'
 
 // A single step within a task — a way to break one thing into the smaller
 // pieces it actually takes. Each is checked off on its own; they don't drive
@@ -46,7 +49,8 @@ export type Task = {
   // ("every other day" is 2). Counted from `createdDate`. Integer ≥ 2; only
   // read when `repeat === 'interval'`, ignored by every other cadence. A
   // 'perWeek' routine reuses it as its weekly count — the N in "3 times a
-  // week" (1–6).
+  // week" (1–6). An 'after' routine reuses it as its gap — the N in "3 days
+  // after done" (1–365).
   repeatEvery?: number
   // Which week of the month a 'monthly' routine lands on, for the ones tied to a
   // weekday rather than a date — "the first Monday", "the last Friday": 1–4 for
@@ -120,10 +124,12 @@ export type Task = {
 // its count in `repeatEvery` and so allows a count of 1.
 // v19: added an optional `repeatNth` (monthly routines on a weekday of the
 // month, like "the first Monday").
+// v20: added the 'after' repeat rule (N days after it was last done), which
+// stores its gap in `repeatEvery`.
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v19 alike.
-export const PLANNER_VERSION = 19
+// loadPlanner reads v1–v20 alike.
+export const PLANNER_VERSION = 20
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -254,7 +260,8 @@ export function formatDueFull(dueDate: string): string {
 function isRepeatRule(value: unknown): value is RepeatRule {
   return (
     value === 'daily' || value === 'weekdays' || value === 'weekly' || value === 'days' ||
-    value === 'monthly' || value === 'yearly' || value === 'interval' || value === 'perWeek'
+    value === 'monthly' || value === 'yearly' || value === 'interval' || value === 'perWeek' ||
+    value === 'after'
   )
 }
 
@@ -557,6 +564,17 @@ export function isDueOn(task: Task, dateStr: string): boolean {
     if (dateStr < todayStr()) return false
     return weekCompletions(task, dateStr) < perWeekTarget(task)
   }
+  // after: N days after it was last done. A day it was done on is due. Today is
+  // due once that day has come — and stays due until it's done, like a one-off
+  // carried over. A later day is due only if it's the next due date. A past day
+  // it wasn't done on is never due, so a late one never reads as missed.
+  if (task.repeat === 'after') {
+    if ((task.completions ?? []).includes(dateStr)) return true
+    const today = todayStr()
+    if (dateStr < today) return false
+    const next = afterDoneNext(task, dateStr)
+    return dateStr === today ? next <= today : next > today && dateStr === next
+  }
   const dow = weekdayOf(dateStr)
   if (task.repeat === 'weekdays') return dow >= 1 && dow <= 5
   // days: recurs on each chosen weekday (0 = Sun … 6 = Sat).
@@ -572,6 +590,85 @@ function weekStartStr(dateStr: string): string {
   const dt = new Date(y, m - 1, d)
   dt.setDate(dt.getDate() - ((dt.getDay() - weekStartsOn() + 7) % 7))
   return fmtDate(dt)
+}
+
+// An 'after' routine's gap in days, clamped to its 1–365 range.
+export function afterDoneGap(task: Task): number {
+  return Math.min(365, Math.max(1, Math.round(task.repeatEvery ?? 7)))
+}
+
+// The last day an 'after' routine was done (or rested) before a date — the day
+// its clock restarted. Undefined when it hasn't been done yet.
+export function afterDoneLast(task: Task, before: string = addDays(todayStr(), 1)): string | undefined {
+  let last: string | undefined
+  for (const d of [...(task.completions ?? []), ...(task.skips ?? [])]) {
+    if (d < before && (!last || d > last)) last = d
+  }
+  return last
+}
+
+// The date an 'after' routine is next due, counting from its last completion or
+// rest day before `before`: that day plus its gap. Before it's ever been done,
+// it's due from the day it starts.
+export function afterDoneNext(task: Task, before: string = addDays(todayStr(), 1)): string {
+  const last = afterDoneLast(task, before)
+  if (!last) return task.createdDate
+  const next = addDays(last, afterDoneGap(task))
+  return next < task.createdDate ? task.createdDate : next
+}
+
+// A short label for an 'after' routine's gap: "1 day after done", "3 days after
+// done", "2 weeks after done". Shared by the task row, the repeat menu, and
+// every view.
+export function formatAfterDone(n: number): string {
+  const days = Math.min(365, Math.max(1, Math.round(n)))
+  if (days === 365) return '1 year after done'
+  if (days >= 7 && days % 7 === 0) {
+    const weeks = days / 7
+    return weeks === 1 ? '1 week after done' : `${weeks} weeks after done`
+  }
+  return days === 1 ? '1 day after done' : `${days} days after done`
+}
+
+// Where an 'after' routine stands, for its row: "again Friday" once it's done
+// today, otherwise how long since it was last done ("last done 9 days ago").
+// Empty before it's ever been done.
+export function afterDoneStatus(task: Task, today: string = todayStr()): string {
+  if (task.repeat !== 'after') return ''
+  if ((task.completions ?? []).includes(today)) {
+    const next = addDays(today, afterDoneGap(task))
+    return `again ${formatDayLabel(next).replace(/^Tomorrow$/, 'tomorrow')}`
+  }
+  const last = (task.completions ?? []).filter(d => d < today).sort().pop()
+  if (!last) return ''
+  const ago = daysBetween(last, today)
+  if (ago === 1) return 'last done yesterday'
+  if (ago < 14) return `last done ${ago} days ago`
+  const [y, m, d] = last.split('-').map(Number)
+  const sameYear = y === Number(today.slice(0, 4))
+  return `last done ${new Date(y, m - 1, d).toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
+
+// An 'after' routine's runs of completions made on schedule: each one counts if
+// it came within its gap of the one before (or of a rest day in between); a
+// later one starts a new run. The current run ends once today passes the due
+// date without it being done.
+function afterDoneStreaks(task: Task, today: string): { current: number; best: number } {
+  const gap = afterDoneGap(task)
+  const done = [...new Set(task.completions ?? [])].filter(d => d <= today).sort()
+  const skips = [...new Set(task.skips ?? [])].sort()
+  let run = 0
+  let best = 0
+  let prev: string | undefined
+  for (const d of done) {
+    // A rest day between two completions restarts the clock, like a completion.
+    const anchor = skips.filter(s => s < d && (!prev || s > prev)).pop() ?? prev
+    run = anchor && daysBetween(anchor, d) <= gap ? run + 1 : 1
+    if (run > best) best = run
+    prev = d
+  }
+  const current = run > 0 && afterDoneNext(task, addDays(today, 1)) < today ? 0 : run
+  return { current, best }
 }
 
 // A perWeek routine's weekly count, clamped to its 1–6 range.
@@ -603,7 +700,9 @@ export function streakUnitOf(task: Task): string {
       ? 'month'
       : task.repeat === 'weekly' || task.repeat === 'perWeek'
         ? 'week'
-        : 'day'
+        : task.repeat === 'after'
+          ? 'time'
+          : 'day'
 }
 
 // A YYYY-MM-DD string shifted by n days.
@@ -850,6 +949,7 @@ export function yearlyDateLabel(task: Task): string {
 export function routineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
   if (task.repeat === 'perWeek') return perWeekStreaks(task, today).current
+  if (task.repeat === 'after') return afterDoneStreaks(task, today).current
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
   const skips = new Set(task.skips ?? [])
@@ -879,6 +979,7 @@ export function routineStreak(task: Task, today: string = todayStr()): number {
 export function bestRoutineStreak(task: Task, today: string = todayStr()): number {
   if (!task.repeat) return 0
   if (task.repeat === 'perWeek') return perWeekStreaks(task, today).best
+  if (task.repeat === 'after') return afterDoneStreaks(task, today).best
   const done = new Set(task.completions ?? [])
   if (done.size === 0) return 0
   const skips = new Set(task.skips ?? [])
@@ -920,9 +1021,10 @@ export function loadPlanner(): PlannerData {
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
     // v15 (paused routines), v16 (routine end dates), v17 (completion times)
-    // v18 (times-a-week routines) and v19 (monthly-by-weekday routines) only add optional fields (or a repeat value old data never used), so every
+    // v18 (times-a-week routines), v19 (monthly-by-weekday routines) and v20
+    // (after-done routines) only add optional fields (or a repeat value old data never used), so every
     // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -1226,7 +1328,7 @@ export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
   date?: string // an explicit day (YYYY-MM-DD) read from the text
   repeat?: RepeatRule // a recurrence read from the text
-  repeatEvery?: number // the N of an 'interval' ("every 3 days") or 'perWeek' ("3 times a week") recurrence
+  repeatEvery?: number // the N of an 'interval' ("every 3 days"), 'perWeek' ("3 times a week"), or 'after' ("3 days after done") recurrence
   repeatDays?: number[] // the weekdays of a 'days' recurrence ("every Mon and Thu"), 0 = Sun … 6 = Sat
   repeatWeekday?: number // the weekday a weeks-apart 'interval' or a monthly-by-weekday routine starts on, 0 = Sun … 6 = Sat
   repeatNth?: number // the week of the month a monthly routine lands on ("first Monday" is 1, "last" is -1)
@@ -1374,6 +1476,27 @@ function parseTrailingPerWeek(text: string): { text: string; times: number } | n
   const stripped = text.slice(0, m.index).trim()
   if (!stripped || times < 1 || times > 6) return null
   return { text: stripped, times }
+}
+
+// Trailing after-done phrases: "3 days after done", "every 2 weeks after it's
+// done", "a week after finishing", "10 days after last time". These name an
+// 'after' routine, whose clock restarts each time it's done.
+const NUM_WORD: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
+const AFTER_DONE_RE =
+  /\s+(?:every\s+)?(\d{1,3}|an?|one|two|three|four|five|six|seven|eight|nine|ten)\s+(days?|weeks?)\s+(?:after|since|from)\s+(?:(?:it'?s|it\s+is|i'?m|last|the\s+last)\s+)?(?:done|finished|finishing|completed|completing|doing\s+it|time)\.?\s*$/i
+
+// Strip a trailing after-done phrase and resolve it to a gap in days (1–365).
+// Returns null when nothing is recognized, when stripping would empty the
+// title, or when the gap is out of range.
+function parseTrailingAfterDone(text: string): { text: string; days: number } | null {
+  const m = text.match(AFTER_DONE_RE)
+  if (!m) return null
+  const word = m[1].toLowerCase()
+  const n = NUM_WORD[word] ?? Number(word)
+  const days = /^w/i.test(m[2]) ? n * 7 : n
+  const stripped = text.slice(0, m.index).trim()
+  if (!stripped || days < 1 || days > 365) return null
+  return { text: stripped, days }
 }
 
 // Trailing day phrases, each resolving the title to an absolute date so the
@@ -2047,6 +2170,16 @@ export function parseQuickAdd(input: string): QuickAdd {
     if (repeat === undefined) {
       // An every-N-days interval is tried before the fixed phrases, so "every 3
       // days" reads as an interval rather than being missed by them.
+      // "3 days after done" counts from each completion, so it's read before
+      // anything that might claim part of it.
+      const afterDone = parseTrailingAfterDone(text)
+      if (afterDone) {
+        text = afterDone.text
+        repeat = 'after'
+        repeatEvery = afterDone.days
+        repeatLabel = formatAfterDone(afterDone.days)
+        continue
+      }
       const perWeek = parseTrailingPerWeek(text)
       if (perWeek) {
         text = perWeek.text
@@ -2314,7 +2447,7 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
     }
     next.repeat = a.repeat
     next.repeatDays = a.repeat === 'days' ? a.repeatDays : undefined
-    next.repeatEvery = a.repeat === 'interval' || a.repeat === 'perWeek' ? a.repeatEvery : undefined
+    next.repeatEvery = a.repeat === 'interval' || a.repeat === 'perWeek' || a.repeat === 'after' ? a.repeatEvery : undefined
     next.repeatNth = a.repeat === 'monthly' ? a.repeatNth : undefined
     // An existing routine renamed to "every other Friday" keeps its start (and
     // so its history), moved forward only as far as the first Friday after it.

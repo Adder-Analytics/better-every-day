@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, formatAfterDone, afterDoneGap, afterDoneStatus, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
@@ -10,6 +10,9 @@ import { extractTags, stripTags } from '@/lib/tags'
 import { hasLink, splitLinks, linkHostname } from '@/lib/links'
 import NoteText from '@/components/NoteText'
 import SubtaskList from '@/components/SubtaskList'
+
+// The gaps the after-done stepper walks through, in days.
+const AFTER_STEPS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 28, 30, 42, 60, 90, 180, 365]
 import TagChip from '@/components/TagChip'
 
 const REPEAT_OPTIONS: { value: RepeatRule; label: string }[] = [
@@ -558,6 +561,25 @@ export default function TaskItem({
     else setDraftTimes(n)
   }
 
+  // The after-done gap, for its stepper in the repeat menu — the same
+  // draft-then-apply shape again. Steps through a short ladder of useful gaps
+  // (typing "45 days after done" still reaches any count up to a year).
+  const isAfter = task.repeat === 'after'
+  const [draftAfter, setDraftAfter] = useState(isAfter ? afterDoneGap(task) : 7)
+  const chooseAfter = (days: number) => {
+    const n = Math.min(365, Math.max(1, days))
+    setDraftDays(null)
+    setDraftAfter(n)
+    onSetRepeat?.(task.id, 'after', undefined, n)
+  }
+  const bumpAfter = (delta: number) => {
+    const i = delta > 0 ? AFTER_STEPS.findIndex(d => d > draftAfter) : AFTER_STEPS.findLastIndex(d => d < draftAfter)
+    if (i < 0) return
+    const n = AFTER_STEPS[i]
+    if (isAfter) chooseAfter(n)
+    else setDraftAfter(n)
+  }
+
   // Monthly on a weekday of the month, read from the task's day: a task on the
   // 3rd Monday of its month offers "Monthly on 3rd Mon"; one in the month's
   // last days past the fourth week offers the last one.
@@ -598,7 +620,9 @@ export default function TaskItem({
       ? formatInterval(task.repeatEvery ?? 2, task.createdDate)
       : task.repeat === 'perWeek'
         ? formatTimesPerWeek(perWeekTarget(task))
-        : task.repeat === 'monthly'
+        : task.repeat === 'after'
+          ? formatAfterDone(afterDoneGap(task))
+          : task.repeat === 'monthly'
           ? monthlyLabel(task)
           : task.repeat
             ? REPEAT_LABEL[task.repeat]
@@ -614,13 +638,20 @@ export default function TaskItem({
         ? `Repeats yearly on ${yearlyDateLabel(task)}`
         : task.repeat === 'perWeek'
           ? `Repeats ${repeatLabel.toLowerCase()}, on any days`
-          : `Repeats ${repeatLabel.toLowerCase()}`
+          : task.repeat === 'after'
+            ? `Comes back ${repeatLabel.replace(/ after done$/, '')} after each time it's done`
+            : `Repeats ${repeatLabel.toLowerCase()}`
   // A routine's planned end, if one is set: "until Sep 30" on the row, spelled
   // out in the tooltip. Empty for a one-off or an open-ended routine.
   const repeatUntilLabel = formatRepeatUntil(task)
   const repeatUntilFull = formatRepeatUntilFull(task)
   // A times-a-week routine's progress through the current week: "1 of 3".
-  const weekProgress = isPerWeek ? `${Math.min(weekCompletions(task, todayStr()), perWeekTarget(task))} of ${perWeekTarget(task)} this week` : ''
+  // An after-done routine's place in its cycle: "again Friday", "last done 9 days ago".
+  const weekProgress = isPerWeek
+    ? `${Math.min(weekCompletions(task, todayStr()), perWeekTarget(task))} of ${perWeekTarget(task)} this week`
+    : isAfter
+      ? afterDoneStatus(task)
+      : ''
 
   // The handful of days the schedule menu offers as one tap — today through a
   // week out — with the current day flagged. Anything further is the date field.
@@ -1540,6 +1571,54 @@ export default function TaskItem({
                 title="More times a week"
                 onClick={() => bumpTimes(1)}
                 disabled={draftTimes >= 6}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* N days after it's done — for the chores whose clock restarts when
+              you do them: change the sheets, a haircut, water the plants. It
+              comes back that many days after each completion and stays on
+              today until it's done. Same controls as the two above. */}
+          <div className="mt-1 border-t border-zinc-100 dark:border-zinc-800 px-1.5 pt-2 pb-1">
+            <p className="mb-1.5 px-1 text-[11px] font-medium text-zinc-400">After it&rsquo;s done</p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Fewer days after done"
+                title="Fewer days after done"
+                onClick={() => bumpAfter(-1)}
+                disabled={draftAfter <= AFTER_STEPS[0]}
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={isAfter}
+                onClick={() => chooseAfter(draftAfter)}
+                className={`flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-xs tabular-nums transition-colors ${
+                  isAfter
+                    ? 'font-medium text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-800'
+                    : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {formatAfterDone(draftAfter).replace(/ after done$/, '')}
+                {isAfter && <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />}
+              </button>
+              <button
+                type="button"
+                aria-label="More days after done"
+                title="More days after done"
+                onClick={() => bumpAfter(1)}
+                disabled={draftAfter >= AFTER_STEPS[AFTER_STEPS.length - 1]}
                 className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
