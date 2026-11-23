@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, catchUpShift, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -252,6 +252,14 @@ function ToTomorrowIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6l6 6-6 6M19.5 12H4.5" />
+    </svg>
+  )
+}
+// Heroicons "forward" — shifts the rest of a late day's timed plan later.
+function ShiftLaterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z" />
     </svg>
   )
 }
@@ -1700,6 +1708,23 @@ export default function Planner() {
   // real timeline — everything above the line is behind you, everything below
   // is still ahead. The line only appears once there's a timed task to anchor it.
   const timedActive = todayActive.filter(t => t.timeMin != null)
+  // When the day is running behind, the one-step catch-up: the rest of the timed
+  // plan slides later so the earliest late task starts now (see catchUpShift).
+  // Read only after hydration, since it depends on the clock.
+  const catchUp = mounted ? catchUpShift(todayActive, nowMin) : null
+  const shiftLabel = catchUp
+    ? `Shift ${catchUp.ids.length === 1 ? 'the late task' : `${catchUp.ids.length} timed tasks`} ${formatDuration(catchUp.delta)} later`
+    : ''
+  const shiftRestLater = () => {
+    if (!catchUp) return
+    const ids = new Set(catchUp.ids)
+    const left = catchUp.skipped > 0 ? `, ${catchUp.skipped} kept` : ''
+    applyBulk(
+      tasks.filter(t => ids.has(t.id)),
+      t => ({ ...t, timeMin: t.timeMin! + catchUp.delta }),
+      `Shifted ${countLabel(catchUp.ids.length)} ${formatDuration(catchUp.delta)} later${left}`
+    )
+  }
   // The now-line and "up next" hint sit among the *visible* timed tasks, so they
   // stay correct when a filter hides some; reminders below still watch them all.
   const showNowLine = mounted && vTodayActive.some(t => t.timeMin != null)
@@ -1768,6 +1793,9 @@ export default function Planner() {
       : []),
     ...(timedActive.length > 0
       ? [{ id: 'ics', label: 'Add timed tasks to calendar', icon: <CalendarPlusIcon className="h-4 w-4" />, run: downloadTodayCalendar }]
+      : []),
+    ...(catchUp
+      ? [{ id: 'shift-later', label: shiftLabel, icon: <ShiftLaterIcon className="h-4 w-4" />, run: shiftRestLater }]
       : []),
     // The bulk "move the rest to tomorrow", always here; the inline link under
     // the list only appears later in the day (see WRAP_UP_FROM_MIN).
@@ -2244,6 +2272,15 @@ export default function Planner() {
           keywords: 'carryover yesterday move backlog do today',
           icon: <DownToTodayIcon className="h-4 w-4" />,
           run: bringCarryoversToToday,
+        }]
+      : []),
+    ...(catchUp
+      ? [{
+          id: 'shift-later',
+          label: shiftLabel,
+          keywords: 'running late behind shift push delay catch up reschedule later timed schedule',
+          icon: <ShiftLaterIcon className="h-4 w-4" />,
+          run: shiftRestLater,
         }]
       : []),
     ...(movableToTomorrow > 0
