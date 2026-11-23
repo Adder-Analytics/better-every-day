@@ -494,6 +494,35 @@ export function timeBlockConflicts(
   return out
 }
 
+// For a day that's running behind: shift the rest of today's timed plan later
+// so the earliest late task starts now (rounded up to the next 5 minutes) and
+// everything after it keeps its spacing. "Late" matches the row's late chip — a
+// block whose end has passed, or a bare time that has passed. Only unfinished
+// one-offs move; a routine's time is its standing time for every day, so it
+// stays put, and a block you're inside right now is left running. A task the
+// shift would push past midnight stays where it is and is counted in `skipped`.
+// Returns null when nothing is late. Pure: callers pass today's unfinished
+// tasks and the minute of day.
+export type CatchUpShift = { delta: number; ids: string[]; skipped: number }
+export function catchUpShift(active: Task[], nowMin: number): CatchUpShift | null {
+  const timed = active.filter(t => !t.repeat && !t.done && t.timeMin != null)
+  const isLate = (t: Task) => (t.estimateMin ? t.timeMin! + t.estimateMin <= nowMin : t.timeMin! < nowMin)
+  const late = timed.filter(isLate)
+  if (late.length === 0) return null
+  const anchor = Math.min(...late.map(t => t.timeMin!))
+  const start = Math.ceil(nowMin / 5) * 5
+  const delta = start - anchor
+  const inBlock = (t: Task) => !!t.estimateMin && t.timeMin! <= nowMin && nowMin < t.timeMin! + t.estimateMin
+  const ids: string[] = []
+  let skipped = 0
+  for (const t of timed) {
+    if (t.timeMin! < anchor || inBlock(t)) continue
+    if (t.timeMin! + delta > 1439) skipped++
+    else ids.push(t.id)
+  }
+  return ids.length > 0 ? { delta, ids, skipped } : null
+}
+
 // Day-of-week (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD string, parsed from
 // parts so it's correct in every timezone (new Date('2026-06-14') is UTC).
 export function weekdayOf(dateStr: string): number {
