@@ -18,6 +18,7 @@ import {
   monthlyLabel,
   formatRepeatDays,
   PLANNER_VERSION,
+  isWaiting,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { extractTags, stripTags, normalizeTagName, renameTagInText } from '@/lib/tags'
@@ -75,6 +76,7 @@ function cadenceLabel(task: Task): string {
 // dated ahead names its day ("Tomorrow", "Friday", "Sep 30").
 function whenLabel(task: Task, today: string): string {
   if (task.repeat) return cadenceLabel(task)
+  if (isWaiting(task)) return 'Waiting'
   if (task.someday) return 'Someday'
   if (task.createdDate <= today) return 'Today'
   return formatDayLabel(task.createdDate)

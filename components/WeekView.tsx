@@ -28,6 +28,7 @@ import {
   currentMin,
   toggledToday,
   PLANNER_VERSION,
+  isWaiting,
 } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { extractTags, stripTags } from '@/lib/tags'
@@ -166,6 +167,7 @@ export default function WeekView() {
   // unfinished from earlier days is carried), or the day it's scheduled for.
   // Reads as a phrase: "planned today", "planned Saturday", "planned for Someday".
   const sitsOn = (t: Task): string => {
+    if (isWaiting(t)) return 'waiting on someone'
     if (t.someday) return 'planned for Someday'
     if (t.createdDate <= today) return 'planned today'
     const label = formatDayLabel(t.createdDate)

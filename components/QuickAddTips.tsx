@@ -28,6 +28,7 @@ const GROUPS: Group[] = [
       { example: 'end of the month', does: 'its last day' },
       { example: 'next month', does: 'the 1st of next month' },
       { example: 'someday', does: 'keep it, no day yet' },
+      { example: 'Waiting on …', does: 'start with it: tracks a hand-off' },
     ],
   },
   {

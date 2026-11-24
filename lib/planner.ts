@@ -103,6 +103,14 @@ export type Task = {
   // it was due). Distinct from pausedSince (a break you resume): this is a fixed
   // end, set and cleared from the repeat menu. Only meaningful on a routine.
   repeatUntil?: string
+  // Waiting on someone else: the date (YYYY-MM-DD) a task was handed off — a
+  // reply, a delivery, a decision that isn't yours to make. It rides on a
+  // Someday task (`someday` stays true alongside it), so every view that keeps
+  // Someday tasks off a day keeps waiting ones off too; Today shows them in
+  // their own section with how long they've been waiting. Read only together
+  // with `someday` (see isWaiting), so a stale value left on a task that has
+  // since been given a day means nothing. Cleared when the task comes back.
+  waitingSince?: string
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
@@ -126,10 +134,11 @@ export type Task = {
 // month, like "the first Monday").
 // v20: added the 'after' repeat rule (N days after it was last done), which
 // stores its gap in `repeatEvery`.
+// v21: added an optional `waitingSince` (a Someday task waiting on someone).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v20 alike.
-export const PLANNER_VERSION = 20
+// loadPlanner reads v1–v21 alike.
+export const PLANNER_VERSION = 21
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -315,7 +324,8 @@ function isTask(value: unknown): value is Task {
     (t.someday === undefined || typeof t.someday === 'boolean') &&
     (t.dueDate === undefined || typeof t.dueDate === 'string') &&
     (t.pausedSince === undefined || typeof t.pausedSince === 'string') &&
-    (t.repeatUntil === undefined || typeof t.repeatUntil === 'string')
+    (t.repeatUntil === undefined || typeof t.repeatUntil === 'string') &&
+    (t.waitingSince === undefined || typeof t.waitingSince === 'string')
   )
 }
 
@@ -785,6 +795,32 @@ export function isCompletedOn(task: Task, dateStr: string): boolean {
 // again when the completion is undone. A one-off records the minute it was
 // checked off, cleared when unchecked. Shared by Today and the Week view so both
 // write the same shape.
+// Whether a task is waiting on someone else: a one-off in Someday with the date
+// it was handed off. Both must hold — see `waitingSince` on Task.
+export function isWaiting(t: Task): boolean {
+  return !t.repeat && !!t.someday && !!t.waitingSince
+}
+
+// How long a task has been waiting, for its row: "since today", "1 day",
+// "12 days". `stale` marks a week or more, when a nudge is usually due.
+export function formatWaiting(since: string, today: string): { label: string; stale: boolean } {
+  const days = Math.max(0, Math.round((new Date(today + 'T00:00').getTime() - new Date(since + 'T00:00').getTime()) / 86400000))
+  const label = days === 0 ? 'waiting since today' : `waiting ${days} ${days === 1 ? 'day' : 'days'}`
+  return { label, stale: days >= 7 }
+}
+
+// A line typed as "Waiting on Sam for the contract" (or "waiting for …")
+// captures a waiting task. Returns the title without the lead-in, capitalized,
+// or null when the line doesn't start that way or nothing would be left.
+const WAITING_RE = /^waiting\s+(?:on|for)\s+/i
+export function readWaiting(text: string): string | null {
+  const m = text.match(WAITING_RE)
+  if (!m) return null
+  const rest = text.slice(m[0].length).trim()
+  if (!rest) return null
+  return rest.charAt(0).toUpperCase() + rest.slice(1)
+}
+
 export function toggledToday(t: Task, today: string, now: number): Task {
   if (t.repeat) {
     const done = (t.completions ?? []).includes(today)
@@ -1050,10 +1086,10 @@ export function loadPlanner(): PlannerData {
     // Someday list), v10 (monthly routines), v11 (routine rest days), v12
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
     // v15 (paused routines), v16 (routine end dates), v17 (completion times)
-    // v18 (times-a-week routines), v19 (monthly-by-weekday routines) and v20
-    // (after-done routines) only add optional fields (or a repeat value old data never used), so every
+    // v18 (times-a-week routines), v19 (monthly-by-weekday routines), v20
+    // (after-done routines) and v21 (waiting tasks) only add optional fields (or a repeat value old data never used), so every
     // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -1351,7 +1387,7 @@ export function formatStandupText(tasks: Task[], todayItems: Task[], hour12 = tr
 // is recognized, and never the ambiguous word "today", so it can't quietly
 // rewrite a real title like "Plan the week" or "What did I get done today".
 
-export type QuickAddSchedule = { kind: 'date' | 'repeat' | 'someday'; label: string }
+export type QuickAddSchedule = { kind: 'date' | 'repeat' | 'someday' | 'waiting'; label: string }
 
 export type QuickAdd = {
   text: string // the task title with any recognized schedule phrase removed
@@ -2489,6 +2525,7 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
   } else if (a.someday) {
     next.createdDate = todayStr()
     next.someday = true
+    next.waitingSince = undefined
   }
   return next
 }

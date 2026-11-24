@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, formatAfterDone, afterDoneGap, afterDoneStatus, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, formatAfterDone, afterDoneGap, afterDoneStatus, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, isWaiting, formatWaiting, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
@@ -303,6 +303,9 @@ type Props = {
   // Park this task in the Someday list (given, a dated task can be moved there
   // from its schedule menu). Someday tasks themselves don't receive this.
   onSetSomeday?: (id: string, someday: boolean) => void
+  // Hand this task off: move it to the Waiting section until someone else's
+  // part is done. Offered in the schedule menu, beside Someday.
+  onSetWaiting?: (id: string) => void
   // Copy this task into a fresh one placed right below it, carrying its details.
   onDuplicate?: (id: string) => void
   // Enter focus mode with this task leading, instead of the queue's top — so you
@@ -375,6 +378,7 @@ export default function TaskItem({
   onSetPriority,
   onSetSubtasks,
   onSetSomeday,
+  onSetWaiting,
   onDuplicate,
   onFocus,
   onSkip,
@@ -451,6 +455,7 @@ export default function TaskItem({
   const canPrioritize = !!onSetPriority
   const canSubtask = !!onSetSubtasks
   const canSomeday = !!onSetSomeday
+  const canWait = !!onSetWaiting && !task.repeat && !task.done && !isWaiting(task)
   const canDuplicate = !!onDuplicate
   // Focusing a specific task only makes sense while it's still open.
   const canFocus = !!onFocus && !task.done
@@ -485,6 +490,9 @@ export default function TaskItem({
   // is moot). Its urgency picks the tone: overdue in rose, due today or tomorrow
   // in amber, anything further out stays quiet in zinc.
   const due = task.dueDate && !task.done ? formatDue(task.dueDate) : null
+  // How long a waiting task has waited — amber from a week on, when a nudge is
+  // usually due.
+  const waiting = isWaiting(task) && !task.done ? formatWaiting(task.waitingSince!, todayStr()) : null
   const dueTitle = task.dueDate ? formatDueFull(task.dueDate) : ''
   const dueTone =
     due?.tone === 'overdue'
@@ -763,7 +771,7 @@ export default function TaskItem({
     }
   }
 
-  const hasDetails = !!(upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0)
+  const hasDetails = !!(waiting || upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0)
   // Opens the schedule menu (where the time lives) when editable.
   const timeChip = (where: string) =>
     task.timeMin != null && !editing && (
@@ -1012,6 +1020,20 @@ export default function TaskItem({
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-500" />
                   </span>
                   {nowLabel}
+                </span>
+              )}
+
+              {/* On a waiting task, how long it has waited. */}
+              {waiting && (
+                <span
+                  title={waiting.stale ? 'Waiting a week or more' : undefined}
+                  className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+                    waiting.stale
+                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                  }`}
+                >
+                  {waiting.label}
                 </span>
               )}
 
@@ -1702,6 +1724,19 @@ export default function TaskItem({
               className="flex w-full items-center rounded-lg border-t border-zinc-100 dark:border-zinc-800 px-2.5 pt-2 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
             >
               Someday
+            </button>
+          )}
+          {/* Hand it off: out of the day and into Waiting, with a running count
+              of how long it has waited. */}
+          {canWait && (
+            <button
+              role="menuitem"
+              onClick={() => { onSetWaiting!(task.id); setMenu(null) }}
+              className={`flex w-full items-center rounded-lg px-2.5 pb-1.5 text-left text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors ${
+                canSomeday ? 'pt-1.5' : 'border-t border-zinc-100 dark:border-zinc-800 pt-2'
+              }`}
+            >
+              Waiting on someone
             </button>
           )}
           {/* Anything further out than a week: a native date field, floored at
