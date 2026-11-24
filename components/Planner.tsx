@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, catchUpShift, projectFinish, currentMin, toggledToday, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, catchUpShift, projectFinish, currentMin, toggledToday, isWaiting, readWaiting, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -83,7 +83,8 @@ function repeatContext(task: Task): string {
 
 // Heroicons calendar (a due day), circular-arrows (a recurrence), and bookmark
 // (a Someday capture, with no day of its own), sized for the quick-add preview.
-function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat' | 'someday'; className?: string }) {
+function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat' | 'someday' | 'waiting'; className?: string }) {
+  if (kind === 'waiting') return <HourglassIcon className={className} />
   if (kind === 'repeat') {
     return (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -101,6 +102,15 @@ function ScheduleIcon({ kind, className }: { kind: 'date' | 'repeat' | 'someday'
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+    </svg>
+  )
+}
+
+// Heroicons-style hourglass: a task waiting on someone else.
+function HourglassIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3h10.5M6.75 21h10.5M7.5 3v2.4a4.5 4.5 0 001.6 3.44L12 11.25l2.9-2.41a4.5 4.5 0 001.6-3.44V3M7.5 21v-2.4a4.5 4.5 0 011.6-3.44L12 12.75l2.9 2.41a4.5 4.5 0 011.6 3.44V21" />
     </svg>
   )
 }
@@ -1110,6 +1120,10 @@ export default function Planner() {
     const text =
       activeTag && !hasTag(parsed.text, activeTag) ? `${parsed.text} #${activeTag}` : parsed.text
     if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, repeatNth: parsed.repeatNth, estimateMin, timeMin, dueDate, priority }
+    // "Waiting on Sam for the contract" goes straight to the Waiting section,
+    // titled without the lead-in. A day typed on the line wins, as with Someday.
+    const waitingText = !date ? readWaiting(text) : null
+    if (waitingText) return { ...newTask(waitingText, todayStr()), someday: true, waitingSince: todayStr(), estimateMin, timeMin, dueDate, priority }
     // Someday, either from a typed "someday" (saidSomeday, which already implies
     // no day was read) or the toggle — a real day typed on the line wins over both.
     if (!date && (saidSomeday || addFor === 'someday')) return { ...newTask(text, todayStr()), someday: true, estimateMin, timeMin, dueDate, priority }
@@ -1194,7 +1208,15 @@ export default function Planner() {
   const toggleTask = (id: string) => {
     const today = todayStr()
     const now = currentMin()
-    setTasks(prev => prev.map(t => (t.id === id ? toggledToday(t, today, now) : t)))
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id) return t
+        const next = toggledToday(t, today, now)
+        // Checking off a waiting task closes it out: it leaves the Waiting
+        // section and joins today's finished tasks.
+        return isWaiting(t) && next.done ? { ...next, someday: undefined, waitingSince: undefined } : next
+      })
+    )
   }
 
   // Take a rest day: mark a routine as skipped today, so it steps out of
@@ -1345,7 +1367,9 @@ export default function Planner() {
   // Move a task to any day. The whole today / tomorrow / upcoming / carryover
   // split is driven by createdDate, so changing it is all rescheduling needs:
   // a task slides into the right section and resurfaces in Today on its day.
-  // Giving a task a day also lifts it out of the Someday list.
+  // Giving a task a day also lifts it out of the Someday list (and out of
+  // Waiting: its stale waitingSince is ignored without `someday`, which lets an
+  // undone move restore it exactly).
   const scheduleTask = (id: string, date: string) => {
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, createdDate: date, someday: undefined } : t)))
   }
@@ -1440,9 +1464,19 @@ export default function Planner() {
     setTasks(prev =>
       prev.map(t =>
         t.id === id
-          ? { ...t, someday: someday || undefined, createdDate: someday ? todayStr() : t.createdDate }
+          ? { ...t, someday: someday || undefined, waitingSince: undefined, createdDate: someday ? todayStr() : t.createdDate }
           : t
       )
+    )
+  }
+
+  // Hand a task off: it moves to the Waiting section (a Someday task with the
+  // date it started waiting), out of today's list and counts, until it's
+  // checked off or brought back with "Do today".
+  const setWaiting = (id: string) => {
+    const today = todayStr()
+    setTasks(prev =>
+      prev.map(t => (t.id === id && !t.repeat ? { ...t, someday: true, waitingSince: today, createdDate: today } : t))
     )
   }
 
@@ -1869,17 +1903,23 @@ export default function Planner() {
   // The Someday list — captured tasks with no day yet, waiting until you're
   // ready to schedule one or bring it to today. Starred ones lead; the rest
   // keep the order they were added in. Routines are never someday tasks.
-  const somedayTasks = tasks.filter(t => t.someday && !t.repeat).sort(byPriorityTime)
+  const somedayTasks = tasks.filter(t => t.someday && !t.repeat && !isWaiting(t)).sort(byPriorityTime)
   const vSomeday = somedayTasks.filter(matchesTag)
+  // Waiting on someone else — Someday tasks with a hand-off date, shown in their
+  // own section, longest-waiting first, so the ones due a nudge lead.
+  const waitingTasks = tasks
+    .filter(isWaiting)
+    .sort((a, b) => (a.waitingSince ?? '').localeCompare(b.waitingSince ?? ''))
+  const vWaiting = waitingTasks.filter(matchesTag)
   const vSkipped = skippedToday.filter(matchesTag)
   // How many tasks the current filter is showing across every section — the
   // count on the filter bar, and what tells the filtered empty state to appear.
-  const filterCount = vTodayActive.length + vTodayDone.length + vCarryovers.length + vUpcoming.length + vSomeday.length
+  const filterCount = vTodayActive.length + vTodayDone.length + vCarryovers.length + vUpcoming.length + vSomeday.length + vWaiting.length
   // Every distinct tag in play across the day's rendered rows, with how many
   // tasks carry it — the contents of the tag bar. Counted from the *unfiltered*
   // universe (the same rows search sees) so the bar stays put no matter which
   // tag is active. Sorted busiest-first, ties broken by name so the order holds.
-  const universe = [...todayActive, ...todayDone, ...carryovers, ...upcoming, ...somedayTasks]
+  const universe = [...todayActive, ...todayDone, ...carryovers, ...upcoming, ...waitingTasks, ...somedayTasks]
   const tagCounts = new Map<string, number>()
   for (const t of universe) {
     for (const tag of extractTags(t.text)) tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1)
@@ -1909,6 +1949,7 @@ export default function Planner() {
     ...todayDone.map(t => searchTask(t, t.repeat ? repeatContext(t) : 'Today')),
     ...carryovers.map(t => searchTask(t, formatPastDayLabel(t.createdDate))),
     ...upcoming.map(t => searchTask(t, formatDayLabel(t.createdDate))),
+    ...waitingTasks.map(t => searchTask(t, 'Waiting')),
     ...somedayTasks.map(t => searchTask(t, 'Someday')),
   ]
   // Deadlines at risk of slipping: an unfinished task whose "due" chip only
@@ -1928,6 +1969,7 @@ export default function Planner() {
   const comingDue: DueItem[] = [
     ...carryovers.map(t => dueCandidate(t, formatPastDayLabel(t.createdDate))),
     ...upcoming.map(t => dueCandidate(t, formatDayLabel(t.createdDate))),
+    ...waitingTasks.map(t => dueCandidate(t, 'Waiting')),
     ...somedayTasks.map(t => dueCandidate(t, 'Someday')),
   ]
     .filter((x): x is DueItem & { on: string } => x !== null)
@@ -1976,7 +2018,7 @@ export default function Planner() {
   // ones too, while shown), carried-over, upcoming, and Someday. A tag filter or
   // a folded Completed section narrows it, so "Select all" means what you see.
   const selectMode = selecting && !inFocus
-  const selectable = [...vTodayActive, ...(showCompleted ? vTodayDone : []), ...vCarryovers, ...vUpcoming, ...vSomeday]
+  const selectable = [...vTodayActive, ...(showCompleted ? vTodayDone : []), ...vCarryovers, ...vUpcoming, ...vWaiting, ...vSomeday]
   const pickedTasks = selectMode ? selectable.filter(t => picked.has(t.id)) : []
   const pickedMovable = pickedTasks.filter(t => !t.repeat)
   const pickedAllDone = pickedTasks.length > 0 && pickedTasks.every(t => t.done)
@@ -2038,7 +2080,7 @@ export default function Planner() {
     applyBulk(pickedMovable, t => ({ ...t, createdDate: date, someday: undefined }), `Moved ${countLabel(pickedMovable.length)} to ${label}`)
   }
   const bulkSomeday = () =>
-    applyBulk(pickedMovable, t => ({ ...t, someday: true, createdDate: todayStr() }), `Moved ${countLabel(pickedMovable.length)} to Someday`)
+    applyBulk(pickedMovable, t => ({ ...t, someday: true, waitingSince: undefined, createdDate: todayStr() }), `Moved ${countLabel(pickedMovable.length)} to Someday`)
   const bulkDelete = () => applyBulk(pickedTasks, () => null, `Deleted ${countLabel(pickedTasks.length)}`)
   // Wrap a task row so selection mode can pick it.
   const pickable = (task: Task, row: React.ReactNode) => (
@@ -2077,7 +2119,12 @@ export default function Planner() {
   // headings dropped, checked items counted apart as already done.
   const addItems = readPastedLines(newText)
   const addDoneCount = addItems.filter(i => i.done).length
-  const parsed = parseQuickAdd(addLineCount < 2 ? addItems[0]?.text ?? newText : newText)
+  const parsedLine = parseQuickAdd(addLineCount < 2 ? addItems[0]?.text ?? newText : newText)
+  // A line starting "Waiting on …" previews as a waiting task (see buildTask).
+  const previewWaiting = !parsedLine.repeat && !parsedLine.date ? readWaiting(parsedLine.text) : null
+  const parsed = previewWaiting
+    ? { ...parsedLine, text: previewWaiting, someday: false, schedule: { kind: 'waiting' as const, label: 'Waiting on' } }
+    : parsedLine
   // Tags recognized in a single-line entry, previewed as chips so a "#work"
   // typed inline is seen before it's added.
   const previewTags = extractTags(newText)
@@ -2940,6 +2987,7 @@ export default function Planner() {
                   onSetPriority={setPriority}
                   onSetSubtasks={setSubtasks}
                   onSetSomeday={setSomeday}
+                  onSetWaiting={setWaiting}
                   onDuplicate={duplicateTask}
                   onFocus={startFocusOn}
                 />)
@@ -3039,6 +3087,7 @@ export default function Planner() {
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
+              onSetWaiting={setWaiting}
               onDuplicate={duplicateTask}
               onFocus={startFocusOn}
               onSkip={skipRoutine}
@@ -3519,6 +3568,44 @@ export default function Planner() {
 
       {/* Upcoming — what you've planned ahead, grouped by day and waiting
           quietly until each one turns into today. */}
+      {/* Waiting on — tasks handed to someone else: a reply, a delivery, a
+          decision. Out of today's list and counts, but in view every day with
+          how long each has waited, so a follow-up isn't forgotten. Check one
+          off when it lands, or "Do today" to pick it back up. */}
+      {vWaiting.length > 0 && (
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-1.5 px-1 pt-2">
+            <HourglassIcon className="w-3.5 h-3.5 flex-shrink-0 text-zinc-400" />
+            <p className="text-xs font-medium text-zinc-400">Waiting on</p>
+            <span className="text-xs tabular-nums text-zinc-300 dark:text-zinc-600">{vWaiting.length}</span>
+          </div>
+          {vWaiting.map(task => (
+            pickable(task, <TaskItem
+              key={task.id}
+              task={task}
+              carryover
+              checkable
+              highlight={task.id === revealId}
+              onFilterTag={setActiveTag}
+              activeTag={activeTag}
+              onToggle={toggleTask}
+              onDelete={deleteTask}
+              onDoToday={doToday}
+              onSchedule={scheduleTask}
+              onTomorrow={moveToTomorrow}
+              onSetDue={setDueDate}
+              onEdit={editTask}
+              onEditNote={editNote}
+              onSetEstimate={setEstimate}
+              onSetPriority={setPriority}
+              onSetSubtasks={setSubtasks}
+              onSetSomeday={setSomeday}
+              onDuplicate={duplicateTask}
+            />)
+          ))}
+        </div>
+      )}
+
       {upcomingDays.map(group => (
         <div key={group.date} className="space-y-2.5">
           <p className="text-xs font-medium text-zinc-400 px-1 pt-2">{formatDayLabel(group.date)}</p>
@@ -3541,6 +3628,7 @@ export default function Planner() {
               onSetPriority={setPriority}
               onSetSubtasks={setSubtasks}
               onSetSomeday={setSomeday}
+              onSetWaiting={setWaiting}
               onDuplicate={duplicateTask}
             />)
           ))}

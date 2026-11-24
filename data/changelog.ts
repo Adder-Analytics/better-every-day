@@ -1270,6 +1270,14 @@ export const changelog: ChangelogEntry[] = [
       'When a timed task today is running late, the day’s “More” menu (and the command menu) offers “Shift … later”. It moves the earliest late task to start now, rounded up to the next 5 minutes, and moves every unfinished timed task after it by the same amount, so the gaps between them stay the same. Routines keep their usual time, a block you are inside right now is left where it is, and a task that would move past midnight stays put. Undo from the toast or with Ctrl+Z.',
     type: 'feature',
   },
+  {
+    day: 159,
+    date: '2026-11-24',
+    title: 'Keep track of what you’re waiting on',
+    description:
+      'A task that depends on someone else can be moved to a new “Waiting on” section on Today, from “Waiting on someone” in its schedule menu, or by starting a line with “Waiting on” or “Waiting for” in the add box (“Waiting on Sam for the contract” is saved as “Sam for the contract”). Waiting tasks stay out of today’s list and counts. Each row shows how long it has waited, in amber after a week, and the oldest are listed first. Check one off when it arrives and it joins today’s finished tasks, or tap “Do today” to bring it back. Search, Tags, Week and Recently deleted label these tasks “Waiting”. Stored data is now version 21, which adds an optional waiting date; existing data loads unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

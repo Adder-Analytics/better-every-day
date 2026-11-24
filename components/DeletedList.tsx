@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { type Task, restoreTasks, todayStr, formatDayLabel, formatPastDayLabel } from '@/lib/planner'
+import { type Task, isWaiting, restoreTasks, todayStr, formatDayLabel, formatPastDayLabel } from '@/lib/planner'
 import { type TrashItem, loadTrash, saveTrash, TRASH_DAYS } from '@/lib/trash'
 import { stripTags } from '@/lib/tags'
 
@@ -21,6 +21,7 @@ function Icon({ d, className }: { d: string; className?: string }) {
 // Where the task sat before it was deleted, so a restore holds no surprises.
 function whereItWas(t: Task, today: string): string {
   if (t.repeat) return 'Routine'
+  if (isWaiting(t)) return 'Waiting'
   if (t.someday) return 'Someday'
   if (t.done) return t.completedDate ? `Finished ${formatPastDayLabel(t.completedDate).replace(/^(Today|Yesterday)$/, s => s.toLowerCase())}` : 'Finished'
   if (t.createdDate === today) return 'Today'
