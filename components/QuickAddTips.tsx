@@ -63,10 +63,12 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: 'Group and flag',
+    title: 'Group, flag, and count',
     tips: [
       { example: '#work', does: 'a tag to group by' },
       { example: 'end with !', does: 'marks it important' },
+      { example: 'x8', does: 'done after 8 check-offs' },
+      { example: '8 times a day', does: 'the same, every day' },
     ],
   },
   {

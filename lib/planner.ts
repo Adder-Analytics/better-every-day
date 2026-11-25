@@ -111,6 +111,15 @@ export type Task = {
   // with `someday` (see isWaiting), so a stale value left on a task that has
   // since been given a day means nothing. Cleared when the task comes back.
   waitingSince?: string
+  // A counted task: done after this many check-offs in a day — "Drink water
+  // x8", "Pushups 3 times". Integer 2–99. Each tap of the circle counts one;
+  // the last one checks it off as usual. Absent on an ordinary task.
+  countTarget?: number
+  // Taps counted so far toward countTarget, below the target (reaching it
+  // completes the task instead). A one-off keeps its count until it's done; a
+  // routine's count belongs to `countDate` only, so it starts fresh each day.
+  count?: number
+  countDate?: string
 }
 
 // v1: original. v2: added task notes. v3: added repeating tasks (routines).
@@ -135,10 +144,11 @@ export type Task = {
 // v20: added the 'after' repeat rule (N days after it was last done), which
 // stores its gap in `repeatEvery`.
 // v21: added an optional `waitingSince` (a Someday task waiting on someone).
+// v22: added an optional `countTarget`, `count` and `countDate` (counted tasks).
 // Each version only adds optional fields (or a new repeat value old data never
 // used), so older stored data is already valid under the current shape —
-// loadPlanner reads v1–v21 alike.
-export const PLANNER_VERSION = 21
+// loadPlanner reads v1–v22 alike.
+export const PLANNER_VERSION = 22
 
 export type PlannerData = {
   version: typeof PLANNER_VERSION
@@ -325,7 +335,11 @@ function isTask(value: unknown): value is Task {
     (t.dueDate === undefined || typeof t.dueDate === 'string') &&
     (t.pausedSince === undefined || typeof t.pausedSince === 'string') &&
     (t.repeatUntil === undefined || typeof t.repeatUntil === 'string') &&
-    (t.waitingSince === undefined || typeof t.waitingSince === 'string')
+    (t.waitingSince === undefined || typeof t.waitingSince === 'string') &&
+    (t.countTarget === undefined ||
+      (typeof t.countTarget === 'number' && Number.isInteger(t.countTarget) && t.countTarget >= 2 && t.countTarget <= 99)) &&
+    (t.count === undefined || (typeof t.count === 'number' && Number.isInteger(t.count) && t.count >= 0)) &&
+    (t.countDate === undefined || typeof t.countDate === 'string')
   )
 }
 
@@ -822,6 +836,14 @@ export function readWaiting(text: string): string | null {
 }
 
 export function toggledToday(t: Task, today: string, now: number): Task {
+  // A counted task checked off is full; un-checked, it steps back one count,
+  // the way undoing the last tap would.
+  if (t.countTarget) {
+    const wasDone = t.repeat ? (t.completions ?? []).includes(today) : t.done
+    t = wasDone
+      ? { ...t, count: t.countTarget - 1, countDate: today }
+      : { ...t, count: undefined, countDate: undefined }
+  }
   if (t.repeat) {
     const done = (t.completions ?? []).includes(today)
     const completions = done
@@ -833,6 +855,37 @@ export function toggledToday(t: Task, today: string, now: number): Task {
     return { ...t, completions, completionTimes: Object.keys(times).length ? times : undefined }
   }
   return { ...t, done: !t.done, completedDate: t.done ? undefined : today, completedAt: t.done ? undefined : now }
+}
+
+// How many of a counted task's check-offs are done on `date`: the full target
+// once it's completed that day, otherwise the taps counted so far. A routine's
+// count only holds for the day it was made; a one-off's carries over with it.
+export function countProgress(t: Task, date: string): number {
+  if (!t.countTarget) return 0
+  const done = t.repeat ? (t.completions ?? []).includes(date) : t.done
+  if (done) return t.countTarget
+  if (!t.count || (t.repeat && t.countDate !== date)) return 0
+  return Math.min(t.count, t.countTarget - 1)
+}
+
+// A tap on a task's circle: a counted task not yet done counts one more, and
+// the tap that reaches its target checks it off. Every other tap toggles, the
+// same as toggledToday.
+export function tappedToday(t: Task, today: string, now: number): Task {
+  if (!t.countTarget) return toggledToday(t, today, now)
+  const done = t.repeat ? (t.completions ?? []).includes(today) : t.done
+  if (done) return toggledToday(t, today, now)
+  const next = countProgress(t, today) + 1
+  if (next >= t.countTarget) return toggledToday(t, today, now)
+  return { ...t, count: next, countDate: today }
+}
+
+// Take one count back from a counted task that isn't done yet (a stray tap).
+export function countedBack(t: Task, today: string): Task {
+  const n = countProgress(t, today)
+  const done = t.repeat ? (t.completions ?? []).includes(today) : t.done
+  if (!t.countTarget || done || n <= 0) return t
+  return n === 1 ? { ...t, count: undefined, countDate: undefined } : { ...t, count: n - 1, countDate: today }
 }
 
 // The local time of day (minutes since midnight) a task was completed on a given
@@ -1087,9 +1140,9 @@ export function loadPlanner(): PlannerData {
     // (every-N-days routines), v13 (task deadlines), v14 (yearly routines),
     // v15 (paused routines), v16 (routine end dates), v17 (completion times)
     // v18 (times-a-week routines), v19 (monthly-by-weekday routines), v20
-    // (after-done routines) and v21 (waiting tasks) only add optional fields (or a repeat value old data never used), so every
+    // (after-done routines), v21 (waiting tasks) and v22 (counted tasks) only add optional fields (or a repeat value old data never used), so every
     // version's tasks load cleanly into the current shape.
-    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
+    if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(data.version as number) || !Array.isArray(data.tasks)) return empty
     const cutoff = daysAgoStr(COMPLETED_RETENTION_DAYS)
     const tasks = data.tasks
       .filter(isTask)
@@ -1402,6 +1455,7 @@ export type QuickAdd = {
   dueDate?: string // a deadline (YYYY-MM-DD) read from a "due …" phrase
   priority?: boolean // starred important, read from a trailing "!" flag
   someday?: boolean // parked in the Someday list, read from a trailing "someday"
+  countTarget?: number // a counted task, read from "x8", "8x" or "8 times" (2–99)
   schedule?: QuickAddSchedule // what was recognized, for the live preview
 }
 
@@ -2139,6 +2193,21 @@ function parseTrailingRelativeTime(text: string, now: number): { text: string; t
 // stays its own task.
 const TRAILING_PRIORITY_RE = /\s+!+$/
 
+// A trailing count — "x8", "8x", "×3", "8 times" — makes a counted task, done
+// after that many check-offs ("Drink water x8"). "a day" / "per day" after it
+// also makes the task repeat daily ("Drink water 8 times a day"). A leading \s
+// keeps a bare "x8" a literal title; "3 times a week" is read as a routine
+// first, so it never lands here.
+const TRAILING_COUNT_RE = /\s+(?:[x×]\s?(\d{1,2})|(\d{1,2})\s?(?:[x×]|times))(\s+(?:a|per|each)\s+day)?\.?\s*$/i
+function parseTrailingCount(text: string): { text: string; count: number; daily: boolean } | null {
+  const m = text.match(TRAILING_COUNT_RE)
+  if (!m) return null
+  const count = Number(m[1] ?? m[2])
+  const stripped = text.slice(0, m.index).trim()
+  if (!stripped || count < 2 || count > 99) return null
+  return { text: stripped, count, daily: !!m[3] }
+}
+
 // A trailing "someday" (or "some day" / "one day") parks the task in the Someday
 // list — captured without committing it to a day. It's the words people already
 // reach for ("Learn guitar someday", "Read that book one day"), so quick-add
@@ -2185,6 +2254,7 @@ export function parseQuickAdd(input: string): QuickAdd {
   let estimateMin: number | undefined
   let priority: boolean | undefined
   let someday: boolean | undefined
+  let countTarget: number | undefined
   // A part of the day ("tonight", "every morning"), and whether the clock time
   // was typed without AM or PM — read together after the loop, so "at 10
   // tonight" and "tonight at 10" both land at 10 PM.
@@ -2311,6 +2381,20 @@ export function parseQuickAdd(input: string): QuickAdd {
         text = text.replace(hit.re, '').trim()
         repeat = hit.rule
         repeatLabel = hit.label
+        continue
+      }
+    }
+    // A count ("x8", "8 times") is read after the routines, so "3 times a
+    // week" stays a routine.
+    if (countTarget === undefined) {
+      const counted = parseTrailingCount(text)
+      if (counted) {
+        text = counted.text
+        countTarget = counted.count
+        if (counted.daily && repeat === undefined) {
+          repeat = 'daily'
+          repeatLabel = 'Every day'
+        }
         continue
       }
     }
@@ -2446,7 +2530,7 @@ export function parseQuickAdd(input: string): QuickAdd {
         ? { kind: 'someday', label: 'Someday' }
         : undefined
 
-  return { text, date, repeat, repeatEvery, repeatDays, repeatWeekday, repeatNth, estimateMin, timeMin, dueDate, priority, someday: isSomeday, schedule }
+  return { text, date, repeat, repeatEvery, repeatDays, repeatWeekday, repeatNth, estimateMin, timeMin, dueDate, priority, someday: isSomeday, countTarget, schedule }
 }
 
 // What an edited title changed beyond its words: the schedule phrases the add
@@ -2458,7 +2542,7 @@ export type TitleEdit = {
   applied: QuickAdd | null // the recognized phrases that were applied, or null if none
 }
 
-const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'repeatWeekday', 'repeatNth', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday'] as const
+const EDIT_FIELDS = ['date', 'repeat', 'repeatEvery', 'repeatDays', 'repeatWeekday', 'repeatNth', 'estimateMin', 'timeMin', 'dueDate', 'priority', 'someday', 'countTarget'] as const
 
 // Read an edited task title the way the add box reads a new one. A phrase is
 // applied only when it says something the old title didn't — so fixing a typo
@@ -2481,6 +2565,7 @@ export function readTitleEdit(task: Task, input: string): TitleEdit {
     estimateMin: after.estimateMin,
     dueDate: after.dueDate,
     priority: after.priority || undefined,
+    countTarget: after.countTarget,
   }
   if (after.repeat) {
     Object.assign(applied, { date: after.date, repeat: after.repeat, repeatEvery: after.repeatEvery, repeatDays: after.repeatDays, repeatWeekday: after.repeatWeekday, repeatNth: after.repeatNth, schedule: after.schedule })
@@ -2501,6 +2586,7 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
   if (a.estimateMin) next.estimateMin = a.estimateMin
   if (a.dueDate) next.dueDate = a.dueDate
   if (a.priority) next.priority = true
+  if (a.countTarget) next.countTarget = a.countTarget
   if (a.repeat) {
     if (!task.repeat) {
       next.createdDate = routineStart(a, todayStr())
@@ -2530,6 +2616,11 @@ export function applyTitleEdit(task: Task, edit: TitleEdit): Task {
   return next
 }
 
+// "8 times", for the add preview and an edit's confirmation.
+export function formatCountTarget(n: number): string {
+  return `${n} times`
+}
+
 // A short, plain description of an applied edit: "Tomorrow · 3 – 4 PM · due Fri".
 export function describeTitleEdit(a: QuickAdd, hour12 = true): string {
   const parts: string[] = []
@@ -2539,6 +2630,7 @@ export function describeTitleEdit(a: QuickAdd, hour12 = true): string {
   else if (a.estimateMin) parts.push(formatDuration(a.estimateMin))
   if (a.dueDate) parts.push(formatDue(a.dueDate)?.label ?? `due ${formatDayLabel(a.dueDate)}`)
   if (a.priority) parts.push('starred')
+  if (a.countTarget) parts.push(formatCountTarget(a.countTarget))
   return parts.join(' · ')
 }
 
