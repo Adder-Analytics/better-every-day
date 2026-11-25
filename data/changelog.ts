@@ -1278,6 +1278,14 @@ export const changelog: ChangelogEntry[] = [
       'A task that depends on someone else can be moved to a new “Waiting on” section on Today, from “Waiting on someone” in its schedule menu, or by starting a line with “Waiting on” or “Waiting for” in the add box (“Waiting on Sam for the contract” is saved as “Sam for the contract”). Waiting tasks stay out of today’s list and counts. Each row shows how long it has waited, in amber after a week, and the oldest are listed first. Check one off when it arrives and it joins today’s finished tasks, or tap “Do today” to bring it back. Search, Tags, Week and Recently deleted label these tasks “Waiting”. Stored data is now version 21, which adds an optional waiting date; existing data loads unchanged.',
     type: 'feature',
   },
+  {
+    day: 160,
+    date: '2026-11-25',
+    title: 'Tasks you do a few times',
+    description:
+      'Ending a task with “x8”, “8x” or “8 times” makes it a counted task (2 to 99). Its circle becomes a ring: each tap counts one and fills the ring, the count shows inside it and as “3/8” on the row, and the last tap checks it off. Adding “a day” (“Drink water 8 times a day”) also makes it repeat daily; a routine’s count starts over each day, while a one-off keeps its count until it’s done. Un-checking a finished counted task steps it back by one. Tap the “3/8” to take one back or stop counting. Checking a counted task off from the Week view, a reminder or a bulk selection finishes it in one step. Stored data is now version 22, which adds optional count fields; existing data loads unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {

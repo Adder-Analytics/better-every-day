@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Task, RepeatRule, Subtask } from '@/lib/planner'
-import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, formatAfterDone, afterDoneGap, afterDoneStatus, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, todayStr, isWaiting, formatWaiting, WEEKDAY_ABBR } from '@/lib/planner'
+import { addDaysStr, currentMin, readTitleEdit, describeTitleEdit, formatDayLabel, formatDue, formatDueFull, formatDuration, formatRepeatDays, formatRepeatUntil, formatRepeatUntilFull, formatInterval, formatTimesPerWeek, formatAfterDone, afterDoneGap, afterDoneStatus, perWeekTarget, weekCompletions, streakUnitOf, formatTime, formatTimeRange, monthlyDayLabel, monthlyLabel, formatMonthlyNth, nthOfMonth, weekdayOf, snoozeOptions, yearlyDateLabel, routineStreak, subtaskProgress, countProgress, todayStr, isWaiting, formatWaiting, WEEKDAY_ABBR } from '@/lib/planner'
 import { useHour12 } from '@/lib/timeformat'
 import { useWeekStart, weekdayOrder } from '@/lib/weekstart'
 import { formatFocus } from '@/lib/focuslog'
@@ -215,6 +215,15 @@ function DuplicateIcon({ className }: { className?: string }) {
 // Plain up/down arrows — the "move task" actions in the touch menu, giving a
 // keyboard-free, hover-free way to reorder (what drag and Shift+J/K do for a
 // mouse and keyboard).
+// Tally marks, for a counted task's progress ("3/8").
+function TallyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 5.5v13M12 5.5v13M16.5 5.5v13M4.5 15.5l15-7" />
+    </svg>
+  )
+}
+
 function ArrowUpIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -308,6 +317,8 @@ type Props = {
   onSetWaiting?: (id: string) => void
   // Copy this task into a fresh one placed right below it, carrying its details.
   onDuplicate?: (id: string) => void
+  // A counted task: take back one count (a stray tap), or stop counting.
+  onCount?: (id: string, action: 'back' | 'clear') => void
   // Enter focus mode with this task leading, instead of the queue's top — so you
   // can concentrate on the one you choose. Given only for tasks in the focus
   // queue (today's still-to-do and carryovers); absent means no focus action.
@@ -380,6 +391,7 @@ export default function TaskItem({
   onSetSomeday,
   onSetWaiting,
   onDuplicate,
+  onCount,
   onFocus,
   onSkip,
   onMove,
@@ -413,7 +425,7 @@ export default function TaskItem({
   // an empty list ready to type into; it collapses again if left empty.
   const [addingStep, setAddingStep] = useState(false)
   // Only one popover per task is open at a time, so a single value tracks them.
-  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'snooze' | 'estimate' | 'actions'>(null)
+  const [menu, setMenu] = useState<null | 'repeat' | 'schedule' | 'snooze' | 'estimate' | 'actions' | 'count'>(null)
   // A brief, satisfying acknowledgment the moment a task is checked off: the
   // tick strokes in and the circle pops. Played only on the false→true toggle
   // the user just made — not on every render, and not when an already-finished
@@ -457,6 +469,11 @@ export default function TaskItem({
   const canSomeday = !!onSetSomeday
   const canWait = !!onSetWaiting && !task.repeat && !task.done && !isWaiting(task)
   const canDuplicate = !!onDuplicate
+  // A counted task's progress today; the circle fills as a ring tap by tap.
+  const countTarget = task.countTarget ?? 0
+  const counted = countTarget > 0 ? (task.done ? countTarget : countProgress(task, todayStr())) : 0
+  const canCountBack = !!onCount && countTarget > 0 && !task.done && counted > 0
+  const canCountClear = !!onCount && countTarget > 0 && !task.done
   // Focusing a specific task only makes sense while it's still open.
   const canFocus = !!onFocus && !task.done
   // A rest day only makes sense on a routine that's still open today.
@@ -771,7 +788,7 @@ export default function TaskItem({
     }
   }
 
-  const hasDetails = !!(waiting || upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || tags.length > 0)
+  const hasDetails = !!(waiting || upNextLabel || nowLabel || overdueLabel || conflictLabel || due || streak >= 2 || task.repeat || task.estimateMin || focusedSec >= 60 || hasSubtasks || countTarget > 0 || tags.length > 0)
   // Opens the schedule menu (where the time lives) when editable.
   const timeChip = (where: string) =>
     task.timeMin != null && !editing && (
@@ -886,15 +903,46 @@ export default function TaskItem({
         ) : (
           <button
             onClick={() => onToggle(task.id)}
-            aria-label={task.done ? 'Mark incomplete' : 'Mark complete'}
-            className={`checkbox-btn w-8 h-8 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+            aria-label={
+              task.done
+                ? 'Mark incomplete'
+                : countTarget > 0
+                  ? `Count one, ${counted} of ${countTarget} done`
+                  : 'Mark complete'
+            }
+            className={`checkbox-btn group/check relative w-8 h-8 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
               justCompleted ? 'just-done' : ''
             } ${
               task.done
                 ? 'bg-emerald-500 hover:bg-emerald-600 border-transparent text-white'
-                : 'border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 bg-transparent'
+                : countTarget > 0
+                  ? 'border-transparent bg-transparent'
+                  : 'border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 bg-transparent'
             }`}
           >
+            {/* A counted task's circle is a ring that fills one step per tap,
+                with the count so far inside it. */}
+            {!task.done && countTarget > 0 && (
+              <>
+                <svg className="pointer-events-none absolute -inset-0.5 h-8 w-8 -rotate-90" viewBox="0 0 32 32" aria-hidden="true">
+                  <circle cx="16" cy="16" r="15" fill="none" strokeWidth="2" className="stroke-zinc-300 transition-colors group-hover/check:stroke-zinc-400 dark:stroke-zinc-600 dark:group-hover/check:stroke-zinc-500" />
+                  <circle
+                    cx="16"
+                    cy="16"
+                    r="15"
+                    fill="none"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    pathLength={countTarget}
+                    strokeDasharray={`${counted} ${countTarget}`}
+                    className="stroke-emerald-500 transition-[stroke-dasharray] duration-300 ease-out"
+                  />
+                </svg>
+                {counted > 0 && (
+                  <span className="text-[11px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{counted}</span>
+                )}
+              </>
+            )}
             {task.done && (
               <svg className={`w-4 h-4 ${justCompleted ? 'check-draw' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -1140,6 +1188,34 @@ export default function TaskItem({
                 </span>
               )}
 
+              {/* A counted task's tally — turns emerald once it's complete. While
+                  it's open, tapping it offers to take one back or stop counting. */}
+              {countTarget > 0 && (() => {
+                const cls = `inline-flex items-center gap-1 text-[10px] font-medium tabular-nums ${
+                  counted >= countTarget ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-400 dark:text-zinc-500'
+                } ${task.done ? 'opacity-60' : ''}`
+                const body = (
+                  <>
+                    <TallyIcon className="w-3 h-3" />
+                    {counted}/{countTarget}
+                  </>
+                )
+                return canCountClear ? (
+                  <button
+                    type="button"
+                    onClick={() => setMenu(m => (m === 'count' ? null : 'count'))}
+                    aria-haspopup="menu"
+                    aria-expanded={menu === 'count'}
+                    aria-label={`${counted} of ${countTarget} times. Count options`}
+                    className={`${cls} -mx-1 rounded px-1 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300`}
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <span title={`${counted} of ${countTarget} times`} className={cls}>{body}</span>
+                )
+              })()}
+
               {/* Steps progress — turns emerald once every step is checked. */}
               {hasSubtasks && (
                 <span
@@ -1317,7 +1393,7 @@ export default function TaskItem({
             {/* Touch screens have no hover, and a narrow row has no room for
                 the cluster, so the actions above live behind one
                 always-visible menu button there instead. */}
-            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canFocus || canSkip) && (
+            {!task.done && !editingNote && (onEdit || canNote || canSchedule || canRepeat || canEstimate || canPrioritize || canSubtask || canDuplicate || canFocus || canSkip || canCountClear) && (
               <button
                 onClick={() => setMenu(m => (m === 'actions' ? null : 'actions'))}
                 aria-label="Task actions"
@@ -1384,6 +1460,37 @@ export default function TaskItem({
         />
       )}
 
+      {menu === 'count' && canCountClear && (
+        <div
+          role="menu"
+          aria-label="Count options"
+          className="absolute left-14 top-14 z-30 w-44 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1 shadow-lg shadow-zinc-900/5 dark:shadow-black/30"
+        >
+          {canCountBack && (
+            <button
+              role="menuitem"
+              onClick={() => { onCount!(task.id, 'back'); if (counted <= 1) setMenu(null) }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+              </svg>
+              Take back one
+            </button>
+          )}
+          <button
+            role="menuitem"
+            onClick={() => { setMenu(null); onCount!(task.id, 'clear') }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+            Stop counting
+          </button>
+        </div>
+      )}
+
       {menu === 'actions' && (
         <div
           role="menu"
@@ -1404,6 +1511,8 @@ export default function TaskItem({
               canSnooze && { label: 'Snooze', icon: <SnoozeIcon className="w-3.5 h-3.5" />, run: () => setMenu('snooze') },
               canRepeat && { label: task.repeat ? 'Change repeat' : 'Repeat', icon: <RepeatIcon className="w-3.5 h-3.5" />, run: () => setMenu('repeat') },
               canEstimate && { label: task.estimateMin ? 'Change estimate' : 'Estimate time', icon: <ClockIcon className="w-3.5 h-3.5" />, run: () => setMenu('estimate') },
+              canCountBack && { label: 'Take back one', icon: <TallyIcon className="w-3.5 h-3.5" />, run: () => onCount!(task.id, 'back') },
+              canCountClear && { label: 'Stop counting', icon: <TallyIcon className="w-3.5 h-3.5" />, run: () => onCount!(task.id, 'clear') },
               canDuplicate && { label: 'Duplicate', icon: <DuplicateIcon className="w-3.5 h-3.5" />, run: () => onDuplicate!(task.id) },
               canSkip && { label: 'Skip today', icon: <MoonIcon className="w-3.5 h-3.5" />, run: () => onSkip!(task.id) },
               // Reorder within the task's manual group. keepOpen leaves the menu

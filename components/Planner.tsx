@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, catchUpShift, projectFinish, currentMin, toggledToday, isWaiting, readWaiting, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
+import { type Task, type RepeatRule, type Subtask, loadPlanner, savePlanner, newTask, parseQuickAdd, todayStr, tomorrowStr, formatDate, formatDayLabel, formatDue, formatPastDayLabel, formatRepeatDays, formatInterval, formatTimesPerWeek, formatAfterDone, monthlyLabel, formatDuration, formatTime, formatTimeRange, formatStartsIn, formatOverdue, formatTimeLeft, formatPlanText, formatStandupText, readTitleEdit, applyTitleEdit, routineStart, describeTitleEdit, timeBlockConflicts, catchUpShift, projectFinish, currentMin, toggledToday, tappedToday, countedBack, formatCountTarget, isWaiting, readWaiting, greeting, isDueOn, isCompletedOn, isSkippedOn, activityStreak, mergeTasks, serializeExport, exportFilename, PLANNER_VERSION } from '@/lib/planner'
 import { useHour12, isHour12, timeFormatStore } from '@/lib/timeformat'
 import { useWeekStart, weekStartStore } from '@/lib/weekstart'
 import { type FocusLog, loadFocusLog, addFocusSeconds, focusSeconds, daySeconds, formatFocus } from '@/lib/focuslog'
@@ -1109,7 +1109,13 @@ export default function Planner() {
   // plain today task that named no time of its own. A line that carries its own
   // time, date, or recurrence is honored as typed, so the preset never overrides
   // what the words already say.
+  // A count typed on the line ("x8", "8 times") rides on whatever task it builds.
   const buildTask = (line: string, preset?: number): Task => {
+    const t = buildTaskBase(line, preset)
+    const countTarget = parseQuickAdd(line).countTarget
+    return countTarget ? { ...t, countTarget } : t
+  }
+  const buildTaskBase = (line: string, preset?: number): Task => {
     const parsed = parseQuickAdd(line)
     const { date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
     // A routine starts today, or on the weekday it names ("every other Friday").
@@ -1190,6 +1196,11 @@ export default function Planner() {
   // its own thing, added the same way whatever the day's slice happens to be, so
   // "Add to today" always means today. A short toast confirms the batch.
   const buildListTask = (line: string): Task => {
+    const t = buildListTaskBase(line)
+    const countTarget = parseQuickAdd(line).countTarget
+    return countTarget ? { ...t, countTarget } : t
+  }
+  const buildListTaskBase = (line: string): Task => {
     const parsed = parseQuickAdd(line)
     const { text, date, repeat, repeatEvery, repeatDays, estimateMin, timeMin, dueDate, priority, someday: saidSomeday } = parsed
     if (repeat) return { ...newTask(text, routineStart(parsed, todayStr())), repeat, repeatEvery, repeatDays, repeatNth: parsed.repeatNth, estimateMin, timeMin, dueDate, priority }
@@ -1211,10 +1222,24 @@ export default function Planner() {
     setTasks(prev =>
       prev.map(t => {
         if (t.id !== id) return t
-        const next = toggledToday(t, today, now)
+        // A counted task counts one per tap and is checked off on the last.
+        const next = tappedToday(t, today, now)
         // Checking off a waiting task closes it out: it leaves the Waiting
         // section and joins today's finished tasks.
         return isWaiting(t) && next.done ? { ...next, someday: undefined, waitingSince: undefined } : next
+      })
+    )
+  }
+
+  // A counted task's row menu: take back one stray tap, or stop counting and
+  // leave it an ordinary task.
+  const countTask = (id: string, action: 'back' | 'clear') => {
+    const today = todayStr()
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== id) return t
+        if (action === 'back') return countedBack(t, today)
+        return { ...t, countTarget: undefined, count: undefined, countDate: undefined }
       })
     )
   }
@@ -1350,6 +1375,8 @@ export default function Planner() {
         completedAt: undefined,
         completions: src.repeat ? [] : undefined,
         completionTimes: undefined,
+        count: undefined,
+        countDate: undefined,
         subtasks: src.subtasks?.map((s, i) => ({ ...s, id: `s${stamp}${i}`, done: false })),
       }
       const next = [...prev]
@@ -2974,6 +3001,7 @@ export default function Planner() {
                   onFilterTag={setActiveTag}
                   activeTag={activeTag}
                   onToggle={toggleTask}
+                  onCount={countTask}
                   onDelete={deleteTask}
                   onDoToday={doToday}
                   onSchedule={scheduleTask}
@@ -3073,6 +3101,7 @@ export default function Planner() {
               focusedSec={focusSeconds(focusLog, task.id)}
               conflictLabel={conflictLabel(task.id)}
               onToggle={toggleTask}
+              onCount={countTask}
               onDelete={deleteTask}
               onEdit={editTask}
               onEditNote={editNote}
@@ -3164,6 +3193,7 @@ export default function Planner() {
                 onFilterTag={setActiveTag}
                 activeTag={activeTag}
                 onToggle={toggleTask}
+                onCount={countTask}
                 onDelete={deleteTask}
                 onEdit={editTask}
                 onEditNote={editNote}
@@ -3457,13 +3487,17 @@ export default function Planner() {
       {/* Quick-add preview: when the text names a schedule, show what will be
           created — the cleaned title and its day/recurrence — so the stripped
           phrase is never a surprise. */}
-      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || parsed.dueDate || parsed.priority || previewTags.length > 0) && parsed.text && (
+      {addLineCount < 2 && (parsed.schedule || parsed.estimateMin || parsed.timeMin != null || parsed.dueDate || parsed.priority || parsed.countTarget || previewTags.length > 0) && parsed.text && (
         <div
           aria-live="polite"
           className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-zinc-400"
         >
           {parsed.schedule ? (
             <ScheduleIcon kind={parsed.schedule.kind} className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : parsed.countTarget && !parsed.estimateMin && parsed.timeMin == null ? (
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 5.5v13M12 5.5v13M16.5 5.5v13M4.5 15.5l15-7" />
+            </svg>
           ) : previewTags.length > 0 && !parsed.estimateMin && parsed.timeMin == null ? (
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5" />
@@ -3510,6 +3544,11 @@ export default function Planner() {
                 <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
               </svg>
               Important
+            </span>
+          )}
+          {parsed.countTarget && (
+            <span className="flex-shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-medium tabular-nums text-zinc-500 dark:text-zinc-400">
+              {formatCountTarget(parsed.countTarget)}
             </span>
           )}
           {previewTags.map(tag => (
@@ -3589,6 +3628,7 @@ export default function Planner() {
               onFilterTag={setActiveTag}
               activeTag={activeTag}
               onToggle={toggleTask}
+              onCount={countTask}
               onDelete={deleteTask}
               onDoToday={doToday}
               onSchedule={scheduleTask}
@@ -3617,6 +3657,7 @@ export default function Planner() {
               onFilterTag={setActiveTag}
               activeTag={activeTag}
               onToggle={toggleTask}
+              onCount={countTask}
               onDelete={deleteTask}
               onEdit={editTask}
               onEditNote={editNote}
@@ -3656,6 +3697,7 @@ export default function Planner() {
               onFilterTag={setActiveTag}
               activeTag={activeTag}
               onToggle={toggleTask}
+              onCount={countTask}
               onDelete={deleteTask}
               onDoToday={doToday}
               onSchedule={scheduleTask}
