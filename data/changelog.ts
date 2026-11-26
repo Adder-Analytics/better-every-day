@@ -1286,6 +1286,14 @@ export const changelog: ChangelogEntry[] = [
       'Ending a task with “x8”, “8x” or “8 times” makes it a counted task (2 to 99). Its circle becomes a ring: each tap counts one and fills the ring, the count shows inside it and as “3/8” on the row, and the last tap checks it off. Adding “a day” (“Drink water 8 times a day”) also makes it repeat daily; a routine’s count starts over each day, while a one-off keeps its count until it’s done. Un-checking a finished counted task steps it back by one. Tap the “3/8” to take one back or stop counting. Checking a counted task off from the Week view, a reminder or a bulk selection finishes it in one step. Stored data is now version 22, which adds optional count fields; existing data loads unchanged.',
     type: 'feature',
   },
+  {
+    day: 161,
+    date: '2026-11-26',
+    title: 'Sort out carried-over tasks',
+    description:
+      'When two or more tasks are carried over from past days, a “Sort out” link appears next to “Bring all to today”, and the command menu has “Sort out carried-over tasks”. It shows each task on its own, with the day it was planned for and how long ago that was, and five choices: Today, Tomorrow, Someday, Already done or Delete. “Leave for now” skips one, and Back undoes the last choice. Keys: T, M, S, D and X choose, the right arrow skips, the left arrow goes back, Esc closes. At the end it lists what was moved, finished and deleted. Deleted tasks go to Recently deleted as usual. Stored data is unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
