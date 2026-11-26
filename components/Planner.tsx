@@ -40,6 +40,7 @@ import { useLists } from '@/lib/lists'
 import { readPastedLines } from '@/lib/paste'
 import SelectableRow from '@/components/SelectableRow'
 import SelectionBar from '@/components/SelectionBar'
+import CarryoverSort, { type SortAction } from '@/components/CarryoverSort'
 
 const emptySubscribe = () => () => {}
 
@@ -242,6 +243,15 @@ function FlameIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+// Heroicons queue-list, for sorting out carried-over tasks one at a time.
+function SortOutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+    </svg>
+  )
+}
+
 function DownToTodayIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -813,6 +823,9 @@ export default function Planner() {
   // at the bottom applies one action to every picked task at once. `picked`
   // holds ids; only the ones still on screen are acted on (see pickedTasks).
   const [selecting, setSelecting] = useState(false)
+  // The carried-over tasks being sorted out one at a time (ids, in the order
+  // shown), or null when that dialog is closed.
+  const [sortIds, setSortIds] = useState<string[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(() => new Set())
   // The last bulk action, held for the undo window: each affected task as it
   // was (and where it sat, so a deleted one goes back in place), plus a plain
@@ -1569,6 +1582,35 @@ export default function Planner() {
     void requestPersistentStorage()
   }
 
+  // One decision from the sort-out dialog, applied right away. Done reads as
+  // finished today, the way checking a carried-over row off does; delete drops
+  // the task (the save keeps it in Recently deleted, like a bulk delete).
+  const applySort = (id: string, action: SortAction) => {
+    const today = todayStr()
+    const now = currentMin()
+    setTasks(prev => {
+      if (action === 'delete') return prev.filter(t => t.id !== id)
+      return prev.map(t => {
+        if (t.id !== id) return t
+        if (action === 'today') return { ...t, createdDate: today, someday: undefined }
+        if (action === 'tomorrow') return { ...t, createdDate: tomorrowStr(), someday: undefined }
+        if (action === 'someday') return { ...t, someday: true, waitingSince: undefined, createdDate: today }
+        return t.done ? t : toggledToday(t, today, now)
+      })
+    })
+  }
+
+  // The dialog's Back: put a task back exactly as it was before its decision,
+  // in its old place if it had been deleted.
+  const restoreSorted = (before: Task, index: number) => {
+    setTasks(prev => {
+      if (prev.some(t => t.id === before.id)) return prev.map(t => (t.id === before.id ? before : t))
+      const next = [...prev]
+      next.splice(Math.min(Math.max(index, 0), next.length), 0, before)
+      return next
+    })
+  }
+
   // Pull every unfinished task carried over from a past day into today at once —
   // the bulk form of each row's "Do today", for mornings with a full backlog.
   const bringCarryoversToToday = () => {
@@ -1880,6 +1922,9 @@ export default function Planner() {
   ]
   // Routines never carry over or queue for tomorrow — they reappear on schedule.
   const carryovers = tasks.filter(t => !t.repeat && !t.someday && t.createdDate < today && !t.done).sort(byPriorityTime)
+  // Sorting out goes through them in the order they're listed: newest day first,
+  // and within a day as the rows stand.
+  const openSort = () => setSortIds([...carryovers].sort((a, b) => b.createdDate.localeCompare(a.createdDate)).map(t => t.id))
   const vCarryovers = carryovers.filter(matchesTag)
   // The free stretch from now until the next timed task, and the untimed tasks
   // (today's and carried-over, within any tag filter) whose estimate fits in
@@ -2346,6 +2391,13 @@ export default function Planner() {
           keywords: 'carryover yesterday move backlog do today',
           icon: <DownToTodayIcon className="h-4 w-4" />,
           run: bringCarryoversToToday,
+        }, {
+          id: 'sort-carryovers',
+          label: `Sort out ${carryovers.length} carried-over ${carryovers.length === 1 ? 'task' : 'tasks'}`,
+          hint: 'one at a time',
+          keywords: 'carryover yesterday triage review backlog decide clean up overdue leftover',
+          icon: <SortOutIcon className="h-4 w-4" />,
+          run: () => openSort(),
         }]
       : []),
     ...(catchUp
@@ -2467,6 +2519,9 @@ export default function Planner() {
     <Confetti active={showConfetti} />
     <CommandPalette commands={commands} tasks={taskResults} />
     <ShortcutsHelp />
+    {sortIds && (
+      <CarryoverSort ids={sortIds} tasks={tasks} onApply={applySort} onRestore={restoreSorted} onClose={() => setSortIds(null)} />
+    )}
     <QuickLists onApply={applyList} todayTexts={todayActive.map(t => t.text)} />
 
     {/* Selection mode's action bar, and the toast that follows a bulk action
@@ -2979,15 +3034,26 @@ export default function Planner() {
               <div className="flex items-center justify-between gap-2 px-1 pt-2">
                 <p className="text-xs font-medium text-zinc-400">{formatPastDayLabel(group.date)}</p>
                 {i === 0 && !activeTag && carryovers.length >= 2 && (
-                  <button
-                    type="button"
-                    onClick={bringCarryoversToToday}
-                    title="Move every carried-over task into today"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
-                  >
-                    <DownToTodayIcon className="h-3.5 w-3.5" />
-                    Bring all to today
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openSort()}
+                      title="Decide on each carried-over task, one at a time"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                    >
+                      <SortOutIcon className="h-3.5 w-3.5" />
+                      Sort out
+                    </button>
+                    <button
+                      type="button"
+                      onClick={bringCarryoversToToday}
+                      title="Move every carried-over task into today"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                    >
+                      <DownToTodayIcon className="h-3.5 w-3.5" />
+                      Bring all to today
+                    </button>
+                  </div>
                 )}
               </div>
               {group.items.map(task => (
