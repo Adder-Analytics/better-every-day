@@ -27,8 +27,7 @@ function mmss(totalSec: number): string {
 
 // A ring that empties as the block runs down. SVG so the arc animates smoothly
 // and stays crisp at any size; the countdown sits in the middle.
-function Ring({ fraction, children, done }: { fraction: number; children: React.ReactNode; done: boolean }) {
-  const size = 176
+function Ring({ fraction, children, done, size = 176 }: { fraction: number; children: React.ReactNode; done: boolean; size?: number }) {
   const stroke = 6
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
@@ -71,10 +70,14 @@ export default function FocusTimer({
   estimateMin,
   focusedSec = 0,
   onElapsed,
+  compact = false,
 }: {
   estimateMin?: number
   focusedSec?: number
   onElapsed?: (deltaSec: number) => void
+  // A smaller layout for the floating window. A prop, not a key, so switching
+  // it never resets a running block.
+  compact?: boolean
 }) {
   // The block length in minutes, seeded from the task's estimate (clamped to a
   // sane range) or the default.
@@ -177,9 +180,9 @@ export default function FocusTimer({
   )
 
   return (
-    <div className="mt-8 flex flex-col items-center gap-5 border-t border-zinc-100 dark:border-zinc-800 pt-8">
-      <Ring fraction={done ? 1 : fraction} done={done}>
-        <span className="text-3xl font-semibold tabular-nums text-zinc-900 dark:text-white">{mmss(remaining)}</span>
+    <div className={`flex flex-col items-center border-t border-zinc-100 dark:border-zinc-800 ${compact ? 'mt-4 gap-3 pt-4' : 'mt-8 gap-5 pt-8'}`}>
+      <Ring fraction={done ? 1 : fraction} done={done} size={compact ? 128 : 176}>
+        <span className={`${compact ? 'text-2xl' : 'text-3xl'} font-semibold tabular-nums text-zinc-900 dark:text-white`}>{mmss(remaining)}</span>
         <span className="mt-1 text-[11px] font-medium uppercase tracking-wide text-zinc-400">
           {done ? 'Time’s up' : running ? 'Focusing' : idle ? 'Focus block' : 'Paused'}
         </span>

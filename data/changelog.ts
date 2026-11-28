@@ -1294,6 +1294,14 @@ export const changelog: ChangelogEntry[] = [
       'When two or more tasks are carried over from past days, a “Sort out” link appears next to “Bring all to today”, and the command menu has “Sort out carried-over tasks”. It shows each task on its own, with the day it was planned for and how long ago that was, and five choices: Today, Tomorrow, Someday, Already done or Delete. “Leave for now” skips one, and Back undoes the last choice. Keys: T, M, S, D and X choose, the right arrow skips, the left arrow goes back, Esc closes. At the end it lists what was moved, finished and deleted. Deleted tasks go to Recently deleted as usual. Stored data is unchanged.',
     type: 'feature',
   },
+  {
+    day: 162,
+    date: '2026-11-28',
+    title: 'Keep your focus task on top',
+    description:
+      'In Focus mode, a “Pop out” button opens the focus card in a small window that stays on top of other apps. It shows the task, its check circle, its steps and the focus timer, and a running timer keeps going when it moves. Checking the task off there moves on to the next one. The page shows which task is floating and a “Bring it back” button; closing the small window or leaving Focus mode also brings it back. The button only appears in browsers that support it (Chrome and Edge on desktop). Stored data is unchanged.',
+    type: 'feature',
+  },
 ]
 
 if (process.env.NODE_ENV !== 'production') {
