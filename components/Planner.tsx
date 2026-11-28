@@ -29,6 +29,7 @@ import NoteText from '@/components/NoteText'
 import CommandPalette, { type Command, type TaskResult, openCommandPalette } from '@/components/CommandPalette'
 import ShortcutsHelp, { openShortcutsHelp } from '@/components/ShortcutsHelp'
 import FocusTimer from '@/components/FocusTimer'
+import { useFloatingWindow, MovablePortal } from '@/components/FloatingWindow'
 import DayTimeline from '@/components/DayTimeline'
 import ComingDue, { type DueItem } from '@/components/ComingDue'
 import TagBar from '@/components/TagBar'
@@ -574,6 +575,15 @@ function useReminders(timedTasks: ReminderTask[], actions: ReminderActions): Rem
 // place (adding, renaming, and removing still live in the main list) — laid out
 // as a calm, centered block that suits the single-task view. It reads and writes
 // the same subtasks as the task row, so completion stays in sync between them.
+// Heroicons "arrow-top-right-on-square" — open the focus card in its own window.
+function PopOutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+    </svg>
+  )
+}
+
 function FocusSteps({ subtasks, onChange }: { subtasks: Subtask[]; onChange: (next: Subtask[]) => void }) {
   const done = subtasks.filter(s => s.done).length
   return (
@@ -2084,6 +2094,13 @@ export default function Planner() {
   // Only truly "in focus" when there's something to focus on; this guarantees
   // exactly one of the two views below renders, with no auto-exit effect.
   const inFocus = focusMode && !!focusTask
+  // Focus mode's optional floating window. Leaving focus — Exit, Esc, or the
+  // last task checked off — closes it too.
+  const floating = useFloatingWindow()
+  const closeFloating = floating.close
+  useEffect(() => {
+    if (!inFocus) closeFloating()
+  }, [inFocus, closeFloating])
 
   // --- Selection mode ------------------------------------------------------
   // Everything currently drawn as a row can be picked: today's tasks (finished
@@ -2932,7 +2949,39 @@ export default function Planner() {
       {/* Focus mode — one task, front and center, the rest tucked away */}
       {inFocus && (
         <div className="space-y-3 pt-1">
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-6 py-12 text-center">
+          {/* While the focus card floats in its own window, the page keeps a
+              short note in its place and a way to bring it back. */}
+          {floating.win && (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 px-6 py-10 text-center">
+              <PopOutIcon className="h-5 w-5 text-zinc-400" />
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                <span className="font-medium text-zinc-900 dark:text-white">{stripTags(focusTask.text)}</span> is open in a floating window.
+              </p>
+              <button
+                type="button"
+                onClick={floating.close}
+                className="rounded-full border border-zinc-200 dark:border-zinc-700 px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Bring it back
+              </button>
+            </div>
+          )}
+          <MovablePortal target={floating.win}>
+          <div className="space-y-3">
+          <div className={`relative rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-center ${floating.win ? 'px-4 py-6' : 'px-6 py-12'}`}>
+            {/* Float this card above other apps, so the task and its timer stay
+                in view while you work elsewhere. Only where the browser can. */}
+            {floating.supported && !floating.win && (
+              <button
+                type="button"
+                onClick={floating.open}
+                title="Keep this task on top of other windows"
+                className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white transition-colors"
+              >
+                <PopOutIcon className="h-3.5 w-3.5" />
+                Pop out
+              </button>
+            )}
             <button
               onClick={() => {
                 toggleTask(focusTask.id)
@@ -2941,7 +2990,7 @@ export default function Planner() {
                 if (focusQueue.length === 1) setFocusMode(false)
               }}
               aria-label="Mark complete"
-              className="group mx-auto mb-6 w-14 h-14 rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center justify-center transition-colors"
+              className={`group mx-auto flex items-center justify-center rounded-full border-2 border-zinc-300 dark:border-zinc-600 hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors ${floating.win ? 'mb-4 h-11 w-11' : 'mb-6 h-14 w-14'}`}
             >
               <svg className="w-6 h-6 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -2979,6 +3028,7 @@ export default function Planner() {
               estimateMin={focusTask.estimateMin}
               focusedSec={focusSeconds(focusLog, focusTask.id)}
               onElapsed={delta => logFocus(focusTask.id, delta)}
+              compact={!!floating.win}
             />
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-zinc-400">
@@ -2992,8 +3042,12 @@ export default function Planner() {
             >
               Exit focus
             </button>
-            <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">Esc</kbd>
+            {!floating.win && (
+              <kbd className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-mono text-[10px] border border-zinc-200 dark:border-zinc-700">Esc</kbd>
+            )}
           </div>
+          </div>
+          </MovablePortal>
         </div>
       )}
 
